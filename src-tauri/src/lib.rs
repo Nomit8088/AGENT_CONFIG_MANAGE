@@ -15,22 +15,22 @@ use storage::*;
 use agent_detector::*;
 
 #[tauri::command]
-pub fn get_config() -> AppConfig {
+fn get_config() -> AppConfig {
     load_config()
 }
 
 #[tauri::command]
-pub fn update_config(config: AppConfig) -> Result<(), String> {
+fn update_config(config: AppConfig) -> Result<(), String> {
     save_config(&config)
 }
 
 #[tauri::command]
-pub fn get_agents() -> Vec<AgentInfo> {
+fn get_agents() -> Vec<AgentInfo> {
     load_agents()
 }
 
 #[tauri::command]
-pub fn scan_agents() -> Vec<AgentInfo> {
+fn scan_agents() -> Vec<AgentInfo> {
     let mut agents = load_agents();
     for a in agents.iter_mut() {
         detect_agent(a);
@@ -40,17 +40,17 @@ pub fn scan_agents() -> Vec<AgentInfo> {
 }
 
 #[tauri::command]
-pub fn save_agents_list(agents: Vec<AgentInfo>) -> Result<(), String> {
+fn save_agents_list(agents: Vec<AgentInfo>) -> Result<(), String> {
     save_agents(&agents)
 }
 
 #[tauri::command]
-pub fn validate_agent_path(skills_dir: String, rule_filename: String) -> ValidationResult {
+fn validate_agent_path(skills_dir: String, rule_filename: String) -> ValidationResult {
     validate_custom_agent(&skills_dir, &rule_filename)
 }
 
 #[tauri::command]
-pub fn get_central_skills() -> Result<Vec<SkillItem>, String> {
+fn get_central_skills() -> Result<Vec<SkillItem>, String> {
     let central_dir = get_central_skills_dir();
     let mut skills = Vec::new();
     let agents = load_agents();
@@ -109,7 +109,7 @@ pub fn get_central_skills() -> Result<Vec<SkillItem>, String> {
 }
 
 #[tauri::command]
-pub fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
+fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
     let agents = load_agents();
     let central_dir = get_central_skills_dir();
     let config = load_config();
@@ -179,7 +179,7 @@ pub fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
 }
 
 #[tauri::command]
-pub fn save_skill(skill_name: String, content: String) -> Result<(), String> {
+fn save_skill(skill_name: String, content: String) -> Result<(), String> {
     let central_dir = get_central_skills_dir();
     let skill_folder = central_dir.join(&skill_name);
     fs::create_dir_all(&skill_folder).map_err(|e| e.to_string())?;
@@ -204,7 +204,7 @@ pub fn save_skill(skill_name: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn delete_skill(skill_name: String) -> Result<(), String> {
+fn delete_skill(skill_name: String) -> Result<(), String> {
     let central_dir = get_central_skills_dir();
     let skill_folder = central_dir.join(&skill_name);
 
@@ -224,7 +224,7 @@ pub fn delete_skill(skill_name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool) -> Result<(), String> {
+fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool) -> Result<(), String> {
     let agents = load_agents();
     let agent = agents.into_iter().find(|a| a.id == agent_id)
         .ok_or_else(|| format!("未找到 Agent: {}", agent_id))?;
@@ -252,7 +252,7 @@ pub fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool
 }
 
 #[tauri::command]
-pub fn takeover_unmanaged_skill(
+fn takeover_unmanaged_skill(
     agent_id: String,
     skill_name: String,
     resolution: String, // "overwrite", "rename", "skip"
@@ -295,7 +295,7 @@ pub fn takeover_unmanaged_skill(
 }
 
 #[tauri::command]
-pub fn ignore_skill(
+fn ignore_skill(
     agent_id: String,
     agent_name: String,
     skill_name: String,
@@ -321,7 +321,7 @@ pub fn ignore_skill(
 }
 
 #[tauri::command]
-pub fn unignore_skill(agent_id: String, skill_name: String) -> Result<(), String> {
+fn unignore_skill(agent_id: String, skill_name: String) -> Result<(), String> {
     let mut cfg = load_config();
     let mut list = cfg.ignored_skills.unwrap_or_default();
     list.retain(|i| !(i.agent_id == agent_id && i.skill_name == skill_name));
@@ -330,7 +330,7 @@ pub fn unignore_skill(agent_id: String, skill_name: String) -> Result<(), String
 }
 
 #[tauri::command]
-pub fn get_projects() -> Result<Vec<ProjectInfo>, String> {
+fn get_projects() -> Result<Vec<ProjectInfo>, String> {
     let mut projs = load_projects();
     for p in projs.iter_mut() {
         let st = check_git_status(Path::new(&p.path));
@@ -342,7 +342,7 @@ pub fn get_projects() -> Result<Vec<ProjectInfo>, String> {
 }
 
 #[tauri::command]
-pub fn add_project(path: String, name: String) -> Result<ProjectInfo, String> {
+fn add_project(path: String, name: String) -> Result<ProjectInfo, String> {
     let p_path = PathBuf::from(&path);
     if !p_path.exists() {
         return Err("指定项目路径不存在".to_string());
@@ -385,7 +385,7 @@ pub fn add_project(path: String, name: String) -> Result<ProjectInfo, String> {
 }
 
 #[tauri::command]
-pub fn update_project_rule(
+fn update_project_rule(
     project_id: String,
     rule_mode: String,
     custom_content: String,
@@ -409,7 +409,7 @@ pub fn update_project_rule(
 }
 
 #[tauri::command]
-pub fn delete_project(project_id: String) -> Result<(), String> {
+fn delete_project(project_id: String) -> Result<(), String> {
     let mut projs = load_projects();
     if let Some(p) = projs.iter().find(|p| p.id == project_id) {
         // Rollback rules
