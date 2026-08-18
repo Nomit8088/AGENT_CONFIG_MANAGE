@@ -23,6 +23,8 @@ pub struct AppConfig {
     pub toast_notifications: bool,
     #[serde(default, rename = "ignored_skills")]
     pub ignored_skills: Option<Vec<IgnoredSkill>>,
+    #[serde(default, rename = "system_theme")]
+    pub system_theme: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -34,6 +36,7 @@ impl Default for AppConfig {
             auto_capture_skills: true,
             toast_notifications: true,
             ignored_skills: Some(Vec::new()),
+            system_theme: Some("light".to_string()),
         }
     }
 }

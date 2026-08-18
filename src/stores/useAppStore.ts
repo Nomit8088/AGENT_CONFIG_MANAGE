@@ -172,7 +172,11 @@ export const useAppStore = defineStore('app', {
       } else if (currentTheme === 'light') {
         isDark = false;
       } else if (currentTheme === 'system') {
-        if (typeof window !== 'undefined' && window.matchMedia) {
+        // Priority 1: Check true OS system_theme returned from Windows registry
+        if (this.config.system_theme) {
+          isDark = this.config.system_theme === 'dark';
+        } else if (typeof window !== 'undefined' && window.matchMedia) {
+          // Priority 2: Fallback to matchMedia
           isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         } else {
           isDark = false;

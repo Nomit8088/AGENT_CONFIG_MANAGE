@@ -20,6 +20,7 @@ import {
   uninstallGitHooks,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
+  detectSystemTheme,
 } from './src/server/localApi';
 
 function localApiPlugin(): Plugin {
@@ -49,6 +50,7 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/config' && req.method === 'GET') {
               const configFile = path.join(getAppDataDir(), 'config.json');
               const cfg = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf-8')) : {};
+              cfg.system_theme = detectSystemTheme();
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(cfg));
             }
