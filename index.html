@@ -15,17 +15,18 @@
           } else if (cachedTheme === 'light') {
             isDark = false;
           } else {
-            // Default to system preference
-            isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            // For system or uninitialized, default to light mode
+            isDark = false;
           }
+          const root = document.documentElement;
           if (isDark) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.classList.remove('light');
-            document.documentElement.style.colorScheme = 'dark';
+            root.classList.add('dark');
+            root.classList.remove('light');
+            root.style.colorScheme = 'dark';
           } else {
-            document.documentElement.classList.add('light');
-            document.documentElement.classList.remove('dark');
-            document.documentElement.style.colorScheme = 'light';
+            root.classList.remove('dark');
+            root.classList.add('light');
+            root.style.colorScheme = 'light';
           }
         } catch (e) {}
       })();
