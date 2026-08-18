@@ -85,7 +85,8 @@ const store = useAppStore();
 const themeTitle = computed(() => {
   if (store.config.theme === 'dark') return '当前: 深色模式 (点击切换浅色)';
   if (store.config.theme === 'light') return '当前: 浅色模式 (点击切换跟随系统)';
-  return '当前: 跟随系统 (点击切换深色)';
+  const sys = store.config.system_theme === 'dark' ? '深色' : '浅色';
+  return `当前: 跟随系统 (系统检测为: ${sys}模式，点击切换深色)`;
 });
 
 async function cycleTheme() {
