@@ -1,6 +1,6 @@
 use std::fs;
-use std::path::{Path, PathBuf};
-use crate::models::{AgentInfo, AppConfig, ProjectInfo, SkillItem, SkillMetadata};
+use std::path::PathBuf;
+use crate::models::{AgentInfo, AppConfig, ProjectInfo, SkillMetadata};
 use regex::Regex;
 
 pub fn get_app_data_dir() -> PathBuf {
@@ -120,7 +120,7 @@ pub fn parse_skill_md(content: &str, folder_name: &str) -> (String, String, Opti
     let frontmatter_re = Regex::new(r"(?s)^---\r?\n(.*?)\r?\n---\r?\n?(.*)$").unwrap();
     if let Some(caps) = frontmatter_re.captures(content) {
         let yaml_str = caps.get(1).map_or("", |m| m.as_str());
-        let body = caps.get(2).map_or("", |m| m.as_str()).to_string();
+        let _body = caps.get(2).map_or("", |m| m.as_str()).to_string();
 
         if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
             let name = val.get("name")
