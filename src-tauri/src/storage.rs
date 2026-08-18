@@ -58,12 +58,33 @@ pub fn save_config(cfg: &AppConfig) -> Result<(), String> {
 
 pub fn load_agents() -> Vec<AgentInfo> {
     let file = get_app_data_dir().join("agents.json");
+    let defaults = crate::agent_detector::get_default_agents();
     if let Ok(content) = fs::read_to_string(&file) {
-        if let Ok(agents) = serde_json::from_str(&content) {
-            return agents;
+        if let Ok(saved) = serde_json::from_str::<Vec<AgentInfo>>(&content) {
+            let mut list = Vec::new();
+            for mut sa in saved {
+                if let Some(def_a) = defaults.iter().find(|d| d.id == sa.id) {
+                    if sa.is_custom != Some(true) {
+                        sa.name = def_a.name.clone();
+                        sa.icon = def_a.icon.clone();
+                        sa.skills_dir = def_a.skills_dir.clone();
+                        sa.local_rule_filename = def_a.local_rule_filename.clone();
+                    }
+                }
+                list.push(sa);
+            }
+            for def_a in &defaults {
+                if !list.iter().any(|a| a.id == def_a.id) {
+                    list.push(def_a.clone());
+                }
+            }
+            for a in list.iter_mut() {
+                crate::agent_detector::detect_agent(a);
+            }
+            return list;
         }
     }
-    let mut agents = crate::agent_detector::get_default_agents();
+    let mut agents = defaults;
     for a in agents.iter_mut() {
         crate::agent_detector::detect_agent(a);
     }

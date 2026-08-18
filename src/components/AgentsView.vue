@@ -10,7 +10,7 @@
           </span>
         </h2>
         <p class="text-xs text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
-          已自动适配 Claude Code、Google Antigravity、Codex/OpenCode、Cursor、Windsurf、ZCode、DSH 等 16 款主流 Agent。
+          已自动适配 Claude Code、Google Antigravity、Codex/OpenCode、Cursor、Windsurf、ZCode、DeepSeek HARNESS 等 16 款主流 Agent。
           开启 Agent 后，中央技能库将秒级无损挂载。未启用的 Agent 将在技能矩阵与规则中心全局隐藏。
         </p>
       </div>

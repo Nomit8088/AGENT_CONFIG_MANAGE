@@ -455,6 +455,12 @@ npm run tauri build
       - 创建规范的 `.gitignore` 过滤 `node_modules/`、`dist/`、`src-tauri/target/` 等构建与临时产物；
       - 成功关联 GitHub 远程仓库：`https://github.com/Nomit8088/AGENT_CONFIG_MANAGE.git`。
 
+- **2026-08-18 (Session 8)**:
+  - **真实系统主题与预设全自动同步增强**:
+    - **Windows 注册表直通系统主题探测**：在服务端与 Tauri 中增加 `detectSystemTheme()` 直查 Windows 注册表 `AppsUseLightTheme`，彻底解决浏览器在深色模式外观下广播错误 `prefers-color-scheme` 导致“跟随系统”被误判为深色的问题；
+    - **预设 Agent 动态元数据合并**：在 `vite.config.ts` 与 `storage.rs` 中重构 `getAgentsList` 与 `load_agents`，对已存在的本地 `agents.json` 自动同步最新的官方预设名称（如 `DeepSeek HARNESS` 与官方矢量 Whale 图标），同时保留用户的启用/禁用偏好状态；
+    - **DSH 官方命名全面对齐**：全面对齐展示为 **DeepSeek HARNESS**，并更新本地及远程配置。
+
 ---
 *文档更新时间：2026-08-18 | AgentHub Core Team*
 

@@ -71,12 +71,22 @@ function localApiPlugin(): Plugin {
                 try {
                   const saved = JSON.parse(fs.readFileSync(agentsFile, 'utf-8'));
                   if (Array.isArray(saved) && saved.length > 0) {
+                    const updated = saved.map((sa: any) => {
+                      const defA = DEFAULT_PRESET_AGENTS.find(d => d.id === sa.id);
+                      if (defA && !sa.isCustom) {
+                        return {
+                          ...defA,
+                          enabled: sa.enabled ?? defA.enabled,
+                        };
+                      }
+                      return sa;
+                    });
                     for (const defA of DEFAULT_PRESET_AGENTS) {
-                      if (!saved.some((sa: any) => sa.id === defA.id)) {
-                        saved.push(defA);
+                      if (!updated.some((ua: any) => ua.id === defA.id)) {
+                        updated.push(defA);
                       }
                     }
-                    agents = saved;
+                    agents = updated;
                   }
                 } catch {}
               }
