@@ -27,6 +27,7 @@ vite.config.ts.timestamp-*
 
 # Tauri build artifacts
 src-tauri/target/
+src-tauri/gen/
 
 # OS metadata
 Thumbs.db
