@@ -15,9 +15,6 @@ pub fn expand_tilde(path_str: &str) -> PathBuf {
 }
 
 pub fn is_junction_or_symlink(path: &Path) -> bool {
-    if !path.exists() {
-        return false;
-    }
     if let Ok(meta) = fs::symlink_metadata(path) {
         if meta.file_type().is_symlink() {
             return true;
@@ -35,13 +32,7 @@ pub fn is_junction_or_symlink(path: &Path) -> bool {
 }
 
 pub fn create_junction(link_path: &Path, target_path: &Path) -> Result<(), String> {
-    if link_path.exists() {
-        if is_junction_or_symlink(link_path) {
-            remove_junction(link_path)?;
-        } else {
-            return Err(format!("目标路径已存在真实文件或目录: {:?}", link_path));
-        }
-    }
+    let _ = remove_junction(link_path);
 
     if let Some(parent) = link_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("无法创建父目录 {:?}: {}", parent, e))?;
@@ -62,9 +53,12 @@ pub fn create_junction(link_path: &Path, target_path: &Path) -> Result<(), Strin
             .map_err(|e| format!("执行 mklink /J 失败: {}", e))?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            return Err(format!("创建软链失败: {} {}", stdout, stderr));
+            // Fallback to hardlink tree if mklink fails
+            if let Err(e) = create_hardlink_dir_all(target_path, link_path) {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                return Err(format!("创建软链失败: {} {} (硬链回退失败: {})", stdout, stderr, e));
+            }
         }
         Ok(())
     }
@@ -72,31 +66,34 @@ pub fn create_junction(link_path: &Path, target_path: &Path) -> Result<(), Strin
     #[cfg(not(windows))]
     {
         use std::os::unix::fs::symlink;
-        symlink(target_path, link_path).map_err(|e| format!("创建软链失败: {}", e))
+        if symlink(target_path, link_path).is_err() {
+            create_hardlink_dir_all(target_path, link_path).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 }
 
 pub fn remove_junction(link_path: &Path) -> Result<(), String> {
-    if !link_path.exists() && !link_path.is_symlink() {
-        return Ok(());
-    }
+    let meta = match fs::symlink_metadata(link_path) {
+        Ok(m) => m,
+        Err(_) => return Ok(()),
+    };
 
     #[cfg(windows)]
     {
-        if is_junction_or_symlink(link_path) {
-            // Junction directory in Windows can be safely removed with rmdir without deleting target files
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        if meta.file_type().is_symlink() || (meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0 {
             let output = Command::new("cmd")
                 .args(&["/c", "rmdir", &link_path.to_string_lossy()])
-                .output()
-                .map_err(|e| format!("删除软链失败: {}", e))?;
+                .output();
 
-            if !output.status.success() {
-                // fallback to std::fs::remove_dir
+            if output.is_err() || !output.as_ref().unwrap().status.success() {
                 let _ = fs::remove_dir(link_path);
             }
             return Ok(());
         }
-        if link_path.is_dir() {
+        if meta.is_dir() {
             fs::remove_dir_all(link_path).map_err(|e| format!("删除目录失败: {}", e))?;
         } else {
             fs::remove_file(link_path).map_err(|e| format!("删除文件失败: {}", e))?;
@@ -106,7 +103,7 @@ pub fn remove_junction(link_path: &Path) -> Result<(), String> {
 
     #[cfg(not(windows))]
     {
-        if link_path.is_dir() && !link_path.is_symlink() {
+        if meta.is_dir() && !meta.file_type().is_symlink() {
             fs::remove_dir_all(link_path).map_err(|e| format!("删除目录失败: {}", e))
         } else {
             fs::remove_file(link_path).map_err(|e| format!("删除软链失败: {}", e))

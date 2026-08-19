@@ -387,7 +387,7 @@ function localApiPlugin(): Plugin {
             // POST /api/projects/update
             if (pathname === '/api/projects/update' && req.method === 'POST') {
               const projectsFile = path.join(getAppDataDir(), 'projects.json');
-              const { projectId, ruleMode, customContent, enabled, linkedAgents } = jsonBody;
+              const { projectId, ruleMode, customContent, enabled, linkedAgents, preCommitGuard } = jsonBody;
               let projects: any[] = [];
               if (fs.existsSync(projectsFile)) {
                 try {
@@ -400,9 +400,31 @@ function localApiPlugin(): Plugin {
                 proj.customRuleContent = customContent;
                 proj.overrideEnabled = enabled;
                 proj.linkedAgents = linkedAgents;
+                if (preCommitGuard !== undefined) {
+                  proj.preCommitGuard = preCommitGuard;
+                }
                 fs.writeFileSync(projectsFile, JSON.stringify(projects, null, 2), 'utf-8');
 
                 // Apply physical rules & Git hooks to the project directory
+                const allAgents = getAgentsList();
+                applyProjectRules(proj, allAgents);
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/projects/repair-hooks
+            if (pathname === '/api/projects/repair-hooks' && req.method === 'POST') {
+              const projectsFile = path.join(getAppDataDir(), 'projects.json');
+              const { projectId } = jsonBody;
+              let projects: any[] = [];
+              if (fs.existsSync(projectsFile)) {
+                try {
+                  projects = JSON.parse(fs.readFileSync(projectsFile, 'utf-8'));
+                } catch {}
+              }
+              const proj = projects.find(p => p.id === projectId);
+              if (proj) {
                 const allAgents = getAgentsList();
                 applyProjectRules(proj, allAgents);
               }

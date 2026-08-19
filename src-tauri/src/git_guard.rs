@@ -84,7 +84,12 @@ pub fn add_to_git_exclude(project_path: &Path, filenames: &[&str]) -> Result<(),
     Ok(())
 }
 
-pub fn install_git_hooks(project_path: &Path, backup_dir: &Path, custom_rule_path: &Path) -> Result<(), String> {
+pub fn install_git_hooks(
+    project_path: &Path,
+    backup_dir: &Path,
+    custom_rule_path: &Path,
+    enable_pre_commit: bool,
+) -> Result<(), String> {
     let git_dir = project_path.join(".git");
     if !git_dir.exists() {
         return Ok(());
@@ -126,13 +131,35 @@ exit 0
         custom_rule_path.to_string_lossy().replace('\\', "/")
     );
 
+    let pre_commit_script = r#"#!/bin/sh
+# AgentHub Git Hook Guard: Pre-Commit Protection
+# Prevents accidentally committing the custom/overwritten AGENTS.md to team git repo
+ORIG=".git/info/AGENTS.orig"
+if [ -f "$ORIG" ]; then
+    if git diff --cached --name-only | grep -q "^AGENTS.md$"; then
+        printf "\033[1;33m[AgentHub 守卫提示]\033[0m 检测到您处于【覆盖模式】，已自动拦截对本地 AGENTS.md 的提交。\n"
+        printf "\033[1;33m[AgentHub 守卫提示]\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\n"
+        exit 1
+    fi
+fi
+exit 0
+"#;
+
     let pre_checkout_path = hooks_dir.join("pre-checkout");
     let post_checkout_path = hooks_dir.join("post-checkout");
+    let pre_commit_path = hooks_dir.join("pre-commit");
 
     fs::write(&pre_checkout_path, pre_checkout_script)
         .map_err(|e| format!("写入 pre-checkout hook 失败: {}", e))?;
     fs::write(&post_checkout_path, &post_checkout_script)
         .map_err(|e| format!("写入 post-checkout hook 失败: {}", e))?;
+
+    if enable_pre_commit {
+        fs::write(&pre_commit_path, pre_commit_script)
+            .map_err(|e| format!("写入 pre-commit hook 失败: {}", e))?;
+    } else if pre_commit_path.exists() {
+        let _ = fs::remove_file(pre_commit_path);
+    }
 
     Ok(())
 }
@@ -146,12 +173,16 @@ pub fn uninstall_git_hooks(project_path: &Path) -> Result<(), String> {
     let hooks_dir = git_dir.join("hooks");
     let pre_checkout = hooks_dir.join("pre-checkout");
     let post_checkout = hooks_dir.join("post-checkout");
+    let pre_commit = hooks_dir.join("pre-commit");
 
     if pre_checkout.exists() {
         let _ = fs::remove_file(pre_checkout);
     }
     if post_checkout.exists() {
         let _ = fs::remove_file(post_checkout);
+    }
+    if pre_commit.exists() {
+        let _ = fs::remove_file(pre_commit);
     }
 
     // Restore original AGENTS.md if orig exists
