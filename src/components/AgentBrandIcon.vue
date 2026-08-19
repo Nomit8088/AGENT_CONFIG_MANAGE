@@ -231,7 +231,7 @@
     </svg>
 
     <!-- Fallback Custom Agent -->
-    <Bot v-else :class="iconSizeClass" class="text-brand-400" />
+    <Bot v-else :class="iconSizeClass" class="text-white/80" />
   </div>
 </template>
 

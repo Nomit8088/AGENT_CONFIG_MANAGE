@@ -1,23 +1,23 @@
 <template>
   <div
     v-if="store.addAgentModal.visible"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm animate-fade"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
   >
-    <div class="glass-panel w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-dark-700 bg-white/98 dark:bg-dark-900/95 space-y-5">
+    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200">
       <!-- Modal Header -->
-      <div class="flex items-center justify-between border-b border-slate-100 dark:border-dark-800 pb-3">
+      <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center border border-brand-200/60 dark:border-transparent">
+          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
             <Plus class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100">添加自定义 Agent</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">配置新 Agent 的技能软链目录与私有规则映射</p>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">添加自定义 Agent</h3>
+            <p class="text-xs text-slate-500 dark:text-white/50">配置新 Agent 的技能软链目录与私有规则映射</p>
           </div>
         </div>
         <button
           @click="close"
-          class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-dark-800 transition"
+          class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80 transition-colors duration-200"
         >
           <X class="w-4 h-4" />
         </button>
@@ -26,31 +26,31 @@
       <!-- Form Inputs -->
       <div class="space-y-4 text-xs">
         <div>
-          <label class="block text-slate-700 dark:text-slate-300 font-medium mb-1">Agent 名称</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">Agent 名称</label>
           <input
             v-model="form.name"
             @input="autoGenerateId"
             type="text"
             placeholder="例如: Windsurf / Kimi / LocalBot"
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 shadow-sm"
+            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-slate-700 dark:text-slate-300 font-medium mb-1">唯一标识 (ID)</label>
+            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">唯一标识 (ID)</label>
             <input
               v-model="form.id"
               type="text"
               placeholder="例如: windsurf"
-              class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-700 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 shadow-sm"
+              class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
             />
           </div>
           <div>
-            <label class="block text-slate-700 dark:text-slate-300 font-medium mb-1">图标</label>
+            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">图标</label>
             <select
               v-model="form.icon"
-              class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 shadow-sm"
+              class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
             >
               <option value="bot">Bot (通用机器人)</option>
               <option value="sparkles">Sparkles (智能增强)</option>
@@ -62,37 +62,37 @@
         </div>
 
         <div>
-          <label class="block text-slate-700 dark:text-slate-300 font-medium mb-1">Skills 挂载目录 (支持 ~ 相对主目录)</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">Skills 挂载目录 (支持 ~ 相对主目录)</label>
           <input
             v-model="form.skillsDir"
             type="text"
             placeholder="例如: ~/.windsurf/skills 或 D:\tools\skills"
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-700 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 shadow-sm"
+            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
         </div>
 
         <div>
-          <label class="block text-slate-700 dark:text-slate-300 font-medium mb-1">私有本地规则文件名 (项目根目录下)</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">私有本地规则文件名 (项目根目录下)</label>
           <input
             v-model="form.localRuleFilename"
             type="text"
             placeholder="例如: WINDSURF.local.md 或 .agents/rules/local.md"
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-700 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 shadow-sm"
+            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
         </div>
 
         <!-- Path Verification Status Box -->
-        <div class="p-3 rounded-lg bg-slate-50 dark:bg-dark-950/70 border border-slate-200 dark:border-dark-800 flex items-center justify-between shadow-sm">
+        <div class="p-3 rounded-lg bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <ShieldCheck class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span class="text-slate-600 dark:text-slate-400 text-xs">
+            <ShieldCheck class="w-4 h-4 text-slate-700 dark:text-white/80" />
+            <span class="text-slate-600 dark:text-white/60 text-xs">
               {{ validationStatus.message || '系统将自动校验 NTFS Junction 软链权限' }}
             </span>
           </div>
           <button
             @click="verifyPath"
             type="button"
-            class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-slate-300 border border-slate-200 dark:border-dark-700 text-xs font-medium transition"
+            class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
           >
             即时校验
           </button>
@@ -100,17 +100,17 @@
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-800">
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-black/8 dark:border-white/8">
         <button
           @click="close"
-          class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-slate-300 text-xs font-medium border border-slate-200 dark:border-dark-700 transition"
+          class="px-4 py-2 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
         >
           取消
         </button>
         <button
           @click="handleSubmit"
           :disabled="!isValid"
-          class="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-semibold shadow-md shadow-brand-500/20 transition active:scale-95"
+          class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
         >
           确认注册
         </button>
@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue';
+import { reactive, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import { api } from '../services/api';
 import { AgentInfo } from '../types';
@@ -182,3 +182,4 @@ async function handleSubmit() {
   close();
 }
 </script>
+

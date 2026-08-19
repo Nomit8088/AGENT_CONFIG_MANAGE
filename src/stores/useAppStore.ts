@@ -287,7 +287,21 @@ export const useAppStore = defineStore('app', {
     },
 
     async toggleSkillForAgent(skillName: string, agentId: string, enable: boolean) {
-      await api.toggleSkillForAgent(skillName, agentId, enable);
+      const skill = this.skills.find(s => s.id === skillName);
+      if (skill) {
+        if (enable && !skill.mountedAgents.includes(agentId)) {
+          skill.mountedAgents.push(agentId);
+        } else if (!enable) {
+          skill.mountedAgents = skill.mountedAgents.filter(id => id !== agentId);
+        }
+        skill.enabled = skill.mountedAgents.length > 0;
+      }
+
+      try {
+        await api.toggleSkillForAgent(skillName, agentId, enable);
+      } catch (e) {
+        console.error('toggleSkillForAgent error:', e);
+      }
       await this.loadSkills();
       const action = enable ? '挂载 (Junction)' : '解绑';
       this.showToast({
@@ -299,11 +313,22 @@ export const useAppStore = defineStore('app', {
 
     async toggleGlobalSkill(skillName: string, enable: boolean) {
       const skill = this.skills.find(s => s.id === skillName);
-      if (!skill) return;
-
       const targetAgents = this.agents.filter(a => a.detected && a.enabled);
+      if (skill) {
+        if (enable) {
+          skill.mountedAgents = targetAgents.map(a => a.id);
+        } else {
+          skill.mountedAgents = [];
+        }
+        skill.enabled = enable;
+      }
+
       for (const a of targetAgents) {
-        await api.toggleSkillForAgent(skillName, a.id, enable);
+        try {
+          await api.toggleSkillForAgent(skillName, a.id, enable);
+        } catch (e) {
+          console.error(`Failed to toggle ${skillName} for ${a.id}:`, e);
+        }
       }
       await this.loadSkills();
       this.showToast({
@@ -488,9 +513,10 @@ export const useAppStore = defineStore('app', {
       ruleMode: 'overwrite' | 'append',
       customContent: string,
       enabled: boolean,
-      linkedAgents: string[]
+      linkedAgents: string[],
+      preCommitGuard?: boolean
     ) {
-      await api.updateProjectRule(projectId, ruleMode, customContent, enabled, linkedAgents);
+      await api.updateProjectRule(projectId, ruleMode, customContent, enabled, linkedAgents, preCommitGuard);
       await this.loadProjects();
       this.showToast({
         title: '规则与守卫已生效',
@@ -510,6 +536,24 @@ export const useAppStore = defineStore('app', {
         message: '已解除纳管并还原规则文件',
         type: 'info',
       });
+    },
+
+    async repairGitHooks(projectId: string) {
+      try {
+        await api.repairGitHooks(projectId);
+        await this.loadProjects();
+        this.showToast({
+          title: 'Git Hook 守卫就绪',
+          message: '已成功安装并修复 pre-checkout / post-checkout / pre-commit 守卫防护',
+          type: 'success',
+        });
+      } catch (err: any) {
+        this.showToast({
+          title: '修复失败',
+          message: err?.message || '安装 Git Hook 时发生异常',
+          type: 'error',
+        });
+      }
     },
 
     openDiffModal(params: {

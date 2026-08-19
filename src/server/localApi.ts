@@ -328,7 +328,6 @@ export function copyDirRecursive(src: string, dst: string) {
 
 export function isJunctionOrSymlink(p: string): boolean {
   try {
-    if (!fs.existsSync(p)) return false;
     const stat = fs.lstatSync(p);
     return stat.isSymbolicLink();
   } catch {
@@ -337,9 +336,7 @@ export function isJunctionOrSymlink(p: string): boolean {
 }
 
 export function createJunction(linkPath: string, targetPath: string): void {
-  if (fs.existsSync(linkPath)) {
-    removeJunction(linkPath);
-  }
+  removeSkillMount(linkPath);
   const parent = path.dirname(linkPath);
   fs.mkdirSync(parent, { recursive: true });
 
@@ -347,38 +344,24 @@ export function createJunction(linkPath: string, targetPath: string): void {
     try {
       fs.symlinkSync(targetPath, linkPath, 'junction');
     } catch (e) {
-      execSync(`cmd /c mklink /J "${linkPath}" "${targetPath}"`);
+      try {
+        execSync(`cmd /c mklink /J "${linkPath}" "${targetPath}"`);
+      } catch (err) {
+        // Fallback to hardlink tree or directory copy if junction creation is restricted
+        createHardlinkDirRecursive(targetPath, linkPath);
+      }
     }
   } else {
-    fs.symlinkSync(targetPath, linkPath, 'dir');
+    try {
+      fs.symlinkSync(targetPath, linkPath, 'dir');
+    } catch {
+      createHardlinkDirRecursive(targetPath, linkPath);
+    }
   }
 }
 
 export function removeJunction(linkPath: string): void {
-  if (!fs.existsSync(linkPath)) {
-    try {
-      const stat = fs.lstatSync(linkPath);
-      if (stat.isSymbolicLink()) {
-        fs.unlinkSync(linkPath);
-      }
-    } catch {}
-    return;
-  }
-
-  const stat = fs.lstatSync(linkPath);
-  if (stat.isSymbolicLink()) {
-    if (process.platform === 'win32') {
-      try {
-        fs.rmdirSync(linkPath);
-      } catch {
-        execSync(`cmd /c rmdir "${linkPath}"`);
-      }
-    } else {
-      fs.unlinkSync(linkPath);
-    }
-  } else {
-    fs.rmSync(linkPath, { recursive: true, force: true });
-  }
+  removeSkillMount(linkPath);
 }
 
 export function createHardlinkDirRecursive(src: string, dst: string): void {
@@ -396,7 +379,6 @@ export function createHardlinkDirRecursive(src: string, dst: string): void {
       try {
         fs.linkSync(srcPath, dstPath);
       } catch (e) {
-        // Fallback to copy if cross-device or hardlink unsupported
         fs.copyFileSync(srcPath, dstPath);
       }
     }
@@ -404,31 +386,30 @@ export function createHardlinkDirRecursive(src: string, dst: string): void {
 }
 
 export function removeSkillMount(linkOrDirPath: string): void {
-  if (!fs.existsSync(linkOrDirPath)) {
-    try {
-      const stat = fs.lstatSync(linkOrDirPath);
-      if (stat.isSymbolicLink()) fs.unlinkSync(linkOrDirPath);
-    } catch {}
-    return;
-  }
-  const stat = fs.lstatSync(linkOrDirPath);
-  if (stat.isSymbolicLink()) {
-    removeJunction(linkOrDirPath);
-  } else {
-    fs.rmSync(linkOrDirPath, { recursive: true, force: true });
-  }
+  try {
+    const stat = fs.lstatSync(linkOrDirPath);
+    if (stat.isSymbolicLink()) {
+      try {
+        fs.rmdirSync(linkOrDirPath);
+      } catch {
+        fs.unlinkSync(linkOrDirPath);
+      }
+    } else if (stat.isDirectory()) {
+      fs.rmSync(linkOrDirPath, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(linkOrDirPath);
+    }
+  } catch {}
 }
 
 export function mountSkillForAgent(agentId: string, targetPath: string, centralSkillPath: string): void {
   removeSkillMount(targetPath);
   if (agentId === 'antigravity') {
     // For Antigravity, use physical directory + NTFS Hardlink tree
-    // Antigravity's scanner requires a real directory (no ReparsePoint)
-    // while Hardlinked files share the same Inode with Central Repo (0 latency auto-sync)
     createHardlinkDirRecursive(centralSkillPath, targetPath);
   } else {
     // For Claude Code, Codex, ZCode, Cursor, DSH, Windsurf:
-    // Standard Windows NTFS Junction
+    // Standard Windows NTFS Junction with robust fallback
     createJunction(targetPath, centralSkillPath);
   }
 }
@@ -509,7 +490,7 @@ export function addToGitExclude(projectPath: string, filenames: string[]): void 
   }
 }
 
-export function installGitHooks(projectPath: string, backupDir: string, customRulePath: string): void {
+export function installGitHooks(projectPath: string, backupDir: string, customRulePath: string, enablePreCommit: boolean = true): void {
   const gitDir = path.join(projectPath, '.git');
   if (!fs.existsSync(gitDir)) return;
 
@@ -547,8 +528,30 @@ fi
 exit 0
 `;
 
+  const preCommitScript = `#!/bin/sh
+# AgentHub Git Hook Guard: Pre-Commit Protection
+# Prevents accidentally committing the custom/overwritten AGENTS.md to team git repo
+ORIG=".git/info/AGENTS.orig"
+if [ -f "$ORIG" ]; then
+    if git diff --cached --name-only | grep -q "^AGENTS.md$"; then
+        printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 检测到您处于【覆盖模式】，已自动拦截对本地 AGENTS.md 的提交。\\n"
+        printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\\n"
+        exit 1
+    fi
+fi
+exit 0
+`;
+
   fs.writeFileSync(path.join(hooksDir, 'pre-checkout'), preCheckoutScript, 'utf-8');
   fs.writeFileSync(path.join(hooksDir, 'post-checkout'), postCheckoutScript, 'utf-8');
+  if (enablePreCommit) {
+    fs.writeFileSync(path.join(hooksDir, 'pre-commit'), preCommitScript, 'utf-8');
+  } else {
+    const preCommit = path.join(hooksDir, 'pre-commit');
+    if (fs.existsSync(preCommit)) {
+      try { fs.unlinkSync(preCommit); } catch {}
+    }
+  }
 }
 
 export function uninstallGitHooks(projectPath: string): void {
@@ -558,12 +561,16 @@ export function uninstallGitHooks(projectPath: string): void {
   const hooksDir = path.join(gitDir, 'hooks');
   const preCheckout = path.join(hooksDir, 'pre-checkout');
   const postCheckout = path.join(hooksDir, 'post-checkout');
+  const preCommit = path.join(hooksDir, 'pre-commit');
 
   if (fs.existsSync(preCheckout)) {
     try { fs.unlinkSync(preCheckout); } catch {}
   }
   if (fs.existsSync(postCheckout)) {
     try { fs.unlinkSync(postCheckout); } catch {}
+  }
+  if (fs.existsSync(preCommit)) {
+    try { fs.unlinkSync(preCommit); } catch {}
   }
 
   const origBackup = path.join(gitDir, 'info', 'AGENTS.orig');
@@ -638,7 +645,8 @@ export function applyProjectRules(proj: any, allAgents: any[]): void {
     fs.writeFileSync(agentsMd, proj.customRuleContent || '', 'utf-8');
 
     if (proj.isGit) {
-      installGitHooks(pPath, backupDir, customFile);
+      const enablePreCommit = proj.preCommitGuard ?? true;
+      installGitHooks(pPath, backupDir, customFile, enablePreCommit);
     }
   } else {
     // Append mode: restore original AGENTS.md if it was modified

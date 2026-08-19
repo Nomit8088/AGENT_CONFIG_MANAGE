@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen w-screen flex flex-col bg-slate-50 dark:bg-dark-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans">
+  <div class="h-screen w-screen flex flex-col bg-[#f5f5f7] dark:bg-[#1c1c1e] text-slate-900 dark:text-white/90 overflow-hidden font-sans transition-colors duration-200">
     <!-- Top Header -->
     <Header />
 
@@ -7,7 +7,7 @@
     <Navigation />
 
     <!-- Main Dynamic Workspace -->
-    <main class="flex-1 overflow-hidden relative">
+    <main class="flex-1 overflow-hidden relative bg-[#f5f5f7] dark:bg-[#1c1c1e]">
       <transition name="fade" mode="out-in">
         <AgentsView v-if="store.currentTab === 'agents'" />
         <SkillsMatrix v-else-if="store.currentTab === 'skills' || store.currentTab === 'unmanaged'" />
@@ -46,3 +46,4 @@ onMounted(() => {
   store.init();
 });
 </script>
+

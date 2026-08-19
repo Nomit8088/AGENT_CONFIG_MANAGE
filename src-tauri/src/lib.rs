@@ -377,6 +377,7 @@ fn add_project(path: String, name: String) -> Result<ProjectInfo, String> {
         linked_agents: vec!["claude-code".to_string(), "antigravity".to_string(), "codex".to_string()],
         git_branch: git_st.branch,
         hook_installed: Some(git_st.hooks_active),
+        pre_commit_guard: Some(true),
     };
 
     projs.push(proj.clone());
@@ -391,6 +392,7 @@ fn update_project_rule(
     custom_content: String,
     enabled: bool,
     linked_agents: Vec<String>,
+    pre_commit_guard: Option<bool>,
 ) -> Result<(), String> {
     let mut projs = load_projects();
     let proj = projs.iter_mut().find(|p| p.id == project_id)
@@ -400,6 +402,9 @@ fn update_project_rule(
     proj.custom_rule_content = custom_content;
     proj.override_enabled = enabled;
     proj.linked_agents = linked_agents;
+    if let Some(pcg) = pre_commit_guard {
+        proj.pre_commit_guard = Some(pcg);
+    }
 
     let proj_clone = proj.clone();
     save_projects(&projs)?;
@@ -480,7 +485,8 @@ pub fn apply_project_rules(proj: &ProjectInfo) -> Result<(), String> {
         fs::write(&agents_md, &proj.custom_rule_content).map_err(|e| e.to_string())?;
 
         if proj.is_git {
-            install_git_hooks(p_path, &backup_dir, &custom_file)?;
+            let enable_pc = proj.pre_commit_guard.unwrap_or(true);
+            install_git_hooks(p_path, &backup_dir, &custom_file, enable_pc)?;
         }
     } else {
         // Append mode: restore original AGENTS.md if it was modified
@@ -495,6 +501,16 @@ pub fn apply_project_rules(proj: &ProjectInfo) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[tauri::command]
+fn repair_git_hooks(project_id: String) -> Result<bool, String> {
+    let projs = load_projects();
+    let proj = projs.into_iter().find(|p| p.id == project_id)
+        .ok_or_else(|| format!("未找到项目: {}", project_id))?;
+
+    apply_project_rules(&proj)?;
+    Ok(true)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -529,6 +545,7 @@ pub fn run() {
             add_project,
             update_project_rule,
             delete_project,
+            repair_git_hooks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

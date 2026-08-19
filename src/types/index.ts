@@ -22,6 +22,7 @@ export interface ProjectInfo {
   linkedAgents: string[];
   gitBranch?: string;
   hookInstalled?: boolean;
+  preCommitGuard?: boolean;
 }
 
 export interface SkillMetadata {
