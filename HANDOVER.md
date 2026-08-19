@@ -18,7 +18,22 @@
 
 ---
 
-## 2. 技术架构与选型
+## 2. 🎨 全局设计规范与 UI 开发准则 (核心强制)
+
+> 📖 **设计规范详见专门文档**：[**DESIGN_GUIDELINES.md**](file:///d:/dev/toolPrograms/agent_config_manager/DESIGN_GUIDELINES.md)
+
+* **设计风格**：**macOS 毛玻璃极简 (macOS Vibrancy / `macos-vibrancy`)**。
+* **开发红线与继承原则**：
+  1. **后续无论添加任何新功能、新页面、新弹窗或重构组件，都必须无条件参考 [DESIGN_GUIDELINES.md](file:///d:/dev/toolPrograms/agent_config_manager/DESIGN_GUIDELINES.md) 中的规范，严禁风格漂移！**
+  2. **双主题兼容**：所有组件必须同时支持浅色（`#f5f5f7` / `#ffffff` / `text-slate-900`）与深色（`#1c1c1e` / `#2c2c2e` / `text-white/95`），必须携带 `dark:` 前缀类名。
+  3. **排版规范**：标题统一采用 **Serif 衬线体 (`font-serif`)**，正文采用系统无衬线体，代码/路径/版本号采用 **等宽体 (`font-mono`)**。
+  4. **开关交互**：全站所有开关统一采用 **macOS 分段滑块 (Segmented Slider)**：`[ 选项 A | 选项 B ]`。
+  5. **边框与阴影**：统一使用 1px 发丝线细边框（`border-white/8` / `border-black/8`），严禁 2px/4px 粗边框，严禁夸张大阴影和大圆角（禁止 `rounded-3xl` / `rounded-full`，大卡片统一 `rounded-xl`）。
+  6. **动效禁令**：过渡统一使用 `transition-colors duration-200 ease-out`，悬停严禁几何位移、缩放与弹跳。
+
+---
+
+## 3. 技术架构与选型
 
 - **客户端架构**：**Tauri 2.0 (Rust 后端 + Vue 3 / TypeScript 前端)**
   - **Rust 后端**：封装 Windows NTFS Junction 底层操作、Git Hooks 守卫注入与还原、`notify` 内核级文件监听、`%APPDATA%\AgentHub` 数据存储。
@@ -29,7 +44,7 @@
 
 ---
 
-## 3. 数据模型与本地存储规范
+## 4. 数据模型与本地存储规范
 
 客户端独立保存在本地系统目录中，**不与任何外部 Git 仓库强绑定**：
 - **Windows 路径**：`%APPDATA%\AgentHub\`（即 `C:\Users\<username>\AppData\Roaming\AgentHub\`）
@@ -83,11 +98,10 @@
     "name": "Claude Code",
     "icon": "bot",
     "detected": true,
-    "enabled": true,                 // 启用状态 (未启用的 Agent 会在矩阵/规则中心全局隐藏)
-    "skillsDir": "~/.claude/skills",
+    "enabled": true,
+    "skillsDir": "C:\\Users\\nomit\\.claude\\skills",
     "ruleType": "local_file",
-    "localRuleFilename": "CLAUDE.local.md",
-    "isCustom": false
+    "localRuleFilename": "CLAUDE.local.md"
   },
   {
     "id": "antigravity",
@@ -95,10 +109,9 @@
     "icon": "sparkles",
     "detected": true,
     "enabled": true,
-    "skillsDir": "~/.gemini/config/skills",
-    "ruleType": "local_file",
-    "localRuleFilename": ".agents/rules/local-override.md",
-    "isCustom": false
+    "skillsDir": "C:\\Users\\nomit\\.gemini\\config\\skills",
+    "ruleType": "global_file",
+    "localRuleFilename": "GEMINI.local.md"
   },
   {
     "id": "codex",
@@ -179,7 +192,7 @@
 
 ---
 
-## 4. 四大核心系统设计与技术实现
+## 5. 四大核心系统设计与技术实现
 
 ```mermaid
 flowchart TD
@@ -242,7 +255,7 @@ flowchart TD
 
 ---
 
-## 5. 项目目录结构与模块索引
+## 6. 项目目录结构与模块索引
 
 ```text
 d:\dev\toolPrograms\agent_config_manager\
@@ -251,6 +264,7 @@ d:\dev\toolPrograms\agent_config_manager\
 ├── tsconfig.json                       # TypeScript 配置
 ├── tailwind.config.js                  # Tailwind CSS 现代暗色主题配置
 ├── index.html                          # 客户端 HTML 入口
+├── DESIGN_GUIDELINES.md                # 🎨 macOS Vibrancy 全局设计规范与自检清单
 ├── HANDOVER.md                         # 👈 本交接文档 (Single Source of Truth)
 │
 ├── builtin-skills/                     # 内置技能模板
@@ -307,9 +321,9 @@ d:\dev\toolPrograms\agent_config_manager\
 
 ---
 
-## 6. 开发、调试与构建指南
+## 7. 开发、调试与构建指南
 
-### 6.1 前端 / Web 开发模式（推荐日常快速调试）
+### 7.1 前端 / Web 开发模式（推荐日常快速调试）
 ```bash
 # 安装依赖
 npm install
@@ -319,13 +333,13 @@ npm run dev
 ```
 浏览器打开 `http://localhost:1420` 即可体验全功能交互。
 
-### 6.2 生产前端构建验证
+### 7.2 生产前端构建验证
 ```bash
 npm run build
 ```
 输出目录位于 `dist/`，打包时间约 6~7 秒，零错误零警告。
 
-### 6.3 Tauri 桌面端编译与运行（需安装 Rust/Cargo）
+### 7.3 Tauri 桌面端编译与运行（需安装 Rust/Cargo）
 ```bash
 # 启动 Tauri 桌面调试窗口
 npm run tauri dev
@@ -336,7 +350,7 @@ npm run tauri build
 
 ---
 
-## 7. 关键业务细节与踩坑排查备忘录
+## 8. 关键业务细节与踩坑排查备忘录
 
 1. **Claude Code 斜杠命令重复问题**：
    - Claude Code v2.1+ 会原生扫描 `~/.claude/skills/*/SKILL.md` 并自动识别为 `/command`。
@@ -354,7 +368,7 @@ npm run tauri build
 
 ---
 
-### 4. 16 大 Agent 原生规则与技能全景矩阵 (16 Agents Master Matrix)
+### 16 大 Agent 原生规则与技能全景矩阵 (16 Agents Master Matrix)
 
 | Agent ID | 官方名称 | 技能目录 (`skillsDir`) | 原生识别的规则文件 | 主动读根目录 `AGENTS.md`? | 推荐本地覆盖文件 (`localRuleFilename`) | 官方图标与品牌色 |
 |---|---|---|---|:---:|---|---|
@@ -377,7 +391,7 @@ npm run tauri build
 
 ---
 
-## 8. 后续演进建议与待办清单 (TODO)
+## 9. 后续演进建议与待办清单 (TODO)
 
 - [ ] **MCP Server 配置总线**：扩展多 Agent 的 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp`）集中可视化管理与共享。
 - [ ] **Skills 市场导入**：接入 GitHub / npm skills 生态一键搜索并远程下载至中央库。
@@ -386,7 +400,7 @@ npm run tauri build
 
 ---
 
-## 9. 跨会话接力维护协议
+## 10. 跨会话接力维护协议
 
 当你在新的会话中完成开发后，请遵循以下三步：
 1. **核对改动**：运行 `npm run build` 确保无编译与语法错误；
@@ -455,13 +469,59 @@ npm run tauri build
       - 创建规范的 `.gitignore` 过滤 `node_modules/`、`dist/`、`src-tauri/target/` 等构建与临时产物；
       - 成功关联 GitHub 远程仓库：`https://github.com/Nomit8088/AGENT_CONFIG_MANAGE.git`。
 
-- **2026-08-18 (Session 8)**:
-  - **真实系统主题与预设全自动同步增强**:
-    - **Windows 注册表直通系统主题探测**：在服务端与 Tauri 中增加 `detectSystemTheme()` 直查 Windows 注册表 `AppsUseLightTheme`，彻底解决浏览器在深色模式外观下广播错误 `prefers-color-scheme` 导致“跟随系统”被误判为深色的问题；
-    - **预设 Agent 动态元数据合并**：在 `vite.config.ts` 与 `storage.rs` 中重构 `getAgentsList` 与 `load_agents`，对已存在的本地 `agents.json` 自动同步最新的官方预设名称（如 `DeepSeek HARNESS` 与官方矢量 Whale 图标），同时保留用户的启用/禁用偏好状态；
-    - **DSH 官方命名全面对齐**：全面对齐展示为 **DeepSeek HARNESS**，并更新本地及远程配置。
+- **2026-08-19 (Session 9)**:
+  - **全站 UI 工业级重构：macOS 毛玻璃 (macOS Vibrancy) 风格体系**:
+    - **严格遵照 Stylekit macOS Vibrancy 规范规范体系**：
+      - **三层暗灰系统**：严格构建从深到浅的纯色阶体系：深底色 `#1c1c1e`（Deepest Canvas / Body） -> 中层卡片 `#2c2c2e`（Mid Layer / Cards / Floating Bar） -> 交互浅层 `#3a3a3c`（Surface / Primary Action Buttons）；
+      - **毛玻璃与透明度层次**：顶栏、侧栏与浮层使用 `backdrop-blur-xl` 配合 `bg-[#1c1c1e]/80` 或 `bg-[#1c1c1e]/95`，文字阶梯采用 `text-white/95`（正文与标题）、`text-white/70`（次级文字与标签）、`text-white/50`（说明与占位符）；
+      - **排版与边框工艺**：标题统一采用 Serif 衬线体（`font-serif`，Georgia / Times New Roman），正文采用系统无衬线体（`-apple-system, BlinkMacSystemFont`），代码采用单宽体（`font-mono`，SF Mono / Menlo）；所有边框统一为 1px 细线（`border-white/8` 到 `border-white/12`），彻底根除粗边框（`border-2/4`）；
+      - **交互与动效规范**：过渡统一采用 `transition-colors duration-200 ease-out`（仅颜色渐变，杜绝 hover 位移、缩放、浮动与弹跳）；彻底根除大投影（`shadow-xl/2xl`）、高饱和渐变（`bg-gradient-*`）、装饰性动画（`animate-pulse/bounce/ping`）与超大圆角（`rounded-3xl/full`），开关与勾选框统一采用方圆角（`rounded-md` / `rounded-lg`）；
+    - **全量 18 个核心前端视图与组件 100% 改造对齐**：
+      - `tailwind.config.js` & `index.html` & `src/assets/style.css`：配置 macOS Vibrancy 调色板、Serif 字体族、macOS 自定义滚动条与复选框；
+      - `App.vue`、`Header.vue`、`Navigation.vue`：精致毛玻璃顶栏、Serif Logo、极简暗色导航 Tab 与状态指示器；
+      - `AgentsView.vue` & `AgentCard.vue`：三层暗灰卡片架构、macOS 矩形开关切换器、官方纯净品牌图标；
+      - `SkillsMatrix.vue`、`UnmanagedGroupSection.vue`、`AgentPillPicker.vue`、`SkillDrawer.vue`、`SkillEditorModal.vue`：全维度暗灰表格与卡片画廊、Teleported 浮动药丸分发器、代码抽屉与编辑器；
+      - `ProjectsView.vue` & `ProjectEditor.vue`：双栏暗灰规则中心、Markdown 规则编辑器；
+      - `AgentDetailModal.vue`、`AddAgentModal.vue`、`AddProjectModal.vue`、`DiffModal.vue`、`SettingsModal.vue`、`ToastContainer.vue`：macOS Vibrancy 规范弹窗与操作通知。
+    - **代码质量与构建自检**：
+      - `npm run build` 100% 通过（Vite 生产构建耗时 6s，零警告零报错）；
+      - 全局 grep 验证零禁止类名（零 `bg-gradient`、零 `shadow-xl/2xl`、零 `rounded-full`、零 `animate-pulse`、零 `border-2/4`）。
+
+- **2026-08-19 (Session 10)**:
+  - **深浅色双主题与多 Agent 技能分发全面修复**:
+    - **深色/浅色模式双轨制深度兼容 (Fix Issue 1)**:
+      - 彻底修复主题切换失效问题，配置 `:root`（浅色 `#f5f5f7` / `#ffffff` / `text-slate-900`）与 `.dark`（深色 `#1c1c1e` / `#2c2c2e` / `text-white/95`）动态调色板；
+      - 全量更新所有 18 个核心组件，采用 `dark:` 双模式类名，确保浅色与深色模式均保持 macOS 极简质感；
+    - **全 Agent NTFS Junction 与 Hardlink 分发可靠性攻坚 (Fix Issue 2)**:
+      - 修复 `fs_junction.rs` 与 `localApi.ts` 中针对断开的 Junction / 符号链接 `existsSync` 返回 false 导致 `mklink /J` 报错 `EEXIST` 的隐患，全面切换为 `symlink_metadata` / `lstatSync` 强力清理；
+      - 为其他 Agent 增加自动降级至 NTFS Hardlink Tree 机制；
+      - 重构 `AgentPillPicker.vue` 响应式数据绑定与行点击拦截，实现毫秒级乐观更新与 100% 可靠挂载；
+- **2026-08-19 (Session 11)**:
+  - **Git Hook pre-commit 防误提防护与纳管项目工作区体验升级**:
+    - **Git Hook 守卫全面升级 pre-commit 提交拦截**:
+      - 在 `git_guard.rs` 与 `localApi.ts` 中新增 `pre-commit` 自动化拦截守卫：在覆盖模式下，当检测到暂存区包含本地个性化 `AGENTS.md` 时自动拦截提交并给出友好的终端彩色提示，杜绝团队仓库被误污染；
+      - 新增 `repairGitHooks` API 与 Tauri Command，并在界面提供 **「⚡ 一键安装/修复 Git Hook」** 按钮，秒级检测与自愈丢失的 Hook 文件；
+      - 状态明确化：追加模式明确显示 `(.git/info/exclude 私有隔离生效中 · 免 Hook)`，覆盖模式明确显示 `(Git Hook 守卫生效中 · pre-checkout & pre-commit 防护)`；
+    - **纳管项目界面（Project Rules）全面重构降噪**:
+      - 彻底消除传统双栏并排挤占空间导致的拥挤感；
+      - 采用顶部精简元数据栏（项目名、分支、复制路径、直观定制开关 `[ ● 规则定制已生效 ]` 与保存按钮）；
+      - 引入 **分段控制卡片（Segmented Control）** 双 Tab 架构：
+        - Tab 1: **规则内容编辑 (Markdown)**：提供宽敞舒适的全宽 Markdown 编辑器、字数/行数统计、标准模板插入，并支持按需呼出 **「📖 查看原版 AGENTS.md」** 抽屉式侧边基准参考；
+        - Tab 2: **分发模式与防护设置**：以卡片对比形式直观呈现「追加模式 (Append)」与「覆盖模式 (Overwrite)」，并聚合目标 Agent 网格勾选与 Hook 修复面板；
+- **2026-08-19 (Session 12)**:
+  - **全站分段滑块开关样式统一与 pre-commit 守卫手动放行开关**:
+    - **开关交互统一为 macOS 分段滑块 (Segmented Slider)**:
+      - 参照「外观主题设置」的分段滑块容器设计，将全局所有开关统一为触感极佳的 `[ 开启 / 启用 | 关闭 / 停用 ]` 分段滑块控制组件；
+      - 涉及组件：`SettingsModal.vue`（自动捕获、Toast 提示、默认规则模式）、`AgentCard.vue`（Agent 启用/停用）、`ProjectEditor.vue`（项目规则定制总开关、pre-commit 守卫开关）、`SkillsMatrix.vue`（表格与卡片视图的技能全局分发开关）；
+    - **项目纳管 pre-commit 守卫手动开启/关闭控制 (Bypass Guard)**:
+      - 在 `ProjectInfo` 架构与 Tauri/Node API (`update_project_rule` & `apply_project_rules`) 中接入 `preCommitGuard` 字段；
+      - 在项目设置的防护面板中提供 **`[ 开启拦截 (防误提) | 允许提交 (放行) ]`** 分段滑块开关；
+      - 当确实需要向团队远程仓库提交 `AGENTS.md` 时，用户可一键切换为「允许提交 (放行)」，系统自动移除或放行 pre-commit 守卫。
 
 ---
-*文档更新时间：2026-08-18 | AgentHub Core Team*
+*文档更新时间：2026-08-19 | AgentHub Core Team*
+
+
+
 
 

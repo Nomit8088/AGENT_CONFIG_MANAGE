@@ -1,15 +1,16 @@
 <template>
-  <nav class="border-b border-slate-200 dark:border-dark-800 bg-white/60 dark:bg-dark-900/40 px-5 flex items-center justify-between transition-colors select-none">
-    <div class="flex items-center gap-1">
+  <nav class="border-b border-black/8 dark:border-white/8 bg-white/60 dark:bg-[#1c1c1e]/60 px-5 py-2 flex items-center justify-between transition-colors duration-200 select-none">
+    <!-- Tab list -->
+    <div class="flex items-center gap-1.5">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         @click="store.currentTab = tab.id as any"
         :class="[
-          'px-4 py-2.5 text-xs font-medium flex items-center gap-2 border-b-2 transition relative',
+          'px-3 py-1.5 text-xs flex items-center gap-2 rounded-lg transition-colors duration-200',
           store.currentTab === tab.id
-            ? 'border-brand-600 dark:border-brand-500 text-brand-600 dark:text-brand-400 font-semibold'
-            : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700'
+            ? 'bg-black/8 dark:bg-white/10 text-slate-900 dark:text-white/95 font-medium'
+            : 'text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 hover:bg-black/5 dark:hover:bg-white/5'
         ]"
       >
         <component :is="tab.icon" class="w-3.5 h-3.5" />
@@ -17,10 +18,10 @@
         <span
           v-if="tab.badge !== undefined && tab.badge > 0"
           :class="[
-            'text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold',
+            'text-[10px] px-1.5 py-0.5 rounded-md font-mono',
             tab.id === 'unmanaged'
-              ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
-              : 'bg-slate-100 dark:bg-dark-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-dark-700'
+              ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border border-[#ff9f0a]/30 font-semibold'
+              : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/10'
           ]"
         >
           {{ tab.badge }}
@@ -29,11 +30,11 @@
     </div>
 
     <!-- Quick Action for Current Tab -->
-    <div class="flex items-center gap-2 py-1.5">
+    <div class="flex items-center gap-2">
       <button
         v-if="store.currentTab === 'agents'"
         @click="store.addAgentModal.visible = true"
-        class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span>添加自定义 Agent</span>
@@ -42,7 +43,7 @@
       <button
         v-if="store.currentTab === 'skills'"
         @click="openNewSkillModal"
-        class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span>新建中央 Skill</span>
@@ -51,7 +52,7 @@
       <button
         v-if="store.currentTab === 'projects'"
         @click="store.addProjectModal.visible = true"
-        class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span>纳管新项目</span>
@@ -85,3 +86,4 @@ function openNewSkillModal() {
   };
 }
 </script>
+

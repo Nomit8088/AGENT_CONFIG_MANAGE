@@ -1,16 +1,16 @@
 <template>
-  <div class="h-full flex flex-col md:flex-row overflow-hidden">
+  <div class="h-full flex flex-col md:flex-row overflow-hidden transition-colors duration-200">
     <!-- Left Project List Sidebar -->
-    <div class="w-full md:w-80 border-r border-slate-200 dark:border-dark-800 bg-white/70 dark:bg-dark-900/40 flex flex-col flex-shrink-0">
+    <div class="w-full md:w-80 border-r border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl flex flex-col flex-shrink-0">
       <!-- List Header -->
-      <div class="p-4 border-b border-slate-200/80 dark:border-dark-800 flex items-center justify-between">
+      <div class="p-4 border-b border-black/8 dark:border-white/8 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <FolderGit2 class="w-4 h-4 text-brand-600 dark:text-brand-400" />
-          <span class="font-bold text-xs text-slate-800 dark:text-slate-200">纳管项目 ({{ filteredProjects.length }}/{{ store.projects.length }})</span>
+          <FolderGit2 class="w-4 h-4 text-slate-700 dark:text-white/80" />
+          <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">纳管项目 ({{ filteredProjects.length }}/{{ store.projects.length }})</span>
         </div>
         <button
           @click="store.addProjectModal.visible = true"
-          class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-brand-700 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-brand-400 border border-slate-200 dark:border-dark-700 text-xs transition"
+          class="p-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
           title="纳管新项目"
         >
           <Plus class="w-3.5 h-3.5" />
@@ -18,19 +18,19 @@
       </div>
 
       <!-- Quick Search Bar for Projects -->
-      <div v-if="store.projects.length > 2" class="p-2 border-b border-slate-200/80 dark:border-dark-800/60">
+      <div v-if="store.projects.length > 2" class="p-2 border-b border-black/8 dark:border-white/8">
         <div class="relative">
-          <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search class="w-3.5 h-3.5 text-slate-400 dark:text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             v-model="searchQuery"
             type="text"
             placeholder="搜索项目名称或路径..."
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-800 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-brand-500 shadow-sm"
+            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
             @click="searchQuery = ''"
-            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80"
           >
             <X class="w-3 h-3" />
           </button>
@@ -38,62 +38,62 @@
       </div>
 
       <!-- Project Items -->
-      <div class="flex-1 overflow-y-auto p-2 space-y-1.5">
+      <div class="flex-1 overflow-y-auto p-2 space-y-1">
         <div
           v-for="p in filteredProjects"
           :key="p.id"
           @click="store.activeProjectId = p.id"
           :class="[
-            'p-3 rounded-xl cursor-pointer transition border text-xs group relative',
+            'p-3 rounded-lg cursor-pointer transition-colors duration-200 border text-xs group relative',
             store.activeProjectId === p.id
-              ? 'bg-white dark:bg-dark-800/90 border-brand-500/50 shadow-md'
-              : 'bg-slate-50/70 dark:bg-dark-900/60 border-slate-200/80 dark:border-dark-800/80 hover:bg-white dark:hover:bg-dark-800/50 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'bg-black/5 dark:bg-[#2c2c2e] border-black/10 dark:border-white/15'
+              : 'bg-transparent border-transparent hover:bg-black/[0.03] dark:hover:bg-white/5 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/90'
           ]"
         >
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span
                 :class="[
-                  'w-2 h-2 rounded-full',
-                  p.overrideEnabled ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-slate-400 dark:bg-slate-600'
+                  'w-2 h-2 rounded-sm',
+                  p.overrideEnabled ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
                 ]"
               ></span>
-              <span class="font-bold text-slate-900 dark:text-slate-100 truncate max-w-[150px]">{{ p.name }}</span>
+              <span class="font-serif font-semibold text-slate-900 dark:text-white/95 truncate max-w-[150px]">{{ p.name }}</span>
             </div>
             <button
               @click.stop="handleDelete(p)"
-              class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 transition"
+              class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] p-1 transition-colors duration-200"
               title="解除纳管"
             >
               <Trash2 class="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div class="flex items-center gap-2 mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-            <span class="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-dark-950 font-mono text-brand-700 dark:text-brand-400 font-medium">
+          <div class="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-white/40">
+            <span class="px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 font-mono text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8">
               {{ p.ruleMode === 'overwrite' ? '覆盖模式' : '追加模式' }}
             </span>
-            <span v-if="p.gitBranch" class="flex items-center gap-0.5 text-sky-600 dark:text-sky-400 font-mono">
+            <span v-if="p.gitBranch" class="flex items-center gap-0.5 text-slate-500 dark:text-white/50 font-mono">
               <GitBranch class="w-2.5 h-2.5" />
               <span>{{ p.gitBranch }}</span>
             </span>
           </div>
         </div>
 
-        <div v-if="filteredProjects.length === 0" class="p-6 text-center text-slate-400 dark:text-slate-500 text-xs">
+        <div v-if="filteredProjects.length === 0" class="p-6 text-center text-slate-400 dark:text-white/40 text-xs">
           {{ searchQuery ? '未搜索到匹配的项目' : '暂无已纳管项目，点击上方加号纳管本地代码仓库。' }}
         </div>
       </div>
     </div>
 
     <!-- Right Main Workspace -->
-    <div class="flex-1 overflow-y-auto p-5 bg-slate-50/50 dark:bg-dark-950/50">
+    <div class="flex-1 overflow-y-auto p-5 bg-[#f5f5f7] dark:bg-[#2c2c2e]">
       <ProjectEditor
         v-if="store.activeProject"
         :project="store.activeProject"
       />
-      <div v-else class="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-xs space-y-3">
-        <FolderGit2 class="w-12 h-12 text-slate-300 dark:text-slate-700" />
+      <div v-else class="h-full flex flex-col items-center justify-center text-slate-400 dark:text-white/40 text-xs space-y-3">
+        <FolderGit2 class="w-12 h-12 text-slate-300 dark:text-white/20" />
         <p>请在左侧选择项目或纳管新项目以配置规则</p>
       </div>
     </div>
@@ -126,3 +126,4 @@ function handleDelete(proj: ProjectInfo) {
   }
 }
 </script>
+

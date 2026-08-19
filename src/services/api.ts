@@ -155,7 +155,8 @@ export const api = {
     ruleMode: 'overwrite' | 'append',
     customContent: string,
     enabled: boolean,
-    linkedAgents: string[]
+    linkedAgents: string[],
+    preCommitGuard?: boolean
   ): Promise<void> {
     if (isTauri()) {
       return invokeTauri('update_project_rule', {
@@ -164,6 +165,7 @@ export const api = {
         customContent,
         enabled,
         linkedAgents,
+        preCommitGuard,
       });
     }
     return requestApi<void>('/api/projects/update', 'POST', {
@@ -172,6 +174,7 @@ export const api = {
       customContent,
       enabled,
       linkedAgents,
+      preCommitGuard,
     });
   },
 
@@ -180,6 +183,13 @@ export const api = {
       return invokeTauri('delete_project', { projectId });
     }
     return requestApi<void>('/api/projects/delete', 'POST', { projectId });
+  },
+
+  async repairGitHooks(projectId: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('repair_git_hooks', { projectId });
+    }
+    return requestApi<void>('/api/projects/repair-hooks', 'POST', { projectId });
   },
 
   onExternalSkillCreated(callback: (path: string) => void): void {

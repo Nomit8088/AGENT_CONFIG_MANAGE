@@ -79,6 +79,8 @@ pub struct ProjectInfo {
     pub git_branch: Option<String>,
     #[serde(rename = "hookInstalled")]
     pub hook_installed: Option<bool>,
+    #[serde(rename = "preCommitGuard")]
+    pub pre_commit_guard: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

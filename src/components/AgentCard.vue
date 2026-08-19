@@ -2,85 +2,102 @@
   <!-- 1. ENABLED AGENT CARD -->
   <div
     v-if="agent.enabled"
-    class="glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between group border border-slate-200/90 dark:border-brand-500/30 hover:border-brand-500/60 dark:hover:border-brand-500/70 hover:shadow-lg dark:hover:shadow-brand-500/5 transition-all duration-300 bg-white dark:bg-dark-900/60 shadow-sm"
+    class="bg-white dark:bg-[#2c2c2e] rounded-xl p-5 relative overflow-hidden flex flex-col justify-between border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/14 shadow-sm dark:shadow-none transition-colors duration-200"
   >
-    <!-- Top Row: Real Icon, Title & Switch -->
+    <!-- Top Row: Real Icon, Title & Status Button -->
     <div>
       <div class="flex items-start justify-between gap-3 mb-3">
         <div class="flex items-center gap-3">
-          <div class="w-11 h-11 rounded-xl bg-slate-50 dark:bg-dark-900 border border-slate-200/80 dark:border-brand-500/30 flex items-center justify-center group-hover:scale-105 transition shadow-sm">
+          <div class="w-10 h-10 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
             <AgentBrandIcon :agentId="agent.id" size="lg" />
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100">{{ agent.name }}</h3>
-              <span v-if="agent.isCustom" class="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-mono">自定义</span>
-              <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-medium">已启用</span>
+              <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ agent.name }}</h3>
+              <span v-if="agent.isCustom" class="text-[10px] px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8 font-mono">自定义</span>
             </div>
             <div class="flex items-center gap-1.5 mt-1">
               <span
                 :class="[
-                  'w-2 h-2 rounded-full',
-                  agent.detected ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-amber-500 dark:bg-amber-400'
+                  'w-2 h-2 rounded-sm',
+                  agent.detected ? 'bg-[#30d158]' : 'bg-[#ff9f0a]'
                 ]"
               ></span>
-              <span class="text-xs text-slate-600 dark:text-slate-300 font-medium">
+              <span class="text-xs text-slate-500 dark:text-white/60">
                 {{ agent.detected ? '环境已就绪 · 软链可用' : '本地未探测到目录' }}
               </span>
             </div>
           </div>
         </div>
 
-        <!-- Toggle Enable/Disable -->
-        <label class="relative inline-flex items-center cursor-pointer" title="启用/停用 Agent">
-          <input
-            type="checkbox"
-            :checked="agent.enabled"
-            @change="toggleEnabled"
-            class="sr-only peer"
-          />
-          <div class="w-9 h-5 bg-slate-200 dark:bg-dark-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600 dark:peer-checked:bg-brand-500"></div>
-        </label>
+        <!-- Segmented Slider Switch -->
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs flex-shrink-0">
+          <button
+            type="button"
+            @click="store.toggleAgentEnable(agent.id, true)"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+              agent.enabled
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >
+            <span v-if="agent.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+            <span>启用</span>
+          </button>
+          <button
+            type="button"
+            @click="store.toggleAgentEnable(agent.id, false)"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+              !agent.enabled
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >
+            <span>停用</span>
+          </button>
+        </div>
       </div>
 
       <!-- Config details -->
-      <div class="space-y-2 text-xs mt-3 pt-3 border-t border-slate-100 dark:border-dark-800/80">
+      <div class="space-y-2 text-xs mt-3 pt-3 border-t border-black/8 dark:border-white/8">
         <div class="flex items-start justify-between gap-2">
-          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1 flex-shrink-0">
-            <FolderOpen class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+          <span class="text-slate-400 dark:text-white/40 flex items-center gap-1 flex-shrink-0">
+            <FolderOpen class="w-3.5 h-3.5" />
             <span>技能目录:</span>
           </span>
-          <span class="font-mono text-slate-700 dark:text-slate-300 truncate max-w-[200px]" :title="agent.skillsDir">
+          <span class="font-mono text-slate-700 dark:text-white/80 truncate max-w-[200px]" :title="agent.skillsDir">
             {{ agent.skillsDir }}
           </span>
         </div>
 
         <div class="flex items-center justify-between gap-2">
-          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1 flex-shrink-0">
-            <FileCode class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <span>私有规则文件:</span>
+          <span class="text-slate-400 dark:text-white/40 flex items-center gap-1 flex-shrink-0">
+            <FileCode class="w-3.5 h-3.5" />
+            <span>私有规则:</span>
           </span>
-          <span class="font-mono text-brand-700 dark:text-brand-300 font-semibold truncate max-w-[200px]" :title="agent.localRuleFilename">
+          <span class="font-mono text-slate-800 dark:text-white/90 truncate max-w-[200px]" :title="agent.localRuleFilename">
             {{ agent.localRuleFilename }}
           </span>
         </div>
 
         <div class="flex items-center justify-between gap-2">
-          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1 flex-shrink-0">
-            <Layers class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+          <span class="text-slate-400 dark:text-white/40 flex items-center gap-1 flex-shrink-0">
+            <Layers class="w-3.5 h-3.5" />
             <span>已挂载技能:</span>
           </span>
-          <span class="font-medium text-slate-700 dark:text-slate-200">
-            <span class="text-brand-600 dark:text-brand-400 font-bold">{{ mountedCount }}</span> 个中央 Skill
+          <span class="font-medium text-slate-700 dark:text-white/80">
+            <span class="text-slate-900 dark:text-white/95 font-bold font-mono">{{ mountedCount }}</span> 个中央 Skill
           </span>
         </div>
       </div>
     </div>
 
     <!-- Bottom Actions -->
-    <div class="mt-4 pt-3 border-t border-slate-100 dark:border-dark-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-      <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-dark-900 border border-slate-200/80 dark:border-dark-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1 font-mono">
-        <Link2 class="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+    <div class="mt-4 pt-3 border-t border-black/8 dark:border-white/8 flex items-center justify-between text-xs text-slate-500 dark:text-white/50">
+      <span class="px-2 py-0.5 rounded-md bg-black/5 dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 text-[11px] text-slate-600 dark:text-white/60 flex items-center gap-1 font-mono">
+        <Link2 class="w-3 h-3 text-[#30d158]" />
         <span>{{ agent.id === 'antigravity' ? 'NTFS Hardlink' : 'NTFS Junction' }}</span>
       </span>
 
@@ -88,14 +105,14 @@
         <button
           v-if="agent.isCustom"
           @click="deleteCustomAgent"
-          class="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition text-xs flex items-center gap-1"
+          class="text-slate-400 hover:text-[#ff453a] dark:text-white/50 dark:hover:text-[#ff453a] transition-colors duration-200 text-xs flex items-center gap-1"
         >
           <Trash2 class="w-3.5 h-3.5" />
           <span>移除</span>
         </button>
         <button
           @click="goToSkills"
-          class="px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30 transition text-xs font-semibold flex items-center gap-1 shadow-sm"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 text-xs font-medium flex items-center gap-1"
         >
           <span>配置技能分发</span>
           <ChevronRight class="w-3.5 h-3.5" />
@@ -107,53 +124,69 @@
   <!-- 2. DISABLED AGENT CARD -->
   <div
     v-else
-    class="glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between border border-slate-200/70 dark:border-dark-800/80 bg-slate-50/70 dark:bg-dark-950/40 hover:bg-slate-100/70 dark:hover:bg-dark-900/60 transition-all duration-300 opacity-80 hover:opacity-100 shadow-sm"
+    class="bg-black/[0.02] dark:bg-[#1c1c1e] rounded-xl p-5 relative overflow-hidden flex flex-col justify-between border border-black/6 dark:border-white/8 opacity-80 hover:opacity-100 transition-colors duration-200"
   >
     <div>
       <div class="flex items-start justify-between gap-3 mb-3">
         <div class="flex items-center gap-3">
-          <div class="w-11 h-11 rounded-xl bg-slate-100 dark:bg-dark-900/80 border border-slate-200 dark:border-dark-700/60 flex items-center justify-center grayscale-[0.6] opacity-70">
+          <div class="w-10 h-10 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/6 dark:border-white/8 flex items-center justify-center grayscale-[0.6] opacity-60">
             <AgentBrandIcon :agentId="agent.id" size="lg" />
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="font-bold text-sm text-slate-700 dark:text-slate-300">{{ agent.name }}</h3>
-              <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700 font-medium">已停用</span>
+              <h3 class="font-serif font-semibold text-sm text-slate-600 dark:text-white/70">{{ agent.name }}</h3>
             </div>
             <div class="flex items-center gap-1.5 mt-1">
-              <span class="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-600"></span>
-              <span class="text-xs text-slate-500">已从技能矩阵与规则中心隐藏</span>
+              <span class="w-2 h-2 rounded-sm bg-slate-300 dark:bg-white/30"></span>
+              <span class="text-xs text-slate-400 dark:text-white/40">已从技能矩阵与规则中心隐藏</span>
             </div>
           </div>
         </div>
 
-        <!-- Toggle Enable/Disable -->
-        <label class="relative inline-flex items-center cursor-pointer" title="启用 Agent">
-          <input
-            type="checkbox"
-            :checked="agent.enabled"
-            @change="toggleEnabled"
-            class="sr-only peer"
-          />
-          <div class="w-9 h-5 bg-slate-200 dark:bg-dark-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600 dark:peer-checked:bg-brand-500"></div>
-        </label>
+        <!-- Segmented Slider Switch -->
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs flex-shrink-0">
+          <button
+            type="button"
+            @click="store.toggleAgentEnable(agent.id, true)"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+              agent.enabled
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >
+            <span>启用</span>
+          </button>
+          <button
+            type="button"
+            @click="store.toggleAgentEnable(agent.id, false)"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+              !agent.enabled
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >
+            <span>停用</span>
+          </button>
+        </div>
       </div>
 
       <!-- Muted Config info -->
-      <div class="space-y-1.5 text-xs mt-3 pt-3 border-t border-slate-200/80 dark:border-dark-800/60 text-slate-500 font-mono text-[11px]">
+      <div class="space-y-1.5 text-xs mt-3 pt-3 border-t border-black/6 dark:border-white/8 text-slate-400 dark:text-white/40 font-mono text-[11px]">
         <div class="truncate" :title="agent.skillsDir">📁 {{ agent.skillsDir }}</div>
         <div class="truncate" :title="agent.localRuleFilename">📄 {{ agent.localRuleFilename }}</div>
       </div>
     </div>
 
     <!-- Enable CTA Button -->
-    <div class="mt-4 pt-3 border-t border-slate-200/80 dark:border-dark-800/60 flex items-center justify-between">
-      <span class="text-[11px] text-slate-500">点击右侧按钮重新激活</span>
+    <div class="mt-4 pt-3 border-t border-black/6 dark:border-white/8 flex items-center justify-between">
+      <span class="text-[11px] text-slate-400 dark:text-white/40">点击右侧按钮重新激活</span>
       <button
         @click="store.toggleAgentEnable(agent.id, true)"
-        class="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-brand-600 dark:bg-dark-800 dark:hover:bg-brand-500 text-slate-700 hover:text-white dark:text-slate-300 dark:hover:text-white border border-slate-300 hover:border-brand-600 dark:border-dark-700 hover:border-brand-500 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
-        <Zap class="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+        <Zap class="w-3.5 h-3.5 text-[#ff9f0a]" />
         <span>一键启用 Agent</span>
       </button>
     </div>
@@ -200,3 +233,4 @@ function deleteCustomAgent() {
   }
 }
 </script>
+

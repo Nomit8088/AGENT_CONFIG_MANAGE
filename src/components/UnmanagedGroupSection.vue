@@ -1,25 +1,25 @@
 <template>
-  <div class="glass-panel rounded-2xl p-4 border border-slate-200/80 dark:border-dark-800 bg-white/80 dark:bg-dark-900/60 space-y-4 shadow-sm">
+  <div class="bg-white dark:bg-[#2c2c2e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-4 transition-colors duration-200">
     <!-- Header & Action Row -->
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300 flex items-center justify-center border border-amber-200/60 dark:border-transparent">
+        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1c1e] text-slate-700 dark:text-white/80 flex items-center justify-center border border-black/10 dark:border-white/10">
           <FolderSearch class="w-4 h-4" />
         </div>
         <div>
-          <h3 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h3 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 flex items-center gap-2">
             <span>本地存量 Skill 检测与纳管 (Agent Skills)</span>
             <span
               v-if="store.totalUnmanagedCount > 0"
-              class="text-[10px] px-2 py-0.2 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 font-mono font-bold animate-pulse"
+              class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#ff9f0a] border border-black/8 dark:border-white/8 font-mono font-semibold"
             >
               {{ store.totalUnmanagedCount }} 个待纳管
             </span>
-            <span v-else class="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 font-mono font-medium">
+            <span v-else class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#30d158] border border-black/8 dark:border-white/8 font-mono">
               全部受控
             </span>
           </h3>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+          <p class="text-[11px] text-slate-500 dark:text-white/50">
             按 Agent 归类扫描本地未受控实体文件夹。点击卡片可快速纳入中央库或标记为私有忽略。
           </p>
         </div>
@@ -29,17 +29,17 @@
       <div class="flex flex-wrap items-center gap-2 text-xs w-full md:w-auto">
         <!-- Search Input -->
         <div class="relative flex-1 md:w-48">
-          <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search class="w-3.5 h-3.5 text-slate-400 dark:text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             v-model="searchQuery"
             type="text"
             placeholder="搜索 Agent / 目录..."
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-800 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
             @click="searchQuery = ''"
-            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80"
           >
             <X class="w-3 h-3" />
           </button>
@@ -48,7 +48,7 @@
         <!-- Filter Dropdown -->
         <select
           v-model="statusFilter"
-          class="bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-800 rounded-lg px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand-500"
+          class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
           <option value="all">全部 Agent ({{ store.enabledAgents.length }})</option>
           <option value="unmanaged">仅显示有待纳管</option>
@@ -58,7 +58,7 @@
         <!-- Sort Dropdown -->
         <select
           v-model="sortKey"
-          class="bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-800 rounded-lg px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand-500"
+          class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
           <option value="unmanaged_desc">待纳管数量 (从多到少)</option>
           <option value="name_asc">Agent 名称 (A-Z)</option>
@@ -67,7 +67,7 @@
         <!-- Rescan Button -->
         <button
           @click="store.scanUnmanaged()"
-          class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-dark-800 dark:hover:bg-dark-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-700 transition flex items-center gap-1"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1"
           title="重新扫描各 Agent 目录"
         >
           <RefreshCw class="w-3 h-3" />
@@ -83,61 +83,61 @@
         :key="agent.id"
         @click="store.openAgentDetailModal(agent.id, 'unmanaged')"
         :class="[
-          'p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between group relative overflow-hidden',
+          'p-3.5 rounded-xl border transition-colors duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden',
           getAgentUnmanagedCount(agent.id) > 0
-            ? 'bg-amber-50/60 dark:bg-amber-500/5 border-amber-300 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-500/60 shadow-sm'
-            : 'bg-white dark:bg-dark-950/60 border-slate-200 dark:border-dark-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm'
+            ? 'bg-white dark:bg-[#2c2c2e] border-black/12 dark:border-white/12 hover:border-black/20 dark:hover:bg-[#343437]'
+            : 'bg-black/[0.02] dark:bg-[#1c1c1e] border-black/6 dark:border-white/8 hover:bg-black/[0.04] dark:hover:bg-[#2c2c2e]'
         ]"
       >
         <div>
           <!-- Card Header -->
           <div class="flex items-center justify-between gap-2 mb-2">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-slate-50 dark:bg-dark-900 border border-slate-200 dark:border-dark-700 flex items-center justify-center group-hover:scale-105 transition">
+              <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center">
                 <AgentBrandIcon :agentId="agent.id" size="sm" />
               </div>
-              <span class="font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-slate-900 dark:group-hover:text-white transition truncate max-w-[120px]">
+              <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 truncate max-w-[120px]">
                 {{ agent.name }}
               </span>
             </div>
 
             <span
               :class="[
-                'w-2 h-2 rounded-full',
-                agent.detected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-400 dark:bg-slate-600'
+                'w-2 h-2 rounded-sm',
+                agent.detected ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
               ]"
             ></span>
           </div>
 
           <!-- Path -->
-          <div class="text-[10px] text-slate-500 font-mono truncate mb-3" :title="agent.skillsDir">
+          <div class="text-[10px] text-slate-400 dark:text-white/40 font-mono truncate mb-3" :title="agent.skillsDir">
             {{ agent.skillsDir }}
           </div>
         </div>
 
         <!-- Badges & Action -->
-        <div class="pt-2 border-t border-slate-100 dark:border-dark-800/60 flex items-center justify-between text-[11px]">
+        <div class="pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between text-[11px]">
           <div class="flex items-center gap-2">
             <span
               v-if="getAgentUnmanagedCount(agent.id) > 0"
-              class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 font-semibold font-mono"
+              class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#ff9f0a] border border-black/8 dark:border-white/8 font-mono"
             >
               {{ getAgentUnmanagedCount(agent.id) }} 待纳管
             </span>
-            <span v-else class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 font-mono">
+            <span v-else class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#30d158] border border-black/8 dark:border-white/8 font-mono">
               0 实体
             </span>
 
             <span
               v-if="getAgentIgnoredCount(agent.id) > 0"
-              class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-dark-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-dark-800 font-mono"
+              class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/50 border border-black/8 dark:border-white/8 font-mono"
               title="已忽略私有技能"
             >
               {{ getAgentIgnoredCount(agent.id) }} 忽略
             </span>
           </div>
 
-          <div class="flex items-center text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 text-xs transition">
+          <div class="flex items-center text-slate-400 dark:text-white/40 group-hover:text-slate-900 dark:group-hover:text-white/90 text-xs transition-colors duration-200">
             <span>管理</span>
             <ChevronRight class="w-3.5 h-3.5" />
           </div>
@@ -145,7 +145,7 @@
       </div>
     </div>
 
-    <div v-if="displayAgents.length === 0" class="py-6 text-center text-slate-500 text-xs">
+    <div v-if="displayAgents.length === 0" class="py-6 text-center text-slate-400 dark:text-white/40 text-xs">
       未匹配到符合筛选条件的 Agent
     </div>
   </div>

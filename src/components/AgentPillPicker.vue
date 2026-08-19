@@ -6,46 +6,46 @@
       @click.stop="toggleOpen"
       type="button"
       :class="[
-        'px-2 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition',
+        'px-2 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors duration-200',
         isOpen
-          ? 'bg-brand-50 text-brand-700 border-brand-300 dark:bg-brand-500/20 dark:text-brand-300 dark:border-brand-500/40 shadow-sm'
-          : 'bg-slate-100 hover:bg-slate-200 dark:bg-dark-900 dark:hover:bg-dark-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-dark-700 hover:border-slate-300 dark:hover:border-slate-600'
+          ? 'bg-black/10 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
+          : 'bg-black/5 dark:bg-[#2c2c2e] hover:bg-black/10 dark:hover:bg-[#343437] text-slate-700 dark:text-white/80 border-black/8 dark:border-white/10'
       ]"
     >
-      <Plus class="w-3 h-3 text-brand-600 dark:text-brand-400" />
+      <Plus class="w-3 h-3 text-slate-600 dark:text-white/80" />
       <span>分发至 Agent...</span>
-      <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-dark-950 font-mono text-brand-700 dark:text-brand-400 font-bold">
+      <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 font-mono text-slate-600 dark:text-white/70 font-semibold">
         {{ mountedEnabledCount }}/{{ store.enabledAgents.length }}
       </span>
     </button>
 
-    <!-- Teleported Floating Popover Dropdown (Escapes all parent overflow/clipping) -->
+    <!-- Teleported Floating Popover Dropdown -->
     <Teleport to="body">
       <div
         v-if="isOpen"
         ref="popoverRef"
         @click.stop
         :style="popoverStyle"
-        class="fixed w-72 rounded-2xl bg-white/98 dark:bg-dark-900/98 border border-slate-200 dark:border-dark-700 shadow-2xl z-[9999] p-3 space-y-2.5 backdrop-blur-2xl animate-fade select-none text-xs"
+        class="fixed w-72 rounded-xl bg-white/95 dark:bg-[#1c1c1e]/95 border border-black/10 dark:border-white/12 z-[9999] p-3 space-y-2.5 backdrop-blur-xl select-none text-xs text-slate-900 dark:text-white/90 shadow-lg dark:shadow-none"
       >
         <!-- Popover Top Header: Quick Actions -->
-        <div class="flex items-center justify-between border-b border-slate-100 dark:border-dark-800 pb-2">
+        <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-2">
           <div class="flex items-center gap-1.5">
-            <span class="font-bold text-xs text-slate-900 dark:text-slate-100">挂载 Agent 目标</span>
-            <span class="text-[10px] px-1.5 py-0.2 rounded bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400 font-mono">
+            <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">挂载 Agent 目标</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/60 font-mono">
               {{ skill.name }}
             </span>
           </div>
           <div class="flex items-center gap-1">
             <button
               @click="selectAllActive"
-              class="text-[10px] px-1.5 py-0.5 rounded bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 dark:text-brand-400 dark:border-brand-500/30 font-medium transition active:scale-95"
+              class="text-[10px] px-1.5 py-0.5 rounded-md bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/12 font-medium transition-colors duration-200"
             >
               ⚡ 全选活跃
             </button>
             <button
               @click="unmountAll"
-              class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition"
+              class="text-[10px] px-1.5 py-0.5 rounded-md bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-400 hover:text-slate-700 dark:text-white/50 dark:hover:text-white/80 border border-black/8 dark:border-white/8 transition-colors duration-200"
             >
               清空
             </button>
@@ -58,30 +58,32 @@
             v-model="search"
             type="text"
             placeholder="搜索/过滤 Agent..."
-            class="w-full bg-slate-50 dark:bg-dark-950 border border-slate-200 dark:border-dark-800 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-brand-500 placeholder-slate-400 dark:placeholder-slate-500"
+            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 placeholder-slate-400 dark:placeholder-white/30 transition-colors duration-200"
           />
         </div>
 
         <!-- Agent List (Checkboxes) -->
         <div class="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
-          <label
+          <div
             v-for="agent in filteredAgents"
             :key="agent.id"
+            @click="handleRowClick(agent.id)"
             :class="[
-              'flex items-center justify-between p-2 rounded-xl cursor-pointer transition border',
-              skill.mountedAgents.includes(agent.id)
-                ? 'bg-emerald-50 border-emerald-300 text-slate-900 dark:bg-emerald-500/10 dark:border-emerald-500/35 dark:text-slate-100'
-                : 'bg-slate-50/60 border-slate-200/80 hover:bg-slate-100/60 text-slate-700 dark:bg-dark-950/60 dark:border-dark-800/80 dark:hover:bg-dark-800/60 dark:text-slate-300'
+              'flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors duration-200 border',
+              isMounted(agent.id)
+                ? 'bg-black/5 dark:bg-white/8 border-black/10 dark:border-white/15 text-slate-900 dark:text-white/95 font-medium'
+                : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-white/60 hover:text-slate-900 dark:hover:text-white/80'
             ]"
           >
             <div class="flex items-center gap-2 truncate">
               <input
                 type="checkbox"
-                :checked="skill.mountedAgents.includes(agent.id)"
-                @change="(e) => handleToggle(agent.id, (e.target as HTMLInputElement).checked)"
+                :checked="isMounted(agent.id)"
+                @click.stop
+                @change="handleRowClick(agent.id)"
                 class="custom-checkbox flex-shrink-0"
               />
-              <div class="w-5 h-5 rounded-md bg-slate-100 dark:bg-dark-900 border border-slate-200 dark:border-dark-800 flex items-center justify-center flex-shrink-0">
+              <div class="w-5 h-5 rounded-md bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
                 <AgentBrandIcon :agentId="agent.id" size="sm" />
               </div>
               <div class="truncate">
@@ -89,12 +91,12 @@
                   <span class="truncate">{{ agent.name }}</span>
                   <span
                     :class="[
-                      'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                      agent.detected ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-slate-400 dark:bg-slate-600'
+                      'w-1.5 h-1.5 rounded-sm flex-shrink-0',
+                      agent.detected ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
                     ]"
                   ></span>
                 </div>
-                <div class="text-[10px] text-slate-500 font-mono truncate max-w-[140px]" :title="agent.skillsDir">
+                <div class="text-[10px] text-slate-400 dark:text-white/40 font-mono truncate max-w-[140px]" :title="agent.skillsDir">
                   {{ agent.skillsDir }}
                 </div>
               </div>
@@ -102,17 +104,17 @@
 
             <span
               :class="[
-                'text-[10px] font-mono px-1.5 py-0.2 rounded flex-shrink-0',
-                skill.mountedAgents.includes(agent.id)
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 font-bold'
-                  : 'text-slate-400 dark:text-slate-500'
+                'text-[10px] font-mono px-1.5 py-0.2 rounded-md flex-shrink-0 border',
+                isMounted(agent.id)
+                  ? 'bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white/90 border-black/8 dark:border-white/12 font-medium'
+                  : 'text-slate-400 dark:text-white/30 border-transparent'
               ]"
             >
-              {{ skill.mountedAgents.includes(agent.id) ? '已软链' : '未挂载' }}
+              {{ isMounted(agent.id) ? '已软链' : '未挂载' }}
             </span>
-          </label>
+          </div>
 
-          <div v-if="filteredAgents.length === 0" class="py-4 text-center text-slate-400 dark:text-slate-500 text-xs">
+          <div v-if="filteredAgents.length === 0" class="py-4 text-center text-slate-400 dark:text-white/40 text-xs">
             未找到匹配的 Agent
           </div>
         </div>
@@ -149,6 +151,10 @@ const popoverStyle = computed(() => {
   };
 });
 
+const currentSkill = computed(() => {
+  return store.skills.find(s => s.id === props.skill.id) || props.skill;
+});
+
 const filteredAgents = computed(() => {
   const q = search.value.trim().toLowerCase();
   const list = store.enabledAgents;
@@ -157,22 +163,30 @@ const filteredAgents = computed(() => {
 });
 
 const mountedEnabledCount = computed(() => {
-  return props.skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length;
+  return currentSkill.value.mountedAgents.filter(id => store.isAgentEnabled(id)).length;
 });
+
+function isMounted(agentId: string): boolean {
+  return currentSkill.value.mountedAgents.includes(agentId);
+}
+
+function handleRowClick(agentId: string) {
+  const willEnable = !isMounted(agentId);
+  store.toggleSkillForAgent(props.skill.id, agentId, willEnable);
+}
 
 function calculatePosition() {
   if (!triggerRef.value) return;
   const rect = triggerRef.value.getBoundingClientRect();
-  const popoverWidth = 288; // w-72 = 18rem = 288px
-  const popoverHeight = 280; // approximate height with max-h-56 list
+  const popoverWidth = 288;
+  const popoverHeight = 280;
 
   // Check vertical space
   const spaceBelow = window.innerHeight - rect.bottom;
   const spaceAbove = rect.top;
 
-  let top = rect.bottom + 8; // default downwards
+  let top = rect.bottom + 8;
   if (spaceBelow < popoverHeight && spaceAbove > spaceBelow) {
-    // Flip upwards if not enough space below
     top = Math.max(10, rect.top - popoverHeight - 8);
   }
 
@@ -200,10 +214,6 @@ function toggleOpen() {
 
 function close() {
   isOpen.value = false;
-}
-
-function handleToggle(agentId: string, enable: boolean) {
-  store.toggleSkillForAgent(props.skill.id, agentId, enable);
 }
 
 function selectAllActive() {
@@ -244,3 +254,4 @@ onUnmounted(() => {
   window.removeEventListener('scroll', handleWindowChange, true);
 });
 </script>
+

@@ -4,151 +4,111 @@
 
 :root {
   color-scheme: light dark;
+  --mv-bg-deep: #f5f5f7;
+  --mv-bg-mid: #ffffff;
+  --mv-bg-surface: #e5e5ea;
+  --mv-border: rgba(0, 0, 0, 0.08);
+  --mv-border-strong: rgba(0, 0, 0, 0.16);
+  --mv-text: #1d1d1f;
+  --mv-text-secondary: rgba(0, 0, 0, 0.65);
+  --mv-text-muted: rgba(0, 0, 0, 0.45);
+  --mv-accent: #0071e3;
 }
 
-html.dark {
+.dark {
   color-scheme: dark;
-}
-
-html.light {
-  color-scheme: light;
+  --mv-bg-deep: #1c1c1e;
+  --mv-bg-mid: #2c2c2e;
+  --mv-bg-surface: #3a3a3c;
+  --mv-border: rgba(255, 255, 255, 0.08);
+  --mv-border-strong: rgba(255, 255, 255, 0.14);
+  --mv-text: rgba(255, 255, 255, 0.95);
+  --mv-text-secondary: rgba(255, 255, 255, 0.7);
+  --mv-text-muted: rgba(255, 255, 255, 0.4);
+  --mv-accent: #0a84ff;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--mv-bg-deep);
+  color: var(--mv-text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   user-select: none;
   overflow: hidden;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html.dark body {
-  background-color: #090d16;
-  color: #f1f5f9;
+/* Headings use Serif by default */
+h1, h2, h3, h4, h5, h6 {
+  font-family: Georgia, "Times New Roman", Times, serif;
+  color: var(--mv-text);
+  letter-spacing: -0.01em;
 }
 
-html.light body {
-  background-color: #f8fafc;
-  color: #0f172a;
-}
-
-/* Custom Scrollbars */
+/* macOS Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-/* Dark Scrollbar */
-html.dark ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-html.dark ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
-  border-radius: 4px;
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.2);
+  border-radius: 3px;
 }
 
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.8);
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
 
-/* Light Scrollbar */
-html.light ::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.8);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 128, 0.4);
 }
 
-html.light ::-webkit-scrollbar-thumb {
-  background: rgba(203, 213, 225, 0.9);
-  border-radius: 4px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-html.light ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 1);
-}
-
-/* Glassmorphism & Card Styles */
-/* Dark Mode Panels & Cards */
-html.dark .glass-panel {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(51, 65, 85, 0.45);
-}
-
-html.dark .glass-card {
-  background: rgba(30, 41, 59, 0.45);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(51, 65, 85, 0.35);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-html.dark .glass-card:hover {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(30, 41, 59, 0.7);
-}
-
-/* Light Mode Panels & Cards */
-html.light .glass-panel {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04);
-}
-
-html.light .glass-card {
-  background: #ffffff;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-html.light .glass-card:hover {
-  border-color: rgba(16, 185, 129, 0.5);
-  background: #ffffff;
-  box-shadow: 0 6px 20px -2px rgba(15, 23, 42, 0.08);
-}
-
-/* Custom Checkbox */
+/* macOS Minimal Checkbox */
 .custom-checkbox {
   appearance: none;
   border-radius: 4px;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  background-color: var(--mv-bg-mid);
+  border: 1px solid var(--mv-border-strong);
+  transition: background-color 200ms ease-out, border-color 200ms ease-out;
   flex-shrink: 0;
 }
 
-html.dark .custom-checkbox {
-  background-color: #1e293b;
-  border: 1px solid #475569;
-}
-
-html.light .custom-checkbox {
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-}
-
 .custom-checkbox:checked {
-  background-color: #10b981 !important;
-  border-color: #10b981 !important;
+  background-color: #0a84ff !important;
+  border-color: #0a84ff !important;
 }
 
 .custom-checkbox:checked::after {
-  content: "✔";
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: bold;
+  content: "";
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg) translate(-0.5px, -0.5px);
 }
 
-/* Transitions */
+/* macOS Subtitle & Transitions */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 200ms ease-out;
 }
 
 .fade-enter-from,
@@ -158,7 +118,7 @@ html.light .custom-checkbox {
 
 .slide-right-enter-active,
 .slide-right-leave-active {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
 }
 
 .slide-right-enter-from,
@@ -166,3 +126,4 @@ html.light .custom-checkbox {
   transform: translateX(100%);
   opacity: 0;
 }
+
