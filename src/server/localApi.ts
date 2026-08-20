@@ -414,6 +414,39 @@ export function mountSkillForAgent(agentId: string, targetPath: string, centralS
   }
 }
 
+/**
+ * DSH 的 skill-filesystem 插件会同时扫描多个用户级根目录：
+ *   - customSkillDirs: ~/.dsh/skills-personal（AgentHub 主管理目录）
+ *   - user-dsh:        ~/.dsh/skills（公共 skills）
+ *   - user-agents:     ~/.agents/skills（通用 agents skills）
+ *
+ * 其他 Agent 目前只使用单一 skillsDir，因此返回单元素数组。
+ */
+export function getAgentSkillDirs(agent: { id: string; skillsDir: string }): string[] {
+  const primary = expandTilde(agent.skillsDir);
+  if (agent.id === 'dsh') {
+    const dirs = [
+      primary,
+      expandTilde('~/.dsh/skills'),
+      expandTilde('~/.agents/skills'),
+    ];
+    return Array.from(new Set(dirs.map(d => path.resolve(d))));
+  }
+  return [primary];
+}
+
+export function findAgentSkillDir(agent: { id: string; skillsDir: string }, skillName: string): string | null {
+  for (const dir of getAgentSkillDirs(agent)) {
+    const candidate = path.join(dir, skillName);
+    // 只返回真正的物理目录；Junction/Symlink 是 AgentHub 的受控挂载，不能当作“待纳管实体”处理，
+    // 否则纳管时可能误删中央库目标。
+    if (fs.existsSync(candidate) && !isJunctionOrSymlink(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 export function parseSkillMd(content: string, folderName: string) {
   let name = folderName;
   let description = '未提供描述';
@@ -490,55 +523,159 @@ export function addToGitExclude(projectPath: string, filenames: string[]): void 
   }
 }
 
-export function installGitHooks(projectPath: string, backupDir: string, customRulePath: string, enablePreCommit: boolean = true): void {
+export const BASELINE_RULE_FILES = [
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.cursorrules',
+  '.windsurfrules',
+  'GEMINI.md',
+];
+
+export const PRIVATE_RULE_FILES = [
+  'CLAUDE.local.md',
+  '.agents/rules/local-override.md',
+  'AGENTS.override.md',
+  'ZCODE.local.md',
+  'AGENTS.local.md',
+  '.cursor/rules/local-override.mdc',
+  'WINDSURF.local.md',
+  '.omo/rules/local.md',
+  '.github/copilot-instructions.local.md',
+  'GEMINI.local.md',
+];
+
+export function cleanAllPrivateRules(projectPath: string): void {
+  for (const relPath of PRIVATE_RULE_FILES) {
+    const fullPath = path.join(projectPath, relPath);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fs.unlinkSync(fullPath);
+      } catch {}
+      // Clean empty parent directory if nested
+      const parent = path.dirname(fullPath);
+      if (parent !== projectPath) {
+        try {
+          const files = fs.readdirSync(parent);
+          if (files.length === 0) {
+            fs.rmdirSync(parent);
+          }
+        } catch {}
+      }
+    }
+  }
+}
+
+export function restoreAllBaselines(projectPath: string, backupDir?: string): void {
+  const gitDir = path.join(projectPath, '.git');
+  const hasGit = fs.existsSync(gitDir);
+
+  for (const baseline of BASELINE_RULE_FILES) {
+    const targetFile = path.join(projectPath, baseline);
+    const gitOrig = hasGit ? path.join(gitDir, 'info', `${baseline}.orig`) : null;
+    const backupOrig = backupDir ? path.join(backupDir, `${baseline}.orig`) : null;
+
+    let restored = false;
+    if (gitOrig && fs.existsSync(gitOrig)) {
+      try {
+        fs.copyFileSync(gitOrig, targetFile);
+        fs.unlinkSync(gitOrig);
+        restored = true;
+      } catch {}
+    } else if (backupOrig && fs.existsSync(backupOrig)) {
+      try {
+        fs.copyFileSync(backupOrig, targetFile);
+        restored = true;
+      } catch {}
+    }
+
+    // If there was no original file backed up and this baseline was created purely by AgentHub custom rules, remove it
+    if (!restored && backupOrig && !fs.existsSync(backupOrig)) {
+      const markerNoOrig = backupDir ? path.join(backupDir, `${baseline}.no_orig`) : null;
+      if (markerNoOrig && fs.existsSync(markerNoOrig) && fs.existsSync(targetFile)) {
+        try { fs.unlinkSync(targetFile); } catch {}
+      }
+    }
+  }
+}
+
+export function installGitHooks(
+  projectPath: string,
+  backupDir: string,
+  customRulePath: string,
+  enablePreCommit: boolean = true,
+  targetsToProtect: string[] = ['AGENTS.md', 'CLAUDE.md']
+): void {
   const gitDir = path.join(projectPath, '.git');
   if (!fs.existsSync(gitDir)) return;
 
   const hooksDir = path.join(gitDir, 'hooks');
   fs.mkdirSync(hooksDir, { recursive: true });
 
-  const origBackup = path.join(gitDir, 'info', 'AGENTS.orig');
-  const agentsMd = path.join(projectPath, 'AGENTS.md');
+  const infoDir = path.join(gitDir, 'info');
+  fs.mkdirSync(infoDir, { recursive: true });
 
-  if (fs.existsSync(agentsMd) && !fs.existsSync(origBackup)) {
-    try {
-      fs.copyFileSync(agentsMd, origBackup);
-      fs.copyFileSync(agentsMd, path.join(backupDir, 'AGENTS.md.orig'));
-    } catch {}
+  // Backup baselines
+  for (const target of targetsToProtect) {
+    const file = path.join(projectPath, target);
+    const origGit = path.join(infoDir, `${target}.orig`);
+    const origBackup = path.join(backupDir, `${target}.orig`);
+    const noOrigMarker = path.join(backupDir, `${target}.no_orig`);
+
+    if (fs.existsSync(file)) {
+      if (!fs.existsSync(origGit)) {
+        try { fs.copyFileSync(file, origGit); } catch {}
+      }
+      if (!fs.existsSync(origBackup)) {
+        try { fs.copyFileSync(file, origBackup); } catch {}
+      }
+    } else {
+      try { fs.writeFileSync(noOrigMarker, 'no_original', 'utf-8'); } catch {}
+    }
   }
 
+  const targetsListStr = targetsToProtect.map(t => `"${t}"`).join(' ');
+
   const preCheckoutScript = `#!/bin/sh
-# AgentHub Git Hook Guard: Pre-Checkout
-# Restore original AGENTS.md before git switches branch to avoid merge conflicts
-ORIG=".git/info/AGENTS.orig"
-if [ -f "$ORIG" ]; then
-    cp "$ORIG" "AGENTS.md" 2>/dev/null || true
-fi
+# AgentHub Git Hook Guard: Pre-Checkout (Multi-Baseline)
+# Restore all original baseline files before git switches branch to avoid merge conflicts
+for f in ${targetsListStr}; do
+    ORIG=".git/info/\${f}.orig"
+    if [ -f "$ORIG" ]; then
+        cp "$ORIG" "$f" 2>/dev/null || true
+    fi
+done
 exit 0
 `;
 
   const customPosix = customRulePath.replace(/\\/g, '/');
   const postCheckoutScript = `#!/bin/sh
-# AgentHub Git Hook Guard: Post-Checkout
-# Re-apply custom AGENTS.md after git switched branch
+# AgentHub Git Hook Guard: Post-Checkout (Multi-Baseline)
+# Re-apply custom rules to overwritten baselines after git switched branch
 CUSTOM="${customPosix}"
 if [ -f "$CUSTOM" ]; then
-    cp "$CUSTOM" "AGENTS.md" 2>/dev/null || true
+    for f in ${targetsListStr}; do
+        ORIG=".git/info/\${f}.orig"
+        if [ -f "$ORIG" ] || [ -f ".git/info/\${f}.no_orig" ]; then
+            cp "$CUSTOM" "$f" 2>/dev/null || true
+        fi
+    done
 fi
 exit 0
 `;
 
   const preCommitScript = `#!/bin/sh
-# AgentHub Git Hook Guard: Pre-Commit Protection
-# Prevents accidentally committing the custom/overwritten AGENTS.md to team git repo
-ORIG=".git/info/AGENTS.orig"
-if [ -f "$ORIG" ]; then
-    if git diff --cached --name-only | grep -q "^AGENTS.md$"; then
-        printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 检测到您处于【覆盖模式】，已自动拦截对本地 AGENTS.md 的提交。\\n"
-        printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\\n"
-        exit 1
+# AgentHub Git Hook Guard: Pre-Commit Protection (Multi-Baseline)
+# Prevents accidentally committing any overwritten baseline files to team git repo
+for f in ${targetsListStr}; do
+    ORIG=".git/info/\${f}.orig"
+    if [ -f "$ORIG" ] || [ -f ".git/info/\${f}.no_orig" ]; then
+        if git diff --cached --name-only | grep -q "^\${f}$"; then
+            printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 检测到处于【覆盖模式】，已自动拦截对本地 %s 的提交。\\n" "$f"
+            printf "\\033[1;33m[AgentHub 守卫提示]\\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\\n"
+            exit 1
+        fi
     fi
-fi
+done
 exit 0
 `;
 
@@ -554,9 +691,12 @@ exit 0
   }
 }
 
-export function uninstallGitHooks(projectPath: string): void {
+export function uninstallGitHooks(projectPath: string, backupDir?: string): void {
   const gitDir = path.join(projectPath, '.git');
-  if (!fs.existsSync(gitDir)) return;
+  if (!fs.existsSync(gitDir)) {
+    if (backupDir) restoreAllBaselines(projectPath, backupDir);
+    return;
+  }
 
   const hooksDir = path.join(gitDir, 'hooks');
   const preCheckout = path.join(hooksDir, 'pre-checkout');
@@ -573,14 +713,7 @@ export function uninstallGitHooks(projectPath: string): void {
     try { fs.unlinkSync(preCommit); } catch {}
   }
 
-  const origBackup = path.join(gitDir, 'info', 'AGENTS.orig');
-  const agentsMd = path.join(projectPath, 'AGENTS.md');
-  if (fs.existsSync(origBackup)) {
-    try {
-      fs.copyFileSync(origBackup, agentsMd);
-      fs.unlinkSync(origBackup);
-    } catch {}
-  }
+  restoreAllBaselines(projectPath, backupDir);
 }
 
 export function applyProjectRules(proj: any, allAgents: any[]): void {
@@ -593,70 +726,92 @@ export function applyProjectRules(proj: any, allAgents: any[]): void {
   const customFile = path.join(backupDir, 'CUSTOM_AGENTS.md');
   fs.writeFileSync(customFile, proj.customRuleContent || '', 'utf-8');
 
+  // Case 1: Disabled -> Rollback everything and clean private files
   if (!proj.overrideEnabled) {
-    // Disabled: Rollback everything
-    uninstallGitHooks(pPath);
-    for (const a of allAgents) {
-      if (a.localRuleFilename) {
-        const lrf = path.join(pPath, a.localRuleFilename);
-        if (fs.existsSync(lrf)) {
-          try { fs.unlinkSync(lrf); } catch {}
+    uninstallGitHooks(pPath, backupDir);
+    restoreAllBaselines(pPath, backupDir);
+    cleanAllPrivateRules(pPath);
+    return;
+  }
+
+  // Case 2: Overwrite Mode -> Overwrite target baselines (AGENTS.md, CLAUDE.md, etc.) & CLEAN ALL private rules
+  if (proj.ruleMode === 'overwrite') {
+    // 1. Clean all private rules so agents don't receive double custom rules
+    cleanAllPrivateRules(pPath);
+
+    // 2. Identify all baseline files to overwrite based on linked agents
+    const targetsToProtect: string[] = ['AGENTS.md'];
+    const linked = proj.linkedAgents || [];
+
+    if (linked.some((id: string) => id === 'claude-code' || id === 'dsh' || id === 'trae')) {
+      targetsToProtect.push('CLAUDE.md');
+    }
+    if (linked.some((id: string) => id === 'cursor')) {
+      targetsToProtect.push('.cursorrules');
+    }
+    if (linked.some((id: string) => id === 'windsurf')) {
+      targetsToProtect.push('.windsurfrules');
+    }
+
+    // 3. Backup and overwrite baselines
+    for (const baseline of targetsToProtect) {
+      const bFile = path.join(pPath, baseline);
+      const origGit = path.join(pPath, '.git', 'info', `${baseline}.orig`);
+      const origBackup = path.join(backupDir, `${baseline}.orig`);
+      const noOrigMarker = path.join(backupDir, `${baseline}.no_orig`);
+
+      if (fs.existsSync(bFile)) {
+        if (!fs.existsSync(origGit) && proj.isGit) {
+          try { fs.copyFileSync(bFile, origGit); } catch {}
+        }
+        if (!fs.existsSync(origBackup)) {
+          try { fs.copyFileSync(bFile, origBackup); } catch {}
+        }
+      } else {
+        if (!fs.existsSync(origBackup)) {
+          try { fs.writeFileSync(noOrigMarker, 'no_original', 'utf-8'); } catch {}
         }
       }
+
+      fs.writeFileSync(bFile, proj.customRuleContent || '', 'utf-8');
+    }
+
+    // 4. Install Git Guard hooks
+    if (proj.isGit) {
+      const enablePreCommit = proj.preCommitGuard ?? true;
+      installGitHooks(pPath, backupDir, customFile, enablePreCommit, targetsToProtect);
     }
     return;
   }
 
-  // Enabled:
-  // 1. Clean up rule files for unlinked agents
-  for (const a of allAgents) {
-    if (!proj.linkedAgents?.includes(a.id) && a.localRuleFilename) {
-      const lrf = path.join(pPath, a.localRuleFilename);
-      if (fs.existsSync(lrf)) {
-        try { fs.unlinkSync(lrf); } catch {}
-      }
+  // Case 3: Append Mode -> 100% Restore baselines, uninstall hooks, and write ONLY to private local rule files
+  if (proj.ruleMode === 'append') {
+    // 1. 100% Restore team baselines
+    if (proj.isGit) {
+      uninstallGitHooks(pPath, backupDir);
+    } else {
+      restoreAllBaselines(pPath, backupDir);
     }
-  }
 
-  // 2. Always distribute to ALL linked agents' native rule files (CLAUDE.local.md, .agents/rules, ZCODE.local.md, etc.)
-  const filenamesToExclude: string[] = [];
-  for (const a of allAgents) {
-    if (proj.linkedAgents?.includes(a.id) && a.localRuleFilename) {
-      const lrf = path.join(pPath, a.localRuleFilename);
-      fs.mkdirSync(path.dirname(lrf), { recursive: true });
-      fs.writeFileSync(lrf, proj.customRuleContent || '', 'utf-8');
-      if (a.localRuleFilename !== 'AGENTS.md') {
+    // 2. Clean all private rules first
+    cleanAllPrivateRules(pPath);
+
+    // 3. Write ONLY to linked agents' private rule files
+    const filenamesToExclude: string[] = [];
+    const linked = proj.linkedAgents || [];
+
+    for (const a of allAgents) {
+      if (linked.includes(a.id) && a.localRuleFilename && a.localRuleFilename !== 'AGENTS.md') {
+        const lrf = path.join(pPath, a.localRuleFilename);
+        fs.mkdirSync(path.dirname(lrf), { recursive: true });
+        fs.writeFileSync(lrf, proj.customRuleContent || '', 'utf-8');
         filenamesToExclude.push(a.localRuleFilename);
       }
     }
-  }
 
-  // 3. Mode specific handling for AGENTS.md
-  if (proj.ruleMode === 'overwrite') {
-    const agentsMd = path.join(pPath, 'AGENTS.md');
-    const origBackup = path.join(pPath, '.git', 'info', 'AGENTS.orig');
-
-    if (fs.existsSync(agentsMd) && !fs.existsSync(origBackup)) {
-      try {
-        fs.copyFileSync(agentsMd, origBackup);
-        fs.copyFileSync(agentsMd, path.join(backupDir, 'AGENTS.md.orig'));
-      } catch {}
+    // 4. Add private rule filenames to .git/info/exclude
+    if (proj.isGit && filenamesToExclude.length > 0) {
+      addToGitExclude(pPath, filenamesToExclude);
     }
-    fs.writeFileSync(agentsMd, proj.customRuleContent || '', 'utf-8');
-
-    if (proj.isGit) {
-      const enablePreCommit = proj.preCommitGuard ?? true;
-      installGitHooks(pPath, backupDir, customFile, enablePreCommit);
-    }
-  } else {
-    // Append mode: restore original AGENTS.md if it was modified
-    if (proj.isGit) {
-      uninstallGitHooks(pPath);
-    }
-  }
-
-  // 4. Add private rule files to .git/info/exclude
-  if (proj.isGit && filenamesToExclude.length > 0) {
-    addToGitExclude(pPath, filenamesToExclude);
   }
 }
