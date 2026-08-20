@@ -1,4 +1,16 @@
-import { AgentInfo, AppConfig, ProjectInfo, SkillItem, SkillsSyncStatus, UnmanagedSkill, ValidationResult } from '../types';
+import {
+  AgentInfo,
+  AppConfig,
+  DshDiagnoseResult,
+  DshPluginDiff,
+  DshPluginScanResult,
+  DshRecoveryAction,
+  ProjectInfo,
+  SkillItem,
+  SkillsSyncStatus,
+  UnmanagedSkill,
+  ValidationResult,
+} from '../types';
 
 export const isTauri = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -21,7 +33,18 @@ async function requestApi<T>(endpoint: string, method: string = 'GET', data?: an
   }
   const res = await fetch(endpoint, options);
   if (!res.ok) {
-    throw new Error(`API error: ${res.statusText}`);
+    let message = `API error: ${res.statusText}`;
+    try {
+      const data = await res.json();
+      if (data && typeof data.error === 'string' && data.error) {
+        message = data.error;
+      } else if (data && typeof data.message === 'string' && data.message) {
+        message = data.message;
+      }
+    } catch {
+      // 响应体不是 JSON 时保留 statusText
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -225,6 +248,114 @@ export const api = {
       return invokeTauri('set_skills_sync_auto_pull', { enabled });
     }
     return requestApi<void>('/api/skills/sync/auto-pull', 'POST', { enabled });
+  },
+
+  async testSkillsSyncConnection(): Promise<string> {
+    if (isTauri()) {
+      return invokeTauri<string>('test_skills_sync_connection');
+    }
+    return requestApi<string>('/api/skills/sync/test', 'POST');
+  },
+
+  async resetSkillsSyncToRemote(): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('reset_skills_sync_to_remote');
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/reset', 'POST');
+  },
+
+  // ==================== DSH 插件中心 ====================
+
+  async scanDshPlugins(): Promise<DshPluginScanResult> {
+    if (isTauri()) {
+      return invokeTauri<DshPluginScanResult>('scan_dsh_plugins');
+    }
+    return requestApi<DshPluginScanResult>('/api/dsh/plugins/scan');
+  },
+
+  async diagnoseDshWeb(profile?: string): Promise<DshDiagnoseResult> {
+    if (isTauri()) {
+      return invokeTauri<DshDiagnoseResult>('diagnose_dsh_web', { profile });
+    }
+    return requestApi<DshDiagnoseResult>('/api/dsh/plugins/diagnose', 'POST', { profile });
+  },
+
+  async toggleDshPlugin(profile: string, key: string, enabled: boolean): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('toggle_dsh_plugin', { profile, key, enabled });
+    }
+    return requestApi<void>('/api/dsh/plugins/toggle', 'POST', { profile, key, enabled });
+  },
+
+  async removeDshPlugin(profile: string, key: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('remove_dsh_plugin', { profile, key });
+    }
+    return requestApi<void>('/api/dsh/plugins/remove', 'POST', { profile, key });
+  },
+
+  async applyDshRecovery(action: DshRecoveryAction): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('apply_dsh_recovery', { action });
+    }
+    return requestApi<void>('/api/dsh/plugins/recover', 'POST', { action });
+  },
+
+  async installDshPlugins(profile: string): Promise<string> {
+    if (isTauri()) {
+      return invokeTauri<string>('install_dsh_plugins', { profile });
+    }
+    const res = await requestApi<{ success: boolean; output?: string }>('/api/dsh/plugins/install', 'POST', { profile });
+    return res.output || '';
+  },
+
+  async getDshPluginsSyncStatus(): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('get_dsh_plugins_sync_status');
+    }
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/status');
+  },
+
+  async initDshPluginsSync(remoteUrl: string, branch?: string): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('init_dsh_plugins_sync', { remoteUrl, branch });
+    }
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/init', 'POST', { remoteUrl, branch });
+  },
+
+  async pullDshPluginsSync(): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('pull_dsh_plugins_sync');
+    }
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/pull', 'POST');
+  },
+
+  async pushDshPluginsSync(message?: string): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('push_dsh_plugins_sync', { message });
+    }
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/push', 'POST', { message });
+  },
+
+  async setDshPluginsSyncAutoPull(enabled: boolean): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('set_dsh_plugins_sync_auto_pull', { enabled });
+    }
+    return requestApi<void>('/api/dsh/plugins/sync/auto-pull', 'POST', { enabled });
+  },
+
+  async reconcileDshPlugins(): Promise<DshPluginDiff> {
+    if (isTauri()) {
+      return invokeTauri<DshPluginDiff>('reconcile_dsh_plugins');
+    }
+    return requestApi<DshPluginDiff>('/api/dsh/plugins/reconcile');
+  },
+
+  async alignDshPlugins(profile?: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('align_dsh_plugins', { profile });
+    }
+    return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile });
   },
 
   onExternalSkillCreated(callback: (path: string) => void): void {

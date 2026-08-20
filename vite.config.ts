@@ -25,6 +25,21 @@ import {
   pullSkillsSync,
   pushSkillsSync,
   setSkillsSyncAutoPull,
+  testSkillsSyncConnection,
+  resetSkillsSyncToRemote,
+  scanDshPlugins,
+  diagnoseDshWeb,
+  toggleDshPlugin,
+  removeDshPlugin,
+  applyDshRecovery,
+  installDshPlugins,
+  getDshPluginsSyncStatus,
+  initDshPluginsSync,
+  pullDshPluginsSync,
+  pushDshPluginsSync,
+  setDshPluginsSyncAutoPull,
+  reconcileDshPlugins,
+  alignDshPlugins,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -252,9 +267,9 @@ function localApiPlugin(): Plugin {
 
               const allAgents = getAgentsList();
 
-              // 存量“待纳管”只扫描各 Agent 的主 skillsDir。
-              // DSH 的公共 ~/.dsh/skills 是配置仓库里的受控公共技能，不把它们当待纳管噪音展示；
-              // 但停用/删除时仍会清理这些根目录，确保开关生效。
+              // 存量“待纳管”只扫描各 Agent 的主 skillsDir（DSH 的主目录即 ~/.dsh/skills）。
+              // ~/.agents/skills 是通用共享根，不把它当待纳管噪音展示；
+              // 但停用/删除时仍会清理所有根目录，确保开关生效。
               for (const a of allAgents) {
                 const agentDir = expandTilde(a.skillsDir);
                 if (fs.existsSync(agentDir)) {
@@ -569,6 +584,116 @@ function localApiPlugin(): Plugin {
               return res.end(JSON.stringify({ success: true }));
             }
 
+            // POST /api/skills/sync/test
+            if (pathname === '/api/skills/sync/test' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(testSkillsSyncConnection()));
+            }
+
+            // POST /api/skills/sync/reset
+            if (pathname === '/api/skills/sync/reset' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(resetSkillsSyncToRemote()));
+            }
+
+            // GET /api/dsh/plugins/scan
+            if (pathname === '/api/dsh/plugins/scan' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(scanDshPlugins()));
+            }
+
+            // POST /api/dsh/plugins/diagnose
+            if (pathname === '/api/dsh/plugins/diagnose' && req.method === 'POST') {
+              const { profile } = jsonBody;
+              const result = await diagnoseDshWeb(profile);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(result));
+            }
+
+            // POST /api/dsh/plugins/toggle
+            if (pathname === '/api/dsh/plugins/toggle' && req.method === 'POST') {
+              const { profile, key, enabled } = jsonBody;
+              toggleDshPlugin(profile, key, !!enabled);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/remove
+            if (pathname === '/api/dsh/plugins/remove' && req.method === 'POST') {
+              const { profile, key } = jsonBody;
+              removeDshPlugin(profile, key);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/recover
+            if (pathname === '/api/dsh/plugins/recover' && req.method === 'POST') {
+              const { action } = jsonBody;
+              applyDshRecovery(action);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/install
+            if (pathname === '/api/dsh/plugins/install' && req.method === 'POST') {
+              const { profile } = jsonBody;
+              const output = installDshPlugins(profile);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true, output }));
+            }
+
+            // GET /api/dsh/plugins/sync/status
+            if (pathname === '/api/dsh/plugins/sync/status' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getDshPluginsSyncStatus()));
+            }
+
+            // POST /api/dsh/plugins/sync/init
+            if (pathname === '/api/dsh/plugins/sync/init' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              if (!remoteUrl) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'remoteUrl 不能为空' }));
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(initDshPluginsSync(remoteUrl, branch)));
+            }
+
+            // POST /api/dsh/plugins/sync/pull
+            if (pathname === '/api/dsh/plugins/sync/pull' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pullDshPluginsSync()));
+            }
+
+            // POST /api/dsh/plugins/sync/push
+            if (pathname === '/api/dsh/plugins/sync/push' && req.method === 'POST') {
+              const { message } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pushDshPluginsSync(message)));
+            }
+
+            // POST /api/dsh/plugins/sync/auto-pull
+            if (pathname === '/api/dsh/plugins/sync/auto-pull' && req.method === 'POST') {
+              const { enabled } = jsonBody;
+              setDshPluginsSyncAutoPull(!!enabled);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/dsh/plugins/reconcile
+            if (pathname === '/api/dsh/plugins/reconcile' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(reconcileDshPlugins()));
+            }
+
+            // POST /api/dsh/plugins/align
+            if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
+              const { profile } = jsonBody;
+              alignDshPlugins(profile);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
             // 404 fallback
             res.statusCode = 404;
             return res.end(JSON.stringify({ error: 'Endpoint not found' }));
@@ -595,6 +720,11 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     host: '127.0.0.1',
+    watch: {
+      // Rust 构建产物（含运行中被 Windows 锁定的 build_script_build-*.exe）不属于
+      // 前端热更新范围，排除以规避 fs.watch 的 EBUSY 崩溃。
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   build: {
