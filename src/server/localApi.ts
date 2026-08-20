@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync, execFileSync } from 'child_process';
+import { execSync } from 'child_process';
 import jsyaml from 'js-yaml';
+import { runGit } from './gitSyncUtil';
 
 export function expandTilde(p: string): string {
   if (p.startsWith('~/') || p.startsWith('~\\') || p === '~') {
@@ -102,7 +103,7 @@ export const DEFAULT_PRESET_AGENTS = [
     icon: 'deepseek',
     detected: false,
     enabled: true,
-    skillsDir: '~/.dsh/skills-personal',
+    skillsDir: '~/.dsh/skills',
     ruleType: 'local_file',
     localRuleFilename: 'AGENTS.local.md',
     isCustom: false,
@@ -216,7 +217,7 @@ export function detectAgentInstalled(agentId: string, skillsDir: string): boolea
     'antigravity': ['~/.gemini', '~/.gemini/config/skills', '~/.gemini/antigravity'],
     'codex': ['~/.codex', '~/.opencode', '~/.codex/skills'],
     'zcode': ['~/.zcode', '~/AppData/Roaming/ZCode', '~/AppData/Roaming/zcode', '~/.zcode/skills'],
-    'dsh': ['~/.dsh', '~/.dsh/skills-personal'],
+    'dsh': ['~/.dsh', '~/.dsh/skills'],
     'mimocode': ['~/.config/mimocode', '~/.mimocode', '~/.config/mimocode/skills'],
     'openclaw': ['~/.openclaw', '~/.agents', '~/.openclaw/skills'],
     'hermes': ['~/.hermes', '~/.hermes/skills'],
@@ -268,6 +269,17 @@ export function initStorage() {
       auto_capture_skills: true,
       toast_notifications: true,
       ignored_skills: [],
+      dsh_plugins: {
+        dshCommand: '',
+        pnpmCommand: '',
+        sync: {
+          remoteUrl: '',
+          branch: 'main',
+          autoPullOnStartup: false,
+          lastSyncAt: 0,
+          lastSyncStatus: 'idle',
+        },
+      },
     }, null, 2), 'utf-8');
   }
 
@@ -415,10 +427,10 @@ export function mountSkillForAgent(agentId: string, targetPath: string, centralS
 }
 
 /**
- * DSH 的 skill-filesystem 插件会同时扫描多个用户级根目录：
- *   - customSkillDirs: ~/.dsh/skills-personal（AgentHub 主管理目录）
- *   - user-dsh:        ~/.dsh/skills（公共 skills）
- *   - user-agents:     ~/.agents/skills（通用 agents skills）
+ * DSH 的 skill-filesystem 插件默认扫描以下用户级根目录：
+ *   - user-dsh:    ~/.dsh/skills（AgentHub 主管理目录）
+ *   - user-agents: ~/.agents/skills（通用 agents skills 根）
+ * 注意：DSH 并不扫描 ~/.dsh/skills-personal，该目录系历史误判，已弃用。
  *
  * 其他 Agent 目前只使用单一 skillsDir，因此返回单元素数组。
  */
@@ -531,17 +543,7 @@ function saveSkillsSyncConfig(syncCfg: any) {
 }
 
 function gitExec(cwd: string, args: string[]): string {
-  try {
-    return execFileSync('git', args, {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-    }).trim();
-  } catch (e: any) {
-    const stderr = e?.stderr?.toString().trim();
-    const stdout = e?.stdout?.toString().trim();
-    throw new Error(stderr || stdout || e?.message || 'git command failed');
-  }
+  return runGit(cwd, args);
 }
 
 function gitTry(cwd: string, args: string[]): string {
@@ -729,6 +731,53 @@ export function setSkillsSyncAutoPull(enabled: boolean): void {
   const syncCfg = readSkillsSyncConfig();
   syncCfg.autoPullOnStartup = enabled;
   saveSkillsSyncConfig(syncCfg);
+}
+
+export function testSkillsSyncConnection(): string {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先初始化');
+  }
+  if (!syncCfg.remoteUrl) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  const branch = syncCfg.branch || 'main';
+  const out = gitExec(root, ['ls-remote', 'origin', `refs/heads/${branch}`]);
+  if (!out.trim()) {
+    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+  }
+  const head = out.trim().split(/\s+/)[0];
+  return `连接成功，远端 ${branch} 分支 HEAD: ${head}`;
+}
+
+export function resetSkillsSyncToRemote(): SkillsSyncStatus {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先初始化');
+  }
+  if (!syncCfg.remoteUrl) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  const branch = syncCfg.branch || 'main';
+  gitExec(root, ['fetch', 'origin', branch]);
+
+  const remoteRef = `origin/${branch}`;
+  const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
+  if (!head) {
+    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+  }
+
+  // 仅重置受管文件（skills/ 与 .gitignore）；config.json / agents.json / projects.json / backups/
+  // 均为未跟踪的本地私有文件，git reset --hard 不会触碰它们。
+  gitExec(root, ['reset', '--hard', remoteRef]);
+  updateLastSync('success');
+  return getSkillsSyncStatus();
 }
 
 export interface GitStatus {
@@ -980,6 +1029,9 @@ export function uninstallGitHooks(projectPath: string, backupDir?: string): void
 
   restoreAllBaselines(projectPath, backupDir);
 }
+
+// DSH 插件中心（web 模式后端，与 src-tauri 侧行为对齐）
+export * from './dshPlugins';
 
 export function applyProjectRules(proj: any, allAgents: any[]): void {
   const pPath = proj.path;

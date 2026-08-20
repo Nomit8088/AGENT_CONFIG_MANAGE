@@ -62,6 +62,153 @@ pub struct SkillsSyncStatus {
     pub last_error: Option<String>,
 }
 
+// ==================== DSH 插件中心 ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginEntry {
+    pub key: String,
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub name: String,
+    pub kind: String, // "inbox" | "bundle" | "plain" | "row"
+    #[serde(rename = "spec", default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<String>,
+    #[serde(rename = "installedVersion", default, skip_serializing_if = "Option::is_none")]
+    pub installed_version: Option<String>,
+    pub enabled: bool,
+    pub portability: String, // "portable" | "unportable"
+    #[serde(rename = "disabledBy", default, skip_serializing_if = "Option::is_none")]
+    pub disabled_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPatchRow {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+    pub raw: serde_yaml::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshProfileScan {
+    pub name: String,
+    pub dir: String,
+    pub exists: bool,
+    pub bundles: Vec<String>,
+    pub dependencies: HashMap<String, String>,
+    pub plugins: Vec<DshPluginEntry>,
+    #[serde(rename = "patchRows")]
+    pub patch_rows: Vec<DshPatchRow>,
+    #[serde(rename = "patchFile")]
+    pub patch_file: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginScanResult {
+    #[serde(rename = "homeDir")]
+    pub home_dir: String,
+    #[serde(rename = "dshCommand")]
+    pub dsh_command: Option<String>,
+    #[serde(rename = "pnpmCommand")]
+    pub pnpm_command: Option<String>,
+    pub profiles: Vec<DshProfileScan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshRecoveryAction {
+    pub kind: String, // "remove-bundle" | "disable-row" | "remove-dependency"
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub target: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshDiagnoseResult {
+    pub ok: bool,
+    #[serde(rename = "exitCode")]
+    pub exit_code: Option<i32>,
+    #[serde(rename = "rawStderr")]
+    pub raw_stderr: String,
+    #[serde(rename = "failedPlugins")]
+    pub failed_plugins: Vec<String>,
+    #[serde(rename = "suggestedActions")]
+    pub suggested_actions: Vec<DshRecoveryAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginDiffItem {
+    pub kind: String, // "missing" | "extra" | "version" | "patch"
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginDiff {
+    pub compatible: bool,
+    pub items: Vec<DshPluginDiffItem>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginsSyncConfig {
+    #[serde(rename = "remoteUrl", default)]
+    pub remote_url: String,
+    #[serde(default)]
+    pub branch: String,
+    #[serde(rename = "autoPullOnStartup", default)]
+    pub auto_pull_on_startup: bool,
+    #[serde(rename = "lastSyncAt", default)]
+    pub last_sync_at: u64,
+    #[serde(rename = "lastSyncStatus", default)]
+    pub last_sync_status: String,
+    #[serde(rename = "lastError", default)]
+    pub last_error: Option<String>,
+}
+
+impl Default for DshPluginsSyncConfig {
+    fn default() -> Self {
+        Self {
+            remote_url: String::new(),
+            branch: "main".to_string(),
+            auto_pull_on_startup: false,
+            last_sync_at: 0,
+            last_sync_status: "idle".to_string(),
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginsConfig {
+    #[serde(rename = "dshCommand", default)]
+    pub dsh_command: String,
+    #[serde(rename = "pnpmCommand", default)]
+    pub pnpm_command: String,
+    #[serde(default, rename = "sync")]
+    pub sync: Option<DshPluginsSyncConfig>,
+}
+
+impl Default for DshPluginsConfig {
+    fn default() -> Self {
+        Self {
+            dsh_command: String::new(),
+            pnpm_command: String::new(),
+            sync: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub auto_start: bool,
@@ -75,6 +222,8 @@ pub struct AppConfig {
     pub system_theme: Option<String>,
     #[serde(default, rename = "skills_sync")]
     pub skills_sync: Option<SkillsSyncConfig>,
+    #[serde(default, rename = "dsh_plugins")]
+    pub dsh_plugins: Option<DshPluginsConfig>,
 }
 
 impl Default for AppConfig {
@@ -88,6 +237,7 @@ impl Default for AppConfig {
             ignored_skills: Some(Vec::new()),
             system_theme: Some("light".to_string()),
             skills_sync: None,
+            dsh_plugins: None,
         }
     }
 }

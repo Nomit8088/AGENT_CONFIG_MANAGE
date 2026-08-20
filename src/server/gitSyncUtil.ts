@@ -1,0 +1,124 @@
+import { execFileSync } from 'child_process';
+
+const DEFAULT_GIT_TIMEOUT_MS = 120_000;
+
+let cachedProxy: string | null | undefined;
+
+/**
+ * 探测当前系统代理。
+ * 1) 环境变量（HTTPS_PROXY / HTTP_PROXY 等）
+ * 2) Windows WinINET 系统代理（git 默认不会读取 WinINET，这是 GitHub 连不上的常见根因）
+ */
+export function detectSystemProxy(): string | null {
+  if (cachedProxy !== undefined) return cachedProxy;
+
+  for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']) {
+    const v = process.env[key];
+    if (v && v.trim()) {
+      cachedProxy = normalizeProxy(v.trim());
+      return cachedProxy;
+    }
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      const raw = queryRegValue('ProxyServer');
+      if (raw) {
+        let enabled = true;
+        const enableRaw = queryRegValue('ProxyEnable');
+        if (enableRaw) {
+          const hex = enableRaw.trim().replace(/^0x/i, '');
+          const n = parseInt(hex, 16);
+          if (!Number.isNaN(n)) enabled = n !== 0;
+        }
+        if (enabled) {
+          const proxy = pickProxy(raw);
+          if (proxy) {
+            cachedProxy = proxy;
+            return cachedProxy;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  cachedProxy = null;
+  return cachedProxy;
+}
+
+function queryRegValue(name: string): string | null {
+  const out = execFileSync(
+    'reg',
+    ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings', '/v', name],
+    { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 },
+  );
+  // 输出形如: "    ProxyServer    REG_SZ    127.0.0.1:7897"
+  const line = out.split(/\r?\n/).find(l => l.includes(name));
+  if (!line) return null;
+  const value = line.split(/\s+/).filter(Boolean).pop();
+  return value || null;
+}
+
+function pickProxy(raw: string): string | null {
+  const parts = raw.split(';').map(s => s.trim()).filter(Boolean);
+  for (const proto of ['https=', 'http=', 'socks5=', 'socks=']) {
+    for (const p of parts) {
+      if (p.toLowerCase().startsWith(proto)) {
+        return normalizeProxy(p.slice(proto.length));
+      }
+    }
+  }
+  // 纯 host:port
+  for (const p of parts) {
+    if (!p.includes('=') && /^[\w.-]+:\d+$/.test(p)) {
+      return normalizeProxy(p);
+    }
+  }
+  return null;
+}
+
+function normalizeProxy(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) return v;
+  if (/^[\w.-]+:\d+$/.test(v)) return `http://${v}`;
+  return v;
+}
+
+/**
+ * 若探测到系统代理，返回注入给 git 的 `-c` 参数；否则返回空数组。
+ * 统一注入到所有 git 命令是安全的：本地命令（status/add/commit）会忽略 http.proxy。
+ */
+export function gitProxyArgs(): string[] {
+  const proxy = detectSystemProxy();
+  if (!proxy) return [];
+  return ['-c', `http.proxy=${proxy}`, '-c', `https.proxy=${proxy}`];
+}
+
+/**
+ * 执行 git 命令并返回 stdout。
+ * - 捕获 stderr：失败时优先返回真实 git 报错（而非 "Command failed: git ..."）
+ * - 注入系统代理
+ * - 设置超时，避免凭据弹窗导致的永久挂起
+ */
+export function runGit(cwd: string, args: string[], timeoutMs: number = DEFAULT_GIT_TIMEOUT_MS): string {
+  const fullArgs = [...gitProxyArgs(), ...args];
+  try {
+    return execFileSync('git', fullArgs, {
+      cwd,
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch (e: any) {
+    if (e?.code === 'ENOENT') {
+      throw new Error('未找到 git 命令，请先安装 Git 并加入 PATH');
+    }
+    if (e?.killed || e?.signal === 'SIGTERM') {
+      throw new Error(`git 命令超时（${Math.round(timeoutMs / 1000)}s）：${args.join(' ')}`);
+    }
+    const stderr = (e?.stderr?.toString() || '').trim();
+    const stdout = (e?.stdout?.toString() || '').trim();
+    throw new Error(stderr || stdout || e?.message || 'git command failed');
+  }
+}

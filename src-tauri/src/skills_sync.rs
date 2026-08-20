@@ -35,6 +35,7 @@ where
     S: AsRef<OsStr>,
 {
     let output = Command::new("git")
+        .args(crate::git_sync::proxy_args())
         .args(args)
         .current_dir(cwd)
         .output()
@@ -265,4 +266,61 @@ pub fn set_skills_sync_auto_pull(enabled: bool) -> Result<(), String> {
     let mut cfg = sync_config();
     cfg.auto_pull_on_startup = enabled;
     save_sync_config(&cfg)
+}
+
+#[tauri::command]
+pub fn test_skills_sync_connection() -> Result<String, String> {
+    let root = sync_root();
+    let cfg = sync_config();
+
+    if !root.join(".git").exists() {
+        return Err("尚未初始化同步仓库，请先初始化".to_string());
+    }
+    if cfg.remote_url.is_empty() {
+        return Err("尚未配置远端仓库地址".to_string());
+    }
+
+    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
+    let refspec = format!("refs/heads/{}", branch);
+    let out = run_git(&root, ["ls-remote", "origin", refspec.as_str()])
+        .map_err(|e| format!("连接失败: {}", e))?;
+
+    if out.trim().is_empty() {
+        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+    }
+    let head = out
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().next())
+        .unwrap_or("");
+    Ok(format!("连接成功，远端 {} 分支 HEAD: {}", branch, head))
+}
+
+#[tauri::command]
+pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
+    let root = sync_root();
+    let cfg = sync_config();
+
+    if !root.join(".git").exists() {
+        return Err("尚未初始化同步仓库，请先初始化".to_string());
+    }
+    if cfg.remote_url.is_empty() {
+        return Err("尚未配置远端仓库地址".to_string());
+    }
+
+    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
+    run_git(&root, ["fetch", "origin", branch]).map_err(|e| format!("拉取远端失败: {}", e))?;
+
+    let remote_ref = format!("origin/{}", branch);
+    if run_git(&root, ["rev-parse", "--verify", remote_ref.as_str()]).is_err() {
+        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+    }
+
+    // 仅重置受管文件（skills/ 与 .gitignore）；config.json / agents.json / projects.json / backups/
+    // 均为未跟踪的本地私有文件，git reset --hard 不会触碰它们。
+    run_git(&root, ["reset", "--hard", remote_ref.as_str()])
+        .map_err(|e| format!("重置本地失败: {}", e))?;
+
+    update_last_sync("success", None)?;
+    Ok(get_skills_sync_status())
 }
