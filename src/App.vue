@@ -13,6 +13,7 @@
         <SkillsMatrix v-else-if="store.currentTab === 'skills' || store.currentTab === 'unmanaged'" />
         <SyncView v-else-if="store.currentTab === 'sync'" />
         <ProjectsView v-else-if="store.currentTab === 'projects'" />
+        <PluginsView v-else-if="store.currentTab === 'plugins'" />
       </transition>
     </main>
 
@@ -35,6 +36,7 @@ import AgentsView from './components/AgentsView.vue';
 import SkillsMatrix from './components/SkillsMatrix.vue';
 import SyncView from './components/SyncView.vue';
 import ProjectsView from './components/ProjectsView.vue';
+import PluginsView from './components/PluginsView.vue';
 import AddAgentModal from './components/AddAgentModal.vue';
 import SkillEditorModal from './components/SkillEditorModal.vue';
 import AddProjectModal from './components/AddProjectModal.vue';

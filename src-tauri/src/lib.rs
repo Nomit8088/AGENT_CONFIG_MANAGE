@@ -4,9 +4,12 @@ pub mod git_guard;
 pub mod agent_detector;
 pub mod storage;
 pub mod skills_sync;
+pub mod git_sync;
+pub mod dsh_plugins;
+pub mod dsh_plugins_sync;
 pub mod watcher;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use models::*;
@@ -15,16 +18,18 @@ use git_guard::*;
 use storage::*;
 use agent_detector::*;
 
-/// DSH 的 skill-filesystem 会扫描多个用户级根目录。
-/// 其他 Agent 当前只使用单一 skillsDir。
+/// DSH 的 skill-filesystem 会扫描多个用户级根目录（主目录 ~/.dsh/skills 与
+/// 通用根 ~/.agents/skills）。首个元素必须是 AgentHub 的主挂载目录；停用/删除
+/// 时再遍历全部根。其他 Agent 当前只使用单一 skillsDir。
 fn agent_skill_dirs(agent: &AgentInfo) -> Vec<PathBuf> {
     let mut dirs = vec![expand_tilde(&agent.skills_dir)];
     if agent.id == "dsh" {
         dirs.push(expand_tilde("~/.dsh/skills"));
         dirs.push(expand_tilde("~/.agents/skills"));
     }
-    dirs.sort();
-    dirs.dedup();
+    // 保持主目录在最前，同时全局去重（顺序稳定，不排序，避免 ~/.agents 抢先）。
+    let mut seen = HashSet::new();
+    dirs.retain(|dir| seen.insert(dir.clone()));
     dirs
 }
 
@@ -141,9 +146,9 @@ fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
     let ignored = config.ignored_skills.unwrap_or_default();
     let mut unmanaged = Vec::new();
 
-    // 存量“待纳管”只扫描各 Agent 的主 skillsDir。
-    // DSH 的公共 ~/.dsh/skills 是配置仓库里的受控公共技能，不把它们当待纳管噪音展示；
-    // 但停用/删除时仍会清理这些根目录，确保开关生效。
+    // 存量“待纳管”只扫描各 Agent 的主 skillsDir（DSH 的主目录即 ~/.dsh/skills）。
+    // ~/.agents/skills 是通用共享根，不把它当待纳管噪音展示；
+    // 但停用/删除时仍会清理所有根目录，确保开关生效。
     for agent in agents {
         let skills_dir = expand_tilde(&agent.skills_dir);
         if !skills_dir.exists() {
@@ -621,6 +626,21 @@ pub fn run() {
             skills_sync::pull_skills_sync,
             skills_sync::push_skills_sync,
             skills_sync::set_skills_sync_auto_pull,
+            skills_sync::test_skills_sync_connection,
+            skills_sync::reset_skills_sync_to_remote,
+            dsh_plugins::scan_dsh_plugins,
+            dsh_plugins::diagnose_dsh_web,
+            dsh_plugins::toggle_dsh_plugin,
+            dsh_plugins::remove_dsh_plugin,
+            dsh_plugins::apply_dsh_recovery,
+            dsh_plugins::install_dsh_plugins,
+            dsh_plugins_sync::get_dsh_plugins_sync_status,
+            dsh_plugins_sync::init_dsh_plugins_sync,
+            dsh_plugins_sync::pull_dsh_plugins_sync,
+            dsh_plugins_sync::push_dsh_plugins_sync,
+            dsh_plugins_sync::set_dsh_plugins_sync_auto_pull,
+            dsh_plugins_sync::reconcile_dsh_plugins,
+            dsh_plugins_sync::align_dsh_plugins,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

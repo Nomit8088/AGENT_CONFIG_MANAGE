@@ -1,5 +1,18 @@
 import { defineStore } from 'pinia';
-import { AgentInfo, AppConfig, IgnoredSkill, ProjectInfo, SkillItem, SkillsSyncStatus, ToastMessage, UnmanagedSkill } from '../types';
+import {
+  AgentInfo,
+  AppConfig,
+  DshDiagnoseResult,
+  DshPluginDiff,
+  DshPluginScanResult,
+  DshRecoveryAction,
+  IgnoredSkill,
+  ProjectInfo,
+  SkillItem,
+  SkillsSyncStatus,
+  ToastMessage,
+  UnmanagedSkill,
+} from '../types';
 import { api } from '../services/api';
 
 export interface DiffModalState {
@@ -16,7 +29,7 @@ export interface DiffModalState {
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    currentTab: 'agents' as 'agents' | 'skills' | 'sync' | 'projects' | 'settings',
+    currentTab: 'agents' as 'agents' | 'skills' | 'sync' | 'projects' | 'settings' | 'plugins',
     agents: [] as AgentInfo[],
     skills: [] as SkillItem[],
     unmanagedSkills: [] as UnmanagedSkill[],
@@ -81,6 +94,28 @@ export const useAppStore = defineStore('app', {
     } as SkillsSyncStatus,
     skillsSyncLoading: false,
 
+    // DSH 插件中心
+    dshPluginsScan: null as DshPluginScanResult | null,
+    dshDiagnose: null as DshDiagnoseResult | null,
+    dshDiagnosing: false,
+    dshPluginsSyncStatus: {
+      initialized: false,
+      remoteUrl: undefined,
+      branch: undefined,
+      ahead: 0,
+      behind: 0,
+      dirtyCount: 0,
+      lastSyncAt: undefined,
+      lastSyncStatus: 'idle',
+      lastError: undefined,
+    } as SkillsSyncStatus,
+    dshPluginsSyncLoading: false,
+    dshPluginDiff: null as DshPluginDiff | null,
+    dshPluginsScanLoading: false,
+    dshPluginDiffModal: {
+      visible: false,
+    },
+
     // Agent Unmanaged Details Modal/Drawer
     agentDetailModal: {
       visible: false,
@@ -135,6 +170,12 @@ export const useAppStore = defineStore('app', {
     activeDetailAgent(state): AgentInfo | undefined {
       return state.agents.find(a => a.id === state.agentDetailModal.agentId);
     },
+    dshPluginDiffCount(state): number {
+      return state.dshPluginDiff?.items.length ?? 0;
+    },
+    dshProfileCount(state): number {
+      return state.dshPluginsScan?.profiles.length ?? 0;
+    },
   },
 
   actions: {
@@ -165,10 +206,14 @@ export const useAppStore = defineStore('app', {
         }
 
         // Skills Sync: load status, and if enabled, try a silent fast-forward pull on startup
-        this.loadSkillsSyncStatus();
+        this.loadSkillsSyncStatus().catch(() => {});
         if (this.config.skills_sync?.autoPullOnStartup && this.config.skills_sync.remoteUrl) {
           this.pullSkillsSync(false).catch(() => {});
         }
+
+        // DSH 插件中心：静默加载扫描与同步状态（失败不阻塞主流程）
+        this.loadDshPlugins().catch(() => {});
+        this.loadDshPluginsSyncStatus().catch(() => {});
 
         api.onExternalSkillCreated((path) => {
           this.showToast({
@@ -390,6 +435,202 @@ export const useAppStore = defineStore('app', {
         title: enabled ? '启动自动拉取已开启' : '启动自动拉取已关闭',
         message: enabled ? '每次启动 AgentHub 会静默拉取最新中央技能库' : 'AgentHub 启动时将不再自动联网拉取',
         type: 'info',
+      });
+    },
+
+    async testSkillsSyncConnection() {
+      try {
+        const message = await api.testSkillsSyncConnection();
+        this.showToast({
+          title: '连接测试成功',
+          message,
+          type: 'success',
+        });
+      } catch (e: any) {
+        this.showToast({
+          title: '连接测试失败',
+          message: e?.message || '无法连接远端仓库',
+          type: 'error',
+        });
+        throw e;
+      }
+    },
+
+    async resetSkillsSyncToRemote() {
+      this.skillsSyncLoading = true;
+      try {
+        this.skillsSyncStatus = await api.resetSkillsSyncToRemote();
+        await this.loadSkills();
+        this.showToast({
+          title: '已重置为远端',
+          message: '本地中央技能库已与远端完全一致',
+          type: 'success',
+        });
+      } catch (e: any) {
+        this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
+        this.showToast({
+          title: '重置失败',
+          message: e?.message || '无法重置本地中央技能库',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.skillsSyncLoading = false;
+      }
+    },
+
+    // ==================== DSH 插件中心 ====================
+
+    async loadDshPlugins() {
+      this.dshPluginsScanLoading = true;
+      try {
+        this.dshPluginsScan = await api.scanDshPlugins();
+      } finally {
+        this.dshPluginsScanLoading = false;
+      }
+    },
+
+    async diagnoseDshWeb(profile?: string) {
+      this.dshDiagnosing = true;
+      try {
+        this.dshDiagnose = await api.diagnoseDshWeb(profile);
+        return this.dshDiagnose;
+      } finally {
+        this.dshDiagnosing = false;
+      }
+    },
+
+    async applyDshRecovery(action: DshRecoveryAction) {
+      await api.applyDshRecovery(action);
+      await this.loadDshPlugins();
+      this.showToast({
+        title: '已应用恢复动作',
+        message: action.description,
+        type: 'success',
+      });
+    },
+
+    async toggleDshPlugin(profile: string, key: string, enabled: boolean) {
+      await api.toggleDshPlugin(profile, key, enabled);
+      await this.loadDshPlugins();
+      this.showToast({
+        title: enabled ? '插件已启用' : '插件已停用',
+        message: `profile [${profile}] 的 ${key} 已${enabled ? '启用' : '停用'}`,
+        type: 'info',
+      });
+    },
+
+    async removeDshPlugin(profile: string, key: string) {
+      await api.removeDshPlugin(profile, key);
+      await this.loadDshPlugins();
+      this.showToast({
+        title: '插件已卸载',
+        message: `profile [${profile}] 的 ${key} 已从配置中移除（并已尽力清理 node_modules）`,
+        type: 'warning',
+      });
+    },
+
+    async installDshPlugins(profile: string) {
+      await api.installDshPlugins(profile);
+      await this.loadDshPlugins();
+      this.showToast({
+        title: '依赖安装完成',
+        message: `profile [${profile}] 已执行 pnpm install`,
+        type: 'success',
+      });
+    },
+
+    async loadDshPluginsSyncStatus() {
+      this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus();
+    },
+
+    async initDshPluginsSync(remoteUrl: string, branch?: string) {
+      this.dshPluginsSyncLoading = true;
+      try {
+        this.dshPluginsSyncStatus = await api.initDshPluginsSync(remoteUrl, branch);
+        await this.loadConfig();
+        this.showToast({
+          title: '插件同步仓库已连接',
+          message: `DSH 插件配置同步已初始化，远端: ${remoteUrl}`,
+          type: 'success',
+        });
+      } finally {
+        this.dshPluginsSyncLoading = false;
+      }
+    },
+
+    async pullDshPluginsSync(showToast = true) {
+      this.dshPluginsSyncLoading = true;
+      try {
+        this.dshPluginsSyncStatus = await api.pullDshPluginsSync();
+        if (showToast) {
+          this.showToast({
+            title: '拉取完成',
+            message: 'DSH 插件配置已与远端同步（拉取后请对账并一键对齐）',
+            type: 'success',
+          });
+        }
+      } catch (e: any) {
+        this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus().catch(() => this.dshPluginsSyncStatus);
+        if (showToast) {
+          this.showToast({
+            title: '拉取失败',
+            message: e?.message || '无法拉取远端插件配置',
+            type: 'error',
+          });
+        }
+        throw e;
+      } finally {
+        this.dshPluginsSyncLoading = false;
+      }
+    },
+
+    async pushDshPluginsSync(message?: string) {
+      this.dshPluginsSyncLoading = true;
+      try {
+        this.dshPluginsSyncStatus = await api.pushDshPluginsSync(message);
+        await this.reconcileDshPlugins();
+        this.showToast({
+          title: '推送完成',
+          message: 'DSH 插件配置已镜像并推送到远端',
+          type: 'success',
+        });
+      } catch (e: any) {
+        this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus().catch(() => this.dshPluginsSyncStatus);
+        this.showToast({
+          title: '推送失败',
+          message: e?.message || '无法推送插件配置',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshPluginsSyncLoading = false;
+      }
+    },
+
+    async setDshPluginsSyncAutoPull(enabled: boolean) {
+      await api.setDshPluginsSyncAutoPull(enabled);
+      await this.loadConfig();
+      this.showToast({
+        title: enabled ? '插件启动自动拉取已开启' : '插件启动自动拉取已关闭',
+        message: enabled ? '每次启动会静默拉取最新插件配置' : 'AgentHub 启动时将不再自动联网拉取插件配置',
+        type: 'info',
+      });
+    },
+
+    async reconcileDshPlugins() {
+      this.dshPluginDiff = await api.reconcileDshPlugins();
+      return this.dshPluginDiff;
+    },
+
+    async alignDshPlugins(profile?: string) {
+      await api.alignDshPlugins(profile);
+      await this.loadDshPlugins();
+      await this.reconcileDshPlugins();
+      this.showToast({
+        title: '一键对齐完成',
+        message: '本地插件配置已对齐镜像并执行 pnpm install',
+        type: 'success',
       });
     },
 
