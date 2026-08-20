@@ -37,7 +37,7 @@ As developers mix and match multiple AI coding agents (**Claude Code, Google Ant
 | `antigravity` | **Google Antigravity** | `~/.gemini/config/skills` | `GEMINI.md`, `.agents/rules/*.md`, `AGENTS.md` | ✅ | `.agents/rules/local-override.md` | Gemini Gradient (`#4E82EE` → `#10B981`) |
 | `codex` | **OpenCode / Codex** | `~/.codex/skills` | `AGENTS.md`, `AGENTS.override.md` | ✅ | `AGENTS.override.md` | OpenAI Green (`#10A37F`) |
 | `zcode` | **ZCode** | `~/.zcode/skills` | `ZCODE.local.md`, `AGENTS.md` | ✅ | `ZCODE.local.md` | Matrix Indigo (`#818CF8`) |
-| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills-personal` | `AGENTS.md`, `CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Blue (`#4D6BFE`) |
+| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills` | `AGENTS.md`, `CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Blue (`#4D6BFE`) |
 | `mimocode` | **MiMo Code** | `~/.config/mimocode/skills` | `AGENTS.md`, `CLAUDE.md`, `mimocode.json` | ✅ | `AGENTS.md` | Xiaomi Orange (`#FF6900`) |
 | `openclaw` | **OpenClaw** | `~/.openclaw/skills` | `AGENTS.md`, `SOUL.md`, `IDENTITY.md` | ✅ | `AGENTS.md` | Cyber Claw (`#F97316`) |
 | `hermes` | **Hermes Agent** | `~/.hermes/skills` | `.hermes.md`, `AGENTS.override.md`, `AGENTS.md` | ✅ | `AGENTS.override.md` | Amber Gold (`#F59E0B`) |
@@ -48,7 +48,7 @@ As developers mix and match multiple AI coding agents (**Claude Code, Google Ant
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`, Codex commands | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`, `AGENTS.md`, `AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
-> **DSH multi-root note**: DSH's `skill-filesystem` scans `~/.dsh/skills-personal`, `~/.dsh/skills`, and `~/.agents/skills` by default. AgentHub now manages DSH as a multi-root agent, so enabling/disabling/deleting/takeover also cleans all user-level skill roots and the Skills Matrix toggle takes effect for DSH.
+> **DSH multi-root note**: DSH's `skill-filesystem` scans user-level `~/.dsh/skills` (user-dsh) and `~/.agents/skills` (user-agents) by default — it does not scan `~/.dsh/skills-personal`. AgentHub mounts DSH skills into `~/.dsh/skills` and cleans all user-level skill roots on enable/disable/delete/takeover so the Skills Matrix toggle takes effect for DSH.
 
 ---
 

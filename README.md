@@ -36,7 +36,7 @@
 | 痛点场景 | 传统方式面临的问题 | AgentHub 解决方案 |
 |---|---|---|
 | **团队 Git 规则冲突** | 团队代码仓库追踪了公共 `AGENTS.md`。本地开发者定制个人偏好直接修改该文件，切分支或 `git pull` 必出冲突；若仅靠 Prompt 提示“忽略”，原版内容依然注入上下文，浪费大量 Token 并干扰推理。 | **零 Git 冲突双模引擎**：<br>• **追加模式 (Append)**：原版 `AGENTS.md` 保持 0 修改，个性化规则精准分发至各 Agent 专属私有文件并自动写入 `.git/info/exclude`。<br>• **覆盖模式 (Overwrite)**：安全备份原版规则，并自动部署 Git Hook 守卫，在切分支或 pull 前后毫秒级自动还原与重载，0 冲突。 |
-| **Skills / Commands 生态割裂** | 各 Agent 技能目录各异（`~/.claude/skills`、`~/.gemini/config/skills`、`~/.codex/skills`、`~/.dsh/skills-personal` 等），在一个 Agent 中编写的新 Skill 无法自动在其他 Agent 中复用。 | **中央技能库 Single Source of Truth**：<br>统一存放于 `%APPDATA%\AgentHub\skills\`，通过 Tag Pills 与智能浮层分发器，勾选即可秒级通过 NTFS Junction / Hardlink 挂载至任意 Agent。 |
+| **Skills / Commands 生态割裂** | 各 Agent 技能目录各异（`~/.claude/skills`、`~/.gemini/config/skills`、`~/.codex/skills`、`~/.dsh/skills` 等），在一个 Agent 中编写的新 Skill 无法自动在其他 Agent 中复用。 | **中央技能库 Single Source of Truth**：<br>统一存放于 `%APPDATA%\AgentHub\skills\`，通过 Tag Pills 与智能浮层分发器，勾选即可秒级通过 NTFS Junction / Hardlink 挂载至任意 Agent。 |
 | **存量技能无法纳管** | 各 Agent 目录下散落了手动编写或 npx 安装的实体技能文件夹，缺乏统一的可视化管理与冲突识别。 | **智能存量归类与冲突对比 (Diff)**：<br>自动按 Agent 聚合扫描未受控实体文件夹，提供一键批量纳管、私有忽略名单及同名版本 Diff 对比决策。 |
 | **沙箱跳过软链导致失效** | 部分 Agent（如 Google Antigravity）在 Windows 下因安全策略会静默跳过带有 ReparsePoint 属性的 NTFS Junction 目录软链。 | **文件级 Hardlink Tree 架构**：<br>对 Antigravity 采用普通物理文件夹 + 内部文件 NTFS 硬链接树机制，共享物理 Inode，实现 0 磁盘冗余、0 延迟双向实时同步。 |
 
@@ -54,7 +54,7 @@ AgentHub 原生深度适配主流 AI Agent 矩阵，严格按照各官方规范�
 | `antigravity` | **Google Antigravity** | `~/.gemini/config/skills` | `GEMINI.md`、`.agents/rules/*.md`、`AGENTS.md` | ✅ | `.agents/rules/local-override.md` | Gemini Gradient (`#4E82EE` → `#10B981`) |
 | `codex` | **OpenCode / Codex** | `~/.codex/skills` | `AGENTS.md`、`AGENTS.override.md` | ✅ | `AGENTS.override.md` | OpenAI Green (`#10A37F`) |
 | `zcode` | **ZCode** | `~/.zcode/skills` | `ZCODE.local.md`、`AGENTS.md` | ✅ | `ZCODE.local.md` | Matrix Indigo (`#818CF8`) |
-| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills-personal` | `AGENTS.md`、`CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Blue (`#4D6BFE`) |
+| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills` | `AGENTS.md`、`CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Blue (`#4D6BFE`) |
 | `mimocode` | **MiMo Code** | `~/.config/mimocode/skills` | `AGENTS.md`、`CLAUDE.md`、`mimocode.json` | ✅ | `AGENTS.md` | Xiaomi Orange (`#FF6900`) |
 | `openclaw` | **OpenClaw** | `~/.openclaw/skills` | `AGENTS.md`、`SOUL.md`、`IDENTITY.md` | ✅ | `AGENTS.md` | Cyber Claw (`#F97316`) |
 | `hermes` | **Hermes Agent** | `~/.hermes/skills` | `.hermes.md`、`AGENTS.override.md`、`AGENTS.md` | ✅ | `AGENTS.override.md` | Amber Gold (`#F59E0B`) |
@@ -65,7 +65,7 @@ AgentHub 原生深度适配主流 AI Agent 矩阵，严格按照各官方规范�
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`、Codex 指令 | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`、`AGENTS.md`、`AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
-> **DSH 多根说明**：DSH 的 `skill-filesystem` 会同时扫描 `~/.dsh/skills-personal`、`~/.dsh/skills` 与 `~/.agents/skills`。AgentHub 对 `dsh` 已按多根目录管理，启用/停用/删除/纳管时会同步清理这些用户级技能根，确保 Skills Matrix 的开关对 DSH 真正生效。
+> **DSH 多根说明**：DSH 的 `skill-filesystem` 默认扫描用户级 `~/.dsh/skills`（user-dsh）与 `~/.agents/skills`（user-agents），并不扫描 `~/.dsh/skills-personal`。AgentHub 以 `~/.dsh/skills` 作为 DSH 主挂载目录，启用/停用/删除/纳管时会同步清理所有用户级技能根，确保 Skills Matrix 的开关对 DSH 真正生效。
 
 ---
 

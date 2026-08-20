@@ -10,7 +10,7 @@
 ### 1.1 为什么需要 AgentHub？
 随着多款 AI Coding Agent（Claude Code、Google Antigravity、OpenCode/Codex、ZCode、Cursor、DSH、Windsurf 等）在实际开发中的混合使用，开发者面临以下三大痛点：
 1. **规则与 Git 上下文冲突**：团队 Git 仓库通常追踪了全局 `AGENTS.md`。本地定制个性化偏好若直接修改该文件，切分支或 `git pull` 必出冲突；若仅靠 Prompt 提示“忽略”，原版内容依然注入上下文，浪费大量 Token 并干扰推理。
-2. **Skills / Commands 生态割裂**：各 Agent 的技能存放目录各异（`~/.claude/skills`、`~/.gemini/config/skills`、`~/.codex/skills`、`~/.zcode/skills`、`~/.dsh/skills-personal` 等），在一个 Agent 中开发的新 Skill 无法自动同步共享。
+2. **Skills / Commands 生态割裂**：各 Agent 的技能存放目录各异（`~/.claude/skills`、`~/.gemini/config/skills`、`~/.codex/skills`、`~/.zcode/skills`、`~/.dsh/skills` 等），在一个 Agent 中开发的新 Skill 无法自动同步共享。
 3. **缺乏统一可视化管理**：市面上的 `cc-switch` 仅关注模型 API 代理切换，缺乏一款集「多 Agent 自动适配、中央 Skills 软链矩阵、项目规则零 Git 冲突一键开关、存量技能一键纳管与忽略」于一体的轻量桌面客户端。
 
 ### 1.2 AgentHub 的核心目标
@@ -94,6 +94,18 @@
     "lastSyncAt": 1723982400000,
     "lastSyncStatus": "success",
     "lastError": null
+  },
+  "dsh_plugins": {                   // DSH 插件中心（扫描/诊断/同步/对账）
+    "dshCommand": "",                // 空 = 自动探测（where dsh → ~/AppData/Roaming/npm）
+    "pnpmCommand": "",
+    "sync": {
+      "remoteUrl": "https://github.com/you/agenthub-sync.git",
+      "branch": "main",
+      "autoPullOnStartup": false,
+      "lastSyncAt": 1723982400000,
+      "lastSyncStatus": "idle",
+      "lastError": null
+    }
   }
 }
 ```
@@ -160,7 +172,7 @@
     "icon": "cpu",
     "detected": true,
     "enabled": true,
-    "skillsDir": "~/.dsh/skills-personal",
+    "skillsDir": "~/.dsh/skills",
     "ruleType": "local_file",
     "localRuleFilename": "AGENTS.local.md",
     "isCustom": false
@@ -234,7 +246,8 @@ flowchart TD
 │   ├── services/
 │   │   └── api.ts                      # Dual-Mode IPC 适配层 (Tauri ↔ Web API)
 │   ├── server/
-│   │   └── localApi.ts                 # Web 模式下的 Node 原生系统操作层 (NTFS Junction/FS)
+│   │   ├── localApi.ts                 # Web 模式下的 Node 原生系统操作层 (NTFS Junction/FS)
+│   │   └── dshPlugins.ts               # Web 模式 DSH 插件扫描/诊断/开关/同步/对账（与 Rust 对齐）
 │   ├── assets/
 │   │   └── style.css                   # 全局样式、毛玻璃、滚动条美化
 │   └── components/
@@ -255,6 +268,11 @@ flowchart TD
 │       ├── AddAgentModal.vue           # 自定义 Agent 注册弹窗
 │       ├── AddProjectModal.vue         # 纳管新项目弹窗
 │       ├── DiffModal.vue               # 面板 4: Diff 语法高亮冲突决策弹窗
+│       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（插件面板 / 诊断修复 / 同步与对账 三分段 Tab）
+│       ├── DshPluginList.vue           # DSH 本地插件可视化扫描面板（profile 选择 + 启停开关 + 可移植性标签）
+│       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（崩溃堆栈解析 + 一键关闭并重试）
+│       ├── DshPluginSync.vue           # DSH 插件配置同步 + 对账面板（推送/拉取/一键对齐）
+│       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
 │       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器)
 │       └── ToastContainer.vue          # 全局浮动操作提示
 │
@@ -269,6 +287,8 @@ flowchart TD
         ├── fs_junction.rs              # Windows NTFS Junction 驱动
         ├── git_guard.rs                # Git Hook 注入与多基线还原引擎
         ├── skills_sync.rs              # 中央技能库 Git 同步 (init/pull/push/status)
+        ├── dsh_plugins.rs              # DSH 插件扫描/诊断/开关/恢复/安装（文本级 patch 安全写盘）
+        ├── dsh_plugins_sync.rs         # DSH 插件配置同步/对账/一键对齐（复用同一 .git，镜像到 dsh/）
         ├── agent_detector.rs           # 本地 Agent 探测与路径校验
         ├── storage.rs                  # %APPDATA%\AgentHub 本地持久化
         └── watcher.rs                  # Notify 内核级文件监听后台线程
@@ -320,11 +340,11 @@ npm run tauri build
    - Google Antigravity 的安全沙箱与文件扫描器在 Windows 下出于防循环引用与隔离策略，会**静默跳过带有 `FILE_ATTRIBUTE_REPARSE_POINT` 的目录软链（NTFS Junction）**。
    - 解决方案：针对 `antigravity`，采用 **「物理目录（`d-----`）+ 文件级 NTFS 硬链接（`mklink /H` / `fs.linkSync`）」** 的 Hardlink Tree 架构。
    - 目录为普通物理文件夹，Antigravity 不会跳过；目录内的文件与中央库共享 MFT 物理 Inode，实现 **0 拷贝、0 磁盘冗余、毫秒级双向实时同步**。
-6. **DSH 多 Skill 根目录（Multi-Root Skills）**：
-   - DSH 的 `skill-filesystem` 默认会同时扫描 `customSkillDirs`（`~/.dsh/skills-personal`）、用户级公共目录 `~/.dsh/skills`、`~/.agents/skills`，以及项目级 `.dsh/skills` / `.agents/skills`。
-   - AgentHub 对 `dsh` 已按多根模型处理：`getAgentSkillDirs()` / Rust `agent_skill_dirs()` 会返回 `~/.dsh/skills-personal` + `~/.dsh/skills` + `~/.agents/skills`。
-   - 停用/删除时会清理 DSH 的所有用户级 skill 根目录，避免出现“关闭后 DSH 仍能读到公共目录同名技能”的问题；启用只挂载主目录，不误删公共技能。
-   - 存量“待纳管”扫描仍只扫主 `skillsDir`，避免把 `~/.dsh/skills` 的公共技能当成待纳管噪音。
+6. **DSH 技能根目录（Multi-Root Skills）**：
+   - DSH 的 `skill-filesystem` 默认扫描项目级 `.dsh/skills` / `.agents/skills`、`customSkillDirs`，以及用户级 `~/.dsh/skills`（user-dsh）与 `~/.agents/skills`（user-agents）；它**并不扫描** `~/.dsh/skills-personal`。
+   - AgentHub 对 `dsh` 的主管理目录即 `~/.dsh/skills`：`getAgentSkillDirs()` / Rust `agent_skill_dirs()` 返回 `~/.dsh/skills` + `~/.agents/skills`（首个元素为主挂载目录）。
+   - 停用/删除时会清理 DSH 的所有用户级 skill 根目录，避免出现“关闭后 DSH 仍能读到公共目录同名技能”的问题；启用只挂载主目录 `~/.dsh/skills`，不误删 `~/.agents/skills` 共享技能。
+   - 存量“待纳管”扫描仍只扫主 `skillsDir`（即 `~/.dsh/skills`），避免把 `~/.agents/skills` 的共享技能当成待纳管噪音。
    - 项目级 `.dsh/skills` / `.agents/skills` 属于项目本地技能，AgentHub 全局开关暂不清理。
 
 ---
@@ -339,7 +359,7 @@ npm run tauri build
 | `antigravity` | **Google Antigravity** | `~/.gemini/config/skills` | `GEMINI.md`、`.agents/rules/*.md`、`AGENTS.md` | ✅ | `.agents/rules/local-override.md` | Google AI 4-Point Gradient Star (`#4E82EE` -> `#10B981`) |
 | `codex` | **OpenCode / Codex** | `~/.codex/skills` | `AGENTS.md`、`AGENTS.override.md` | ✅ | `AGENTS.override.md` | OpenAI Ribbon Swirl Vortex (`#10A37F`) |
 | `zcode` | **ZCode** | `~/.zcode/skills` | `ZCODE.local.md`、`AGENTS.md` | ✅ | `ZCODE.local.md` | Indigo High-Tech Matrix Terminal (`#818CF8`) |
-| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills-personal` | `AGENTS.md`、`CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Official Vector Whale (`#4D6BFE`) |
+| `dsh` | **DeepSeek HARNESS** | `~/.dsh/skills` | `AGENTS.md`、`CLAUDE.md` | ✅ | `AGENTS.local.md` | DeepSeek Official Vector Whale (`#4D6BFE`) |
 | `mimocode` | **MiMo Code** | `~/.config/mimocode/skills` | `AGENTS.md`、`CLAUDE.md`、`mimocode.json` | ✅ | `AGENTS.md` | Xiaomi Intelligence Dual-Node (`#FF6900`) |
 | `openclaw` | **OpenClaw** | `~/.openclaw/skills` | `AGENTS.md`、`SOUL.md`、`IDENTITY.md` | ✅ | `AGENTS.md` | Cybernetic Claw / Eagle Badge (`#F97316`) |
 | `hermes` | **Hermes Agent** | `~/.hermes/skills` | `.hermes.md`、`AGENTS.override.md`、`AGENTS.md` | ✅ | `AGENTS.override.md` | Nous Research Winged Helm Crest (`#F59E0B`) |
@@ -349,6 +369,62 @@ npm run tauri build
 | `trae` | **Trae / TraeWork** | `~/.trae/skills` | `.trae/rules/`、`AGENTS.md`、`CLAUDE.local.md` | ✅ (需设置开启) | `CLAUDE.local.md` | ByteDance Trae 3D Prism Cube (`#00E5FF`) |
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`、Codex 指令 | ❓ (依赖配置) | `AGENTS.md` | Collaboration Robot Intelligence (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`、`AGENTS.md`、`AmazonQ.md` | ✅ | `AGENTS.md` | Amazon Q / Magenta Gradient Badge (`#E056FD`) |
+
+---
+
+## 8A. DSH 插件中心（DSH Plugin Manager）架构
+
+新增独立「DSH 插件中心」Tab（`Navigation.vue` 图标 `Puzzle`，badge = 对账差异数），实现四大能力：
+
+| 能力 | 实现 |
+|---|---|
+| F1 启动失败诊断修复 | `diagnose_dsh_web` 拉起 `dsh web` 捕获崩溃 stderr，解析失败插件 → 建议动作 → 关闭并重试 |
+| F2 本地插件可视化 | `scan_dsh_plugins` 扫描 `~/.dsh/profiles/*` 的 `package.json` + `cordis.patch.yml` |
+| F3 配置同步 | 仅同步配置文件（`package.json` + `cordis.patch.yml` + `pnpm-lock.yaml`），拉取后 `pnpm install` 自装 |
+| F4 对账提示 | 仓库镜像 vs 本地配置 diff，提示 +「一键对齐」 |
+
+### 核心边界与数据模型
+- **事实源始终是 `~/.dsh/profiles/<name>/package.json` + `cordis.patch.yml`**；AgentHub 只读写这些文件，不复制第二份「插件状态」。
+- 插件条目 `DshPluginEntry`：`key` = `bundle:<pkg>` | `dep:<pkg>` | `row:<id>`；`kind` = `inbox`（内置 `@deepseek-ai/dsh-*`）/ `bundle`（用户 bundle）/ `plain`（依赖未激活）/ `row`（patch 行）；`portability` = `portable` / `unportable`（不可移植 = `link:` / `file:` / `workspace:` / `portal:` / `catalog:` / `git+ssh:` / `ssh:` / `git@`；`git+https:` / `github:` / `gitlab:` / 版本号 / `npm:` 均为可移植）。
+- `config.json` 新增 `dsh_plugins` 块（`dshCommand` / `pnpmCommand` 可配置，空 = 自动探测；`sync` 同步配置）。
+
+### 同步仓库布局（与 skills sync 共用同一 `.git`）
+```
+%APPDATA%\AgentHub\          # Git 仓库根（与 skills sync 共用）
+├── .gitignore               # 排除 config.json / agents.json / projects.json / backups/ 等私有文件
+├── skills\                  # 中央技能库（skills sync）
+└── dsh\                     # DSH 插件配置镜像（本功能）
+    └── profiles\<name>\
+        ├── package.json     # 已剔除内置 bundle 与不可移植依赖
+        ├── cordis.patch.yml
+        └── pnpm-lock.yaml
+```
+- **推送**：`~/.dsh/profiles/<name>` → 镜像 `dsh\profiles\<name>`（sanitize）→ `git add -A -- dsh` → commit/push。
+- **拉取**：`git pull --ff-only` → 读镜像 → 对账 →「一键对齐」写回 `~/.dsh` + `pnpm install`。
+- **init 幂等**：无 `.git` 才 `git init`，避免与 skills sync 冲突。
+
+### 安全写盘（双端一致）
+- `package.json`：只改 `dsh.profile.bundles` / `dependencies`，2-space JSON 写回，幂等。
+- `cordis.patch.yml`：**只做文本级追加/删除**（按 id 去重、保留注释与 `!!js`、绝不 `yaml.dump` 全文件）。停用 = 追加 `{id, disabled:true}`；启用 = 按 id 删除该顶层条目。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `scan_dsh_plugins` | `GET /api/dsh/plugins/scan` | 扫描本地插件 |
+| `diagnose_dsh_web` | `POST /api/dsh/plugins/diagnose` | 诊断启动失败（15s 超时 + 杀进程树） |
+| `toggle_dsh_plugin` | `POST /api/dsh/plugins/toggle` | 启停 bundle/dep/row |
+| `remove_dsh_plugin` | `POST /api/dsh/plugins/remove` | 卸载（移出 dependencies + bundles / 删除 patch 行 + 尽力 pnpm prune） |
+| `apply_dsh_recovery` | `POST /api/dsh/plugins/recover` | 应用恢复动作 |
+| `install_dsh_plugins` | `POST /api/dsh/plugins/install` | pnpm install |
+| `get_dsh_plugins_sync_status` | `GET /api/dsh/plugins/sync/status` | 同步状态 |
+| `init_dsh_plugins_sync` | `POST /api/dsh/plugins/sync/init` | 初始化（幂等） |
+| `pull_dsh_plugins_sync` | `POST /api/dsh/plugins/sync/pull` | git pull --ff-only |
+| `push_dsh_plugins_sync` | `POST /api/dsh/plugins/sync/push` | 镜像 + commit + push |
+| `set_dsh_plugins_sync_auto_pull` | `POST /api/dsh/plugins/sync/auto-pull` | 启动自动拉取 |
+| `reconcile_dsh_plugins` | `GET /api/dsh/plugins/reconcile` | 对账 diff |
+| `align_dsh_plugins` | `POST /api/dsh/plugins/align` | 一键对齐 + pnpm install |
+
+> 诊断错误解析优先级：`N entries did not activate` → `plugin(s) failed to load: <names>` → `fatal load failure`（用 profile 包名回扫）→ 提示手动定位；`EADDRINUSE`（端口 3080 占用）判为「另一实例运行」非插件故障。
 
 ---
 
@@ -518,6 +594,45 @@ npm run tauri build
     - 自动拉取仅 fast-forward：本地有未提交修改或冲突时安全跳过并提示，绝不覆盖本地 skills。
     - Rust 后端新增 `skills_sync.rs`（`get_skills_sync_status` / `init_skills_sync` / `pull_skills_sync` / `push_skills_sync` / `set_skills_sync_auto_pull`）；Node 本地 API 与 `vite.config.ts` 路由 `/api/skills/sync/*` 双端对齐。
     - `config.json` 新增 `skills_sync` 配置块，保存远端地址、分支、启动自动拉取与最后同步状态。
+
+- **2026-08-20 (Session 17)**:
+  - **DSH 插件中心 (DSH Plugin Manager) 全新落地**:
+    - 新增独立「DSH 插件中心」Tab（`PluginsView.vue` + `DshPluginList.vue` / `DshDiagnose.vue` / `DshPluginSync.vue` / `DshPluginDiffModal.vue`），内部三分段 Tab：插件面板 / 诊断修复 / 同步与对账。
+    - **F1 启动失败诊断修复**：`diagnose_dsh_web` 拉起 `dsh web` 捕获崩溃 stderr（15s 超时 + `taskkill /T /F` 杀进程树），解析 `N entries did not activate` / `plugin(s) failed to load` / `fatal load failure` 并给出 `remove-bundle` / `remove-dependency` / `disable-row` 建议动作，一键「关闭并重试」；`EADDRINUSE` 判为端口占用非插件故障。
+    - **F2 本地插件可视化**：`scan_dsh_plugins` 扫描 `~/.dsh/profiles/*`，分类内置 bundle（`@deepseek-ai/dsh-*`）/ 用户 bundle / 依赖 / patch 行，展示版本、spec、可移植性（`link:` / `file:` / `git+` 标记不可移植），支持分段滑块启停。
+    - **F3 配置同步**：仅同步配置文件（`package.json` + `cordis.patch.yml` + `pnpm-lock.yaml`），复用 skills sync 同一 `.git`，镜像到 `dsh/profiles/<name>`，剔除内置 bundle 与不可移植依赖，拉取后 `pnpm install` 自装。
+    - **F4 对账**：`reconcile_dsh_plugins` 输出 missing/extra/version/patch 差异 + 不可移植警告，`align_dsh_plugins` 一键对齐（保留本地内置 bundle 与 link: 依赖）并 `pnpm install`。
+    - **安全写盘**：`cordis.patch.yml` 只做文本级追加/删除（按 id 去重、保留注释与 `!!js`、绝不 `yaml.dump` 全文件），对齐 duplicate-entry 教训。
+    - 类型与数据模型：`types/index.ts`、`models.rs`（Dsh 全量结构 + `AppConfig.dsh_plugins`）、`config.json` 默认块；`api.ts` 新增 12 个 DSH 方法；`useAppStore.ts` 新增 DSH state/actions 并在 `init()` 静默加载。
+    - Rust 后端新增 `dsh_plugins.rs` / `dsh_plugins_sync.rs`，Node 后端新增 `dshPlugins.ts`，`vite.config.ts` 新增 `/api/dsh/plugins/*` 路由双端对齐。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告；Web 模式实测 `/api/dsh/plugins/scan` 正确识别 `web` profile 与 `@dsh-external/dsh-super-injector`（`link:` 不可移植 + v0.3.3），reconcile 正确标记不可移植警告。
+    - 验收：安装 Rust 工具链（rustup `stable-x86_64-pc-windows-msvc`，rustc/cargo 1.97.1），`cargo check`（`src-tauri`）**零错误零警告**通过；MSVC 链接器经 vswhere 自动定位（VS 18 BuildTools 已就绪）。
+
+- **2026-08-20 (Session 18)**:
+  - **修正 DSH 技能根目录：`~/.dsh/skills-personal` → `~/.dsh/skills`（方案 1）**:
+    - 核对 deepseek-harness master 源码 `packages/skill/skill-filesystem`：DSH 用户级技能根为 `~/.dsh/skills`（user-dsh）与 `~/.agents/skills`（user-agents）；`customSkillDirs` 默认为空，本机 preset 中指向内置 cordis skills，DSH **从不扫描** `~/.dsh/skills-personal`。
+    - 修正 Node 端 `localApi.ts`（DSH 默认 `skillsDir`、安装探测、`getAgentSkillDirs` 注释）与 `vite.config.ts` 注释；修正 Rust 端 `agent_detector.rs`、`lib.rs`（`agent_skill_dirs` 改为主目录优先 + 全局去重，不再 `sort` 导致 `.agents` 抢先）、`watcher.rs`（移除 `skills-personal` 死路径监听）。
+    - 同步修正 `%APPDATA%\AgentHub\agents.json` 默认值，以及 HANDOVER / README 文档中 DSH 技能目录与多根说明。
+
+- **2026-08-20 (Session 19)**:
+  - **同步中心（Skills Sync）可用性根治与诊断增强**:
+    - **根因 1 — git 真实报错被吞**：Node 端 `gitExec` 原先 `stdio: ['pipe','pipe','ignore']` 丢弃 stderr，`config.json` 只落盘无意义的 `Command failed: git pull ...`；新增 `src/server/gitSyncUtil.ts` 统一捕获 stderr/stdout 并设置 120s 超时（`localApi.ts` 与 `dshPlugins.ts` 共用），失败时返回真实 fatal 信息。
+    - **根因 2 — git 不读 Windows 系统代理**：本机 WinINET 代理 `127.0.0.1:7897` 下 GitHub 直连被 reset，`git ls-remote` 亦失败；新增系统代理探测（环境变量 → `reg query` WinINET），并以 `-c http.proxy / -c https.proxy` 注入所有 git 网络命令，连接恢复秒级可用。
+    - **根因 3 — 前端丢弃服务端错误体**：`api.ts requestApi` 原先仅抛 `API error: <statusText>`；改为解析 `{error}` 体透传真实信息，同步/拉取/推送失败提示不再失真。
+    - **根因 4 — 本地与远端历史分叉无解**：本地仓库与远端各为独立 root commit 时 `--ff-only` 必然失败；新增 `test_skills_sync_connection`（`ls-remote` 连接自检）与 `reset_skills_sync_to_remote`（`fetch + reset --hard origin/<branch>`，仅覆盖受管 `skills/` 与 `.gitignore`，不触碰 config/agents/projects/backups 私有文件）。
+    - **UI 优化**：`SyncView.vue` 错误横幅改为 `whitespace-pre-wrap` 展示多行 stderr + 模式化诊断提示；分叉场景显示「以远端为准（重置本地）」二次确认恢复卡。
+    - **双端对齐**：Rust 新增 `src-tauri/src/git_sync.rs`（系统代理探测 + `proxy_args()`），`skills_sync.rs` / `dsh_plugins_sync.rs` 的 `run_git` 统一注入代理；新增 `test_skills_sync_connection` / `reset_skills_sync_to_remote` Tauri Command 并注册。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 20)**:
+  - **DSH 插件中心补充「卸载 / 删除」能力**:
+    - 在插件面板卡片上新增「卸载」按钮（`Trash2` 图标，非内置插件可用，点击二次确认）。
+    - 新增 `remove_dsh_plugin` Tauri Command 与 `POST /api/dsh/plugins/remove` Web 路由，双端对齐：
+      - `bundle:` / `dep:` → 从 `package.json` 的 `dependencies` 与 `dsh.profile.bundles` 同时移除，并尽力 `pnpm install` 清理 node_modules（pnpm 失败不影响配置已移除）；
+      - `row:` → 从 `cordis.patch.yml` 删除该顶层条目。
+    - 与「停用」区分：停用仅从 `bundles` 移除或追加 `disabled:true` patch；卸载则彻底移出依赖声明并清理安装产物。
+    - `api.ts` 新增 `removeDshPlugin`，`useAppStore.ts` 新增 `removeDshPlugin` action（卸载后自动重扫 + Toast），`DshPluginList.vue` 接入。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---
 *文档更新时间：2026-08-20 | AgentHub Core Team*
