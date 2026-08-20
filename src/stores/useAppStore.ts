@@ -415,15 +415,27 @@ export const useAppStore = defineStore('app', {
     async takeoverAllForAgent(agentId: string) {
       const list = this.unmanagedSkills.filter(u => u.agentId === agentId);
       for (const item of list) {
-        if (!item.hasConflict) {
-          await api.takeoverUnmanagedSkill(item.agentId, item.skillName, 'overwrite');
-        }
+        await api.takeoverUnmanagedSkill(item.agentId, item.skillName, 'overwrite');
       }
       await this.loadSkills();
       await this.scanUnmanaged();
       this.showToast({
         title: '批量纳管完成',
-        message: `已纳管 ${agentId} 下的所有无冲突实体技能`,
+        message: `已纳管 ${agentId} 下的 ${list.length} 个实体技能并替换为中央受控链接`,
+        type: 'success',
+      });
+    },
+
+    async takeoverAllUnmanagedSkills() {
+      const list = [...this.unmanagedSkills];
+      for (const item of list) {
+        await api.takeoverUnmanagedSkill(item.agentId, item.skillName, 'overwrite');
+      }
+      await this.loadSkills();
+      await this.scanUnmanaged();
+      this.showToast({
+        title: '全量纳管完成',
+        message: `已将所有 Agent 的 ${list.length} 个存量物理技能全部替换为中央受控链接`,
         type: 'success',
       });
     },
