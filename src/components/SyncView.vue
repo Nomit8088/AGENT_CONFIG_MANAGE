@@ -122,6 +122,15 @@
             </button>
           </div>
 
+          <button
+            @click="handleTestConnection"
+            :disabled="loading"
+            class="w-full px-3 py-2 rounded-lg bg-black/[0.03] hover:bg-black/[0.06] dark:bg-[#1c1c1e] dark:hover:bg-[#3a3a3c] text-slate-700 dark:text-white/80 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Wifi class="w-3.5 h-3.5" />
+            <span>{{ loading ? '测试中…' : '测试连接远端仓库' }}</span>
+          </button>
+
           <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
             <div>
               <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动自动拉取</div>
@@ -158,13 +167,52 @@
       </div>
     </div>
 
+    <!-- Divergence recovery -->
+    <div
+      v-if="diverged"
+      class="rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 space-y-3 transition-colors duration-200"
+    >
+      <div class="flex items-start gap-2">
+        <AlertTriangle class="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div class="space-y-1">
+          <div class="font-serif font-semibold text-xs text-slate-900 dark:text-white/90">本地与远端历史分叉，无法安全快进拉取</div>
+          <p class="text-[11px] leading-relaxed text-slate-500 dark:text-white/50">
+            通常是因为本地与远端各自有独立提交（例如本地曾用不同仓库初始化过）。选择「以远端为准」会用远端中央技能库覆盖本地
+            <span class="font-mono">skills/</span>，但不会触碰
+            <span class="font-mono">config.json / agents.json / projects.json / backups/</span> 等本地私有文件。
+          </p>
+        </div>
+      </div>
+      <button
+        @click="handleResetRemote"
+        :disabled="loading"
+        :class="[
+          'w-full px-3 py-2 rounded-lg text-xs font-medium border transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed',
+          confirmReset
+            ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
+            : 'bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border-black/8 dark:border-white/8'
+        ]"
+      >
+        <RotateCcw class="w-3.5 h-3.5" />
+        <span>{{ confirmReset ? '再次点击确认：以远端为准（覆盖本地 skills）' : '以远端为准（重置本地）' }}</span>
+      </button>
+    </div>
+
     <!-- Error banner -->
     <div
       v-if="status.lastError"
-      class="rounded-xl bg-red-500/5 border border-red-500/20 p-3 flex items-start gap-2 text-xs text-red-600 dark:text-red-400 transition-colors duration-200"
+      class="rounded-xl bg-red-500/5 border border-red-500/20 p-3 space-y-2 text-xs text-red-600 dark:text-red-400 transition-colors duration-200"
     >
-      <AlertTriangle class="w-3.5 h-3.5 mt-0.5 shrink-0" />
-      <span class="font-mono break-all">{{ status.lastError }}</span>
+      <div class="flex items-start gap-2">
+        <AlertTriangle class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <span class="font-mono break-all whitespace-pre-wrap leading-relaxed">{{ status.lastError }}</span>
+      </div>
+      <div
+        v-if="errorHint"
+        class="pl-6 text-[11px] leading-relaxed text-red-500/90 dark:text-red-400/90"
+      >
+        💡 {{ errorHint }}
+      </div>
     </div>
   </div>
 </template>
@@ -179,12 +227,15 @@ import {
   GitBranch,
   Link2,
   AlertTriangle,
+  Wifi,
+  RotateCcw,
 } from 'lucide-vue-next';
 
 const store = useAppStore();
 
 const remoteUrl = ref(store.skillsSyncStatus.remoteUrl || '');
 const branch = ref(store.skillsSyncStatus.branch || 'main');
+const confirmReset = ref(false);
 
 onMounted(async () => {
   await store.loadSkillsSyncStatus();
@@ -210,6 +261,25 @@ const lastSyncLabel = computed(() => {
   return new Date(status.value.lastSyncAt).toLocaleString();
 });
 
+const errorHint = computed(() => {
+  const e = status.value.lastError || '';
+  if (/unable to access|connection was reset|failed to connect|could not connect|schannel|recv failure|timed out/i.test(e)) {
+    return '看起来是网络或代理问题。AgentHub 已自动注入 Windows 系统代理，请确认代理软件正在运行；私有仓库还需在系统凭据管理器登录 GitHub，或改用带 PAT 的 URL。';
+  }
+  if (/authentication|credential|permission|403|404|repository not found|not found|access denied/i.test(e)) {
+    return '远端地址可能有误，或该仓库为私有仓库但当前没有访问凭据。请检查 URL，并在系统凭据管理器登录 GitHub（或使用带 Personal Access Token 的 URL）。';
+  }
+  if (/diverging|fast-forward|not possible to fast-forward|non-fast-forward|rejected|fetch first/i.test(e)) {
+    return '本地与远端历史分叉。若希望把远端的中央技能库拉到本地，请使用下方「以远端为准（重置本地）」。';
+  }
+  return '';
+});
+
+const diverged = computed(() => {
+  const e = status.value.lastError || '';
+  return /diverging|fast-forward|not possible to fast-forward|non-fast-forward|rejected|fetch first/i.test(e);
+});
+
 async function handleInit() {
   if (!remoteUrl.value.trim()) return;
   try {
@@ -226,6 +296,23 @@ async function handlePull() {
 async function handlePush() {
   try {
     await store.pushSkillsSync();
+  } catch {}
+}
+
+async function handleTestConnection() {
+  try {
+    await store.testSkillsSyncConnection();
+  } catch {}
+}
+
+async function handleResetRemote() {
+  if (!confirmReset.value) {
+    confirmReset.value = true;
+    return;
+  }
+  confirmReset.value = false;
+  try {
+    await store.resetSkillsSyncToRemote();
   } catch {}
 }
 
