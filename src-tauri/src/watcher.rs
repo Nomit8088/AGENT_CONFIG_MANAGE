@@ -23,7 +23,6 @@ pub fn start_watcher(app_handle: AppHandle) {
             expand_tilde("~/.gemini/config/skills"),
             expand_tilde("~/.codex/skills"),
             expand_tilde("~/.dsh/skills"),
-            expand_tilde("~/.dsh/skills-personal"),
             expand_tilde("~/.agents/skills"),
         ];
 

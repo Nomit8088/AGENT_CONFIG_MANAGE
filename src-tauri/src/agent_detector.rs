@@ -76,7 +76,7 @@ pub fn get_default_agents() -> Vec<AgentInfo> {
             icon: "deepseek".to_string(),
             detected: false,
             enabled: true,
-            skills_dir: "~/.dsh/skills-personal".to_string(),
+            skills_dir: "~/.dsh/skills".to_string(),
             rule_type: "local_file".to_string(),
             local_rule_filename: "AGENTS.local.md".to_string(),
             is_custom: Some(false),
@@ -212,7 +212,7 @@ pub fn detect_agent(agent: &mut AgentInfo) {
         ],
         "dsh" => vec![
             expand_tilde("~/.dsh"),
-            expand_tilde("~/.dsh/skills-personal"),
+            expand_tilde("~/.dsh/skills"),
         ],
         "windsurf" => vec![
             expand_tilde("~/.windsurf"),
