@@ -65,6 +65,8 @@ AgentHub 原生深度适配主流 AI Agent 矩阵，严格按照各官方规范�
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`、Codex 指令 | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`、`AGENTS.md`、`AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
+> **DSH 多根说明**：DSH 的 `skill-filesystem` 会同时扫描 `~/.dsh/skills-personal`、`~/.dsh/skills` 与 `~/.agents/skills`。AgentHub 对 `dsh` 已按多根目录管理，启用/停用/删除/纳管时会同步清理这些用户级技能根，确保 Skills Matrix 的开关对 DSH 真正生效。
+
 ---
 
 ## 🛠️ 四大核心功能系统

@@ -48,6 +48,8 @@ As developers mix and match multiple AI coding agents (**Claude Code, Google Ant
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`, Codex commands | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`, `AGENTS.md`, `AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
+> **DSH multi-root note**: DSH's `skill-filesystem` scans `~/.dsh/skills-personal`, `~/.dsh/skills`, and `~/.agents/skills` by default. AgentHub now manages DSH as a multi-root agent, so enabling/disabling/deleting/takeover also cleans all user-level skill roots and the Skills Matrix toggle takes effect for DSH.
+
 ---
 
 ## ⚡ Core Features

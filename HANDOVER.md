@@ -212,62 +212,7 @@ flowchart TD
     subgraph CoreEngine["底层执行引擎 (Rust / Node API)"]
         JunctionBus["Windows NTFS Junction 总线"]
         GitGuard["Git Hook 守卫 (.git/hooks & .git/info/exclude)"]
-        CentralRepo["%APPDATA%/AgentHub/skills/ (中央单例库)"]
-        Watcher["Notify 内核级文件监听器"]
-    end
-
-    Tab2 --> Dispatcher
-    Dispatcher --> JunctionBus
-    JunctionBus --> CentralRepo
-    Tab3 --> GitGuard
-    Watcher -.->|自动捕获 npx| CentralRepo
-```
-
-### 4.1 主流 Agent 自动探测与全局隔离引擎
-- **内置原生适配**：支持 Claude Code、Google Antigravity、OpenCode/Codex、ZCode、Cursor、DSH、Windsurf。
-- **自定义扩展**：表单新增 Agent 时实时测试路径有效性与 NTFS Junction 软链权限。
-- **全局启用隔离原则**：在 Agent Hub 中关闭（`OFF`）的 Agent，会在 **Skills Matrix（存量检测、挂载药丸、下拉分发器）** 和 **Project Rules（关联选择）** 中彻底隐藏，避免视觉干扰与无效操作。
-
-### 4.2 全局 Skills 软链总线与分发矩阵
-- **中央技能库**：`%APPDATA%\AgentHub\skills\<skill-name>\SKILL.md` 作为唯一可信源。
-- **分发方式**：
-  - 采用 **Tag Pills 药丸徽章 + `AgentPillPicker` 智能多选浮层**（告别横向无限扩展的表格列）。
-  - `AgentPillPicker` 采用 `<Teleport to="body">` 根节点挂载，结合智能视口边界翻转算法，彻底杜绝任何父容器裁剪。
-  - 勾选 Agent 即时在目标目录创建 **Windows NTFS Junction**（零磁盘开销，毫秒级生效）。
-- **存量物理 Skill 归类纳管与忽略**：
-  - 按 Agent 卡片聚合展示本地未受控实体；
-  - 弹窗内支持 **`[ 待纳管技能 ]`** 与 **`[ 已忽略私有技能 ]`** 双 Tab 切换；
-  - 同名冲突时触发 **`DiffModal`** 双栏对比（覆盖 / 重命名保留 / 跳过）。
-
-### 4.3 技能全自动捕获双向闭环
-- **外部实时捕获**：Rust `notify` 监听 `~/.skills/`、`~/.claude/skills/` 等全局路径，捕获 `npx skills add -g` 并自动录入中央库。
-- **Agent 反向同步技能**：内置分发 `agenthub-sync`（包含 `/agenthub-sync` 斜杠命令），对话中一句指令即可收录并广播。
-
-### 4.4 项目规则「零 Git 冲突」双模引擎
-- **追加模式 (Append)**：
-  - 原版 `AGENTS.md` 保持 0 修改；
-  - 本地规则写入各 Agent 私有文件（`CLAUDE.local.md`、`ZCODE.local.md` 等）；
-  - 自动向 `.git/info/exclude` 追加私有文件名，Git 永久静默忽略。
-- **覆盖模式 (Overwrite)**：
-  - 原版 `AGENTS.md` 备份至 `.git/info/AGENTS.orig` 和 `%APPDATA%\AgentHub\backups\`；
-  - 工作区 `AGENTS.md` 物理替换为自定义内容；
-  - 自动部署 `.git/hooks/pre-checkout` 与 `post-checkout` 守卫：切分支与 pull 瞬间自动还原原版，切完分支后瞬间恢复覆盖版，**0 Git 冲突**。
-
----
-
-## 6. 项目目录结构与模块索引
-
-```text
-d:\dev\toolPrograms\agent_config_manager\
-├── package.json                        # 项目依赖与 Scripts
-├── vite.config.ts                      # Vite 5 配置 + 本地系统 API 插件 (localApiPlugin)
-├── tsconfig.json                       # TypeScript 配置
-├── tailwind.config.js                  # Tailwind CSS 现代暗色主题配置
-├── index.html                          # 客户端 HTML 入口
-├── DESIGN_GUIDELINES.md                # 🎨 macOS Vibrancy 全局设计规范与自检清单
-├── HANDOVER.md                         # 👈 本交接文档 (Single Source of Truth)
-│
-├── builtin-skills/                     # 内置技能模板
+        CentralRepo["%APPDATA%/AgentHub/skills/ (中央单例├── builtin-skills/                     # 内置技能模板
 │   └── agenthub-sync/
 │       └── SKILL.md                    # 反向同步技能定义 (/agenthub-sync)
 │
@@ -287,17 +232,17 @@ d:\dev\toolPrograms\agent_config_manager\
 │   └── components/
 │       ├── Header.vue                  # 顶部导航条 (状态统计、主题切换、设置)
 │       ├── Navigation.vue              # 核心四栏切换 Tab
-│       ├── AgentBrandIcon.vue          # 真实 Agent 官方高精度矢量 SVG 图标体系 (Claude, Gemini, Codex, Cursor, Windsurf, ZCode, DSH)
+│       ├── AgentBrandIcon.vue          # 真实 Agent 官方高精度矢量 SVG 图标体系 (16 Agents)
 │       ├── AgentCard.vue               # Agent 大厅状态卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分组 + 关键词检索)
 │       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (中央技能库全维度搜索、来源/挂载过滤与排序)
-│       ├── UnmanagedGroupSection.vue   # 存量检测按 Agent 归类卡片区 (支持状态筛选与排序)
+│       ├── UnmanagedGroupSection.vue   # 存量检测按 Agent 归类卡片区 (支持状态筛选、排序与一键纳管全部)
 │       ├── AgentDetailModal.vue        # 存量管理弹窗 (待纳管/已忽略 Tabs + 弹窗内技能搜索)
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
 │       ├── SkillDrawer.vue             # 技能右侧详情抽屉 (Markdown 渲染)
 │       ├── SkillEditorModal.vue        # SKILL.md 编辑与创建弹窗
 │       ├── ProjectsView.vue            # 面板 3: Project Rules (项目规则中心 + 项目检索)
-│       ├── ProjectEditor.vue           # 双栏规则编辑器 (追加/覆盖双模指引 + 品牌图标)
+│       ├── ProjectEditor.vue           # 双栏规则编辑器 (追加/覆盖多基线指引 + 守卫修复)
 │       ├── AddAgentModal.vue           # 自定义 Agent 注册弹窗
 │       ├── AddProjectModal.vue         # 纳管新项目弹窗
 │       ├── DiffModal.vue               # 面板 4: Diff 语法高亮冲突决策弹窗
@@ -313,7 +258,7 @@ d:\dev\toolPrograms\agent_config_manager\
         ├── lib.rs                      # Tauri Command 分发接口
         ├── models.rs                   # Rust 数据结构
         ├── fs_junction.rs              # Windows NTFS Junction 驱动
-        ├── git_guard.rs                # Git Hook 注入与还原引擎
+        ├── git_guard.rs                # Git Hook 注入与多基线还原引擎
         ├── agent_detector.rs           # 本地 Agent 探测与路径校验
         ├── storage.rs                  # %APPDATA%\AgentHub 本地持久化
         └── watcher.rs                  # Notify 内核级文件监听后台线程
@@ -365,6 +310,12 @@ npm run tauri build
    - Google Antigravity 的安全沙箱与文件扫描器在 Windows 下出于防循环引用与隔离策略，会**静默跳过带有 `FILE_ATTRIBUTE_REPARSE_POINT` 的目录软链（NTFS Junction）**。
    - 解决方案：针对 `antigravity`，采用 **「物理目录（`d-----`）+ 文件级 NTFS 硬链接（`mklink /H` / `fs.linkSync`）」** 的 Hardlink Tree 架构。
    - 目录为普通物理文件夹，Antigravity 不会跳过；目录内的文件与中央库共享 MFT 物理 Inode，实现 **0 拷贝、0 磁盘冗余、毫秒级双向实时同步**。
+6. **DSH 多 Skill 根目录（Multi-Root Skills）**：
+   - DSH 的 `skill-filesystem` 默认会同时扫描 `customSkillDirs`（`~/.dsh/skills-personal`）、用户级公共目录 `~/.dsh/skills`、`~/.agents/skills`，以及项目级 `.dsh/skills` / `.agents/skills`。
+   - AgentHub 对 `dsh` 已按多根模型处理：`getAgentSkillDirs()` / Rust `agent_skill_dirs()` 会返回 `~/.dsh/skills-personal` + `~/.dsh/skills` + `~/.agents/skills`。
+   - 停用/删除时会清理 DSH 的所有用户级 skill 根目录，避免出现“关闭后 DSH 仍能读到公共目录同名技能”的问题；启用只挂载主目录，不误删公共技能。
+   - 存量“待纳管”扫描仍只扫主 `skillsDir`，避免把 `~/.dsh/skills` 的公共技能当成待纳管噪音。
+   - 项目级 `.dsh/skills` / `.agents/skills` 属于项目本地技能，AgentHub 全局开关暂不清理。
 
 ---
 
@@ -518,10 +469,34 @@ npm run tauri build
       - 在项目设置的防护面板中提供 **`[ 开启拦截 (防误提) | 允许提交 (放行) ]`** 分段滑块开关；
       - 当确实需要向团队远程仓库提交 `AGENTS.md` 时，用户可一键切换为「允许提交 (放行)」，系统自动移除或放行 pre-commit 守卫。
 
+- **2026-08-20 (Session 13)**:
+  - **存量技能纳管与中央覆盖更新逻辑彻底修复 (Fix Takeover & Unmanaged Detection)**:
+    - **修复「一键全部纳管」静默跳过同名冲突项的 Bug**:
+      - 移除 `useAppStore.ts` 中 `takeoverAllForAgent` 对 `item.hasConflict` 的静默跳过过滤，确保所有待纳管实体均执行覆盖纳管并替换为中央受控软链；
+      - 新增 `takeoverAllUnmanagedSkills` 跨 Agent 全局一键纳管动作；
+    - **Tauri Rust 端与 Node 本地 API 双端 Takeover 对齐 Antigravity Hardlink Tree 架构**:
+      - 修复 `src-tauri/src/lib.rs` 与 `vite.config.ts` 中的 `takeover_unmanaged_skill` 逻辑：在纳管替换目录时，对 Google Antigravity 自动使用 Hardlink Tree 分发，对其他 Agent 自动使用 Windows NTFS Junction；
+    - **存量检测面板体验升级**:
+      - 在 `UnmanagedGroupSection.vue` 控制栏新增 **「⚡ 一键纳管全部 (N)」** 快捷操作，支持一次性将所有 Agent 的存量物理技能全部替换为中央受控软链/硬链。
+
+- **2026-08-20 (Session 14)**:
+  - **多基线规则引擎重构与模式互斥安全回滚 (Multi-Baseline Rules Engine & Safe Rollback)**:
+    - **打破单一 `AGENTS.md` 局限，全面支持多基线规则文件**:
+      - 全面纳管 `AGENTS.md`、`CLAUDE.md`、`.cursorrules`、`.windsurfrules` 等多生态团队基线；
+      - 升级 Git Hook 守卫（`pre-checkout`、`post-checkout`、`pre-commit`）支持多基线文件并发防护与分支切换秒级还原。
+    - **覆盖模式 (Overwrite) 与追加模式 (Append) 严格物理互斥**:
+      - **覆盖模式**：统一置换已关联 Agent 的基线文件（`AGENTS.md`、`CLAUDE.md` 等），并**强制清空所有私有覆盖文件**（`CLAUDE.local.md`、`.agents/rules/` 等），彻底根除双重规则注入；
+      - **追加模式**：**100% 物理还原所有基线文件**，仅向勾选的 Agent 写入私有覆盖文件并注入 `.git/info/exclude`，实现零 Git 冲突与免 Hook。
+    - **三层幂等回滚与防误删自愈机制**:
+      - 实现 `restore_all_baselines` 与 `clean_all_private_rules`，无论是否 Git 仓库，在关闭定制或切换模式时 100% 从备份层复原团队原版文件，彻底杜绝误删基线文件的重大隐患；
+      - Tauri Rust 端（`git_guard.rs` / `lib.rs`）与 Web Node.js 端（`localApi.ts`）双端逻辑 100% 对齐。
+
+- **2026-08-20 (Session 15)**:
+  - **DSH 多 Skill 根目录支持，修复 Skills Matrix 开关对 DSH 无效**:
+    - 根因：DSH 的 `skill-filesystem` 会同时扫描 `~/.dsh/skills-personal`、`~/.dsh/skills` 与 `~/.agents/skills`，而 AgentHub 原先只管理 `~/.dsh/skills-personal`，导致关闭同名技能后 DSH 仍能从公共目录读到。
+    - Node/Web 端：新增 `getAgentSkillDirs()` / `findAgentSkillDir()`，`vite.config.ts` 的挂载状态判断、卸载、删除、纳管逻辑按 Agent 多根目录处理；存量待纳管仍只扫主目录，避免公共技能噪音。
+    - Rust/Tauri 端：新增 `agent_skill_dirs()` / `find_agent_skill_dir()`，`lib.rs` 的 `get_central_skills`、`delete_skill`、`toggle_skill_for_agent`、`takeover_unmanaged_skill` 同步支持多根目录；`watcher.rs` 增加 `~/.dsh/skills` 与 `~/.agents/skills` 监听。
+    - 修复纳管误删中央库风险：`findAgentSkillDir()` 只返回物理目录，跳过 Junction/Symlink；纳管删除本地目录改用 `removeSkillMount()` 安全移除，避免 `fs.rmSync` 递归清空 Junction 指向的中央库。
+
 ---
-*文档更新时间：2026-08-19 | AgentHub Core Team*
-
-
-
-
-
+*文档更新时间：2026-08-20 | AgentHub Core Team*
