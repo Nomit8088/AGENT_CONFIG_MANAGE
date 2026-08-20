@@ -48,6 +48,8 @@ As developers mix and match multiple AI coding agents (**Claude Code, Google Ant
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`, Codex commands | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`, `AGENTS.md`, `AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
+> **DSH multi-root note**: DSH's `skill-filesystem` scans `~/.dsh/skills-personal`, `~/.dsh/skills`, and `~/.agents/skills` by default. AgentHub now manages DSH as a multi-root agent, so enabling/disabling/deleting/takeover also cleans all user-level skill roots and the Skills Matrix toggle takes effect for DSH.
+
 ---
 
 ## ⚡ Core Features
@@ -58,7 +60,8 @@ As developers mix and match multiple AI coding agents (**Claude Code, Google Ant
    - **Append Mode**: Keeps root `AGENTS.md` unchanged and dispatches custom rules into agent private files automatically added to `.git/info/exclude`.
    - **Overwrite Mode**: Replaces root `AGENTS.md` with personal rules and automatically injects Git Hook guards (`pre-checkout` / `post-checkout`) for seamless auto-restore and zero merge conflicts.
 4. **Unmanaged Physical Skills Scanner & Diff Modal**: Grouped detection of local standalone folders with one-click adoption, ignore lists, and side-by-side Diff conflict resolution.
-5. **Dual-Mode Execution Architecture**: Runs both as a lightweight **Tauri 2.0 desktop application** or directly in a **Web Browser dev server** with real NTFS Junction and filesystem integration.
+5. **Sync Center**: Sync only the central skills library using `%APPDATA%\AgentHub` as the Git repository root with `skills/` as a subdirectory. Works with any Git remote (GitHub/Gitee/GitLab). Manual pull/push plus optional startup auto-pull; auto-pull is fast-forward only and never overwrites local changes.
+6. **Dual-Mode Execution Architecture**: Runs both as a lightweight **Tauri 2.0 desktop application** or directly in a **Web Browser dev server** with real NTFS Junction and filesystem integration.
 
 ---
 

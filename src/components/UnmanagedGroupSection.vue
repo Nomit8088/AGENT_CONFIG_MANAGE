@@ -73,6 +73,17 @@
           <RefreshCw class="w-3 h-3" />
           <span>重新检测</span>
         </button>
+
+        <!-- Batch Takeover All Across Agents Button -->
+        <button
+          v-if="store.totalUnmanagedCount > 0"
+          @click="store.takeoverAllUnmanagedSkills()"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1 font-medium"
+          title="一键将所有 Agent 下的存量物理技能全部纳管并替换为中央受控链接"
+        >
+          <PackageCheck class="w-3 h-3 text-[#30d158]" />
+          <span>一键纳管全部 ({{ store.totalUnmanagedCount }})</span>
+        </button>
       </div>
     </div>
 
@@ -161,6 +172,7 @@ import {
   ChevronRight,
   Search,
   X,
+  PackageCheck,
 } from 'lucide-vue-next';
 
 const store = useAppStore();

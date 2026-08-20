@@ -11,6 +11,7 @@
       <transition name="fade" mode="out-in">
         <AgentsView v-if="store.currentTab === 'agents'" />
         <SkillsMatrix v-else-if="store.currentTab === 'skills' || store.currentTab === 'unmanaged'" />
+        <SyncView v-else-if="store.currentTab === 'sync'" />
         <ProjectsView v-else-if="store.currentTab === 'projects'" />
       </transition>
     </main>
@@ -32,6 +33,7 @@ import Header from './components/Header.vue';
 import Navigation from './components/Navigation.vue';
 import AgentsView from './components/AgentsView.vue';
 import SkillsMatrix from './components/SkillsMatrix.vue';
+import SyncView from './components/SyncView.vue';
 import ProjectsView from './components/ProjectsView.vue';
 import AddAgentModal from './components/AddAgentModal.vue';
 import SkillEditorModal from './components/SkillEditorModal.vue';

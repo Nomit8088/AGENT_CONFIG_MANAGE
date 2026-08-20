@@ -13,11 +13,18 @@ import {
   createHardlinkDirRecursive,
   removeSkillMount,
   mountSkillForAgent,
+  getAgentSkillDirs,
+  findAgentSkillDir,
   copyDirRecursive,
   parseSkillMd,
   checkGitStatus,
   applyProjectRules,
   uninstallGitHooks,
+  getSkillsSyncStatus,
+  initSkillsSync,
+  pullSkillsSync,
+  pushSkillsSync,
+  setSkillsSyncAutoPull,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -120,7 +127,7 @@ function localApiPlugin(): Plugin {
               if (fs.existsSync(central)) {
                 const entries = fs.readdirSync(central, { withFileTypes: true });
                 for (const ent of entries) {
-                  if (ent.isDirectory()) {
+                  if (ent.isDirectory() && !ent.name.startsWith('.')) {
                     const skillFolder = path.join(central, ent.name);
                     const smd = path.join(skillFolder, 'SKILL.md');
                     const content = fs.existsSync(smd) ? fs.readFileSync(smd, 'utf-8') : '';
@@ -130,10 +137,14 @@ function localApiPlugin(): Plugin {
                     const isSymlinkMap: Record<string, boolean> = {};
 
                     for (const a of allAgents) {
-                      const target = path.join(expandTilde(a.skillsDir), ent.name);
-                      const isLink = isJunctionOrSymlink(target);
+                      const skillDirs = getAgentSkillDirs(a);
+                      const mounted = skillDirs.some(dir => {
+                        const target = path.join(dir, ent.name);
+                        return isJunctionOrSymlink(target) || fs.existsSync(target);
+                      });
+                      const isLink = skillDirs.some(dir => isJunctionOrSymlink(path.join(dir, ent.name)));
                       isSymlinkMap[a.id] = isLink;
-                      if (isLink || fs.existsSync(target)) {
+                      if (mounted) {
                         mountedAgents.push(a.id);
                       }
                     }
@@ -165,13 +176,17 @@ function localApiPlugin(): Plugin {
               const centralSkill = path.join(getCentralSkillsDir(), skillName);
               const allAgents = getAgentsList();
               const targetAgent = allAgents.find(a => a.id === agentId);
-              const targetDir = targetAgent ? expandTilde(targetAgent.skillsDir) : expandTilde(`~/.${agentId}/skills`);
-              const linkPath = path.join(targetDir, skillName);
+              const skillDirs = targetAgent ? getAgentSkillDirs(targetAgent) : [expandTilde(`~/.${agentId}/skills`)];
 
+              const linkPath = path.join(skillDirs[0], skillName);
               if (enable) {
+                // 启用只挂载主目录，不清理其他根目录，避免误删公共/共享技能。
                 mountSkillForAgent(agentId, linkPath, centralSkill);
               } else {
-                removeSkillMount(linkPath);
+                // 停用必须清理该 Agent 所有 skill 根目录，否则 DSH 仍会从其他根读到同名技能。
+                for (const dir of skillDirs) {
+                  removeSkillMount(path.join(dir, skillName));
+                }
               }
 
               res.setHeader('Content-Type', 'application/json');
@@ -210,10 +225,12 @@ function localApiPlugin(): Plugin {
               if (fs.existsSync(skillDir)) {
                 fs.rmSync(skillDir, { recursive: true, force: true });
               }
-              // Unlink from all agents
+              // Unlink from all agents (DSH 需要清理所有 skill 根目录)
               const allAgents = getAgentsList();
               for (const a of allAgents) {
-                removeSkillMount(path.join(expandTilde(a.skillsDir), skillName));
+                for (const dir of getAgentSkillDirs(a)) {
+                  removeSkillMount(path.join(dir, skillName));
+                }
               }
 
               res.setHeader('Content-Type', 'application/json');
@@ -235,6 +252,9 @@ function localApiPlugin(): Plugin {
 
               const allAgents = getAgentsList();
 
+              // 存量“待纳管”只扫描各 Agent 的主 skillsDir。
+              // DSH 的公共 ~/.dsh/skills 是配置仓库里的受控公共技能，不把它们当待纳管噪音展示；
+              // 但停用/删除时仍会清理这些根目录，确保开关生效。
               for (const a of allAgents) {
                 const agentDir = expandTilde(a.skillsDir);
                 if (fs.existsSync(agentDir)) {
@@ -330,19 +350,28 @@ function localApiPlugin(): Plugin {
               const central = getCentralSkillsDir();
               const allAgents = getAgentsList();
               const targetAgent = allAgents.find(a => a.id === agentId);
-              const targetSkillsDir = targetAgent ? expandTilde(targetAgent.skillsDir) : expandTilde(`~/.${agentId}/skills`);
-
-              const localDir = path.join(targetSkillsDir, skillName);
+              const localDir = targetAgent
+                ? findAgentSkillDir(targetAgent, skillName)
+                : path.join(expandTilde(`~/.${agentId}/skills`), skillName);
               const targetName = resolution === 'rename' ? `${skillName}-${agentId}` : skillName;
               const targetCentral = path.join(central, targetName);
 
-              if (resolution !== 'skip' && fs.existsSync(localDir)) {
+              if (resolution !== 'skip') {
+                if (!localDir || !fs.existsSync(localDir) || isJunctionOrSymlink(localDir)) {
+                  res.statusCode = 400;
+                  return res.end(JSON.stringify({ error: '物理目录不存在或已被 AgentHub 托管，不能重复纳管' }));
+                }
                 if (fs.existsSync(targetCentral)) {
                   fs.rmSync(targetCentral, { recursive: true, force: true });
                 }
                 copyDirRecursive(localDir, targetCentral);
-                fs.rmSync(localDir, { recursive: true, force: true });
-                createJunction(localDir, targetCentral);
+                // 使用安全移除：若 localDir 是 Junction/Symlink 只会移除链接本身，
+                // 绝不会递归清空其指向的中央库目录。
+                removeSkillMount(localDir);
+                if (fs.existsSync(localDir)) {
+                  fs.rmSync(localDir, { recursive: true, force: true });
+                }
+                mountSkillForAgent(agentId, localDir, targetCentral);
               }
 
               res.setHeader('Content-Type', 'application/json');
@@ -498,6 +527,44 @@ function localApiPlugin(): Plugin {
                 projects = projects.filter(p => p.id !== projectId);
                 fs.writeFileSync(projectsFile, JSON.stringify(projects, null, 2), 'utf-8');
               }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/skills/sync/status
+            if (pathname === '/api/skills/sync/status' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSkillsSyncStatus()));
+            }
+
+            // POST /api/skills/sync/init
+            if (pathname === '/api/skills/sync/init' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              if (!remoteUrl) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'remoteUrl 不能为空' }));
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(initSkillsSync(remoteUrl, branch)));
+            }
+
+            // POST /api/skills/sync/pull
+            if (pathname === '/api/skills/sync/pull' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pullSkillsSync()));
+            }
+
+            // POST /api/skills/sync/push
+            if (pathname === '/api/skills/sync/push' && req.method === 'POST') {
+              const { message } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pushSkillsSync(message)));
+            }
+
+            // POST /api/skills/sync/auto-pull
+            if (pathname === '/api/skills/sync/auto-pull' && req.method === 'POST') {
+              const { enabled } = jsonBody;
+              setSkillsSyncAutoPull(!!enabled);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

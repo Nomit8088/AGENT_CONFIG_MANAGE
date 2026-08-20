@@ -3,6 +3,7 @@ pub mod fs_junction;
 pub mod git_guard;
 pub mod agent_detector;
 pub mod storage;
+pub mod skills_sync;
 pub mod watcher;
 
 use std::collections::HashMap;
@@ -13,6 +14,27 @@ use fs_junction::*;
 use git_guard::*;
 use storage::*;
 use agent_detector::*;
+
+/// DSH 的 skill-filesystem 会扫描多个用户级根目录。
+/// 其他 Agent 当前只使用单一 skillsDir。
+fn agent_skill_dirs(agent: &AgentInfo) -> Vec<PathBuf> {
+    let mut dirs = vec![expand_tilde(&agent.skills_dir)];
+    if agent.id == "dsh" {
+        dirs.push(expand_tilde("~/.dsh/skills"));
+        dirs.push(expand_tilde("~/.agents/skills"));
+    }
+    dirs.sort();
+    dirs.dedup();
+    dirs
+}
+
+fn find_agent_skill_dir(agent: &AgentInfo, skill_name: &str) -> Option<PathBuf> {
+    agent_skill_dirs(agent).into_iter().find(|dir| {
+        let candidate = dir.join(skill_name);
+        // 只返回真正的物理目录；Junction/Symlink 是 AgentHub 的受控挂载，不能当作“待纳管实体”处理。
+        candidate.exists() && !is_junction_or_symlink(&candidate)
+    })
+}
 
 #[tauri::command]
 fn get_config() -> AppConfig {
@@ -65,6 +87,9 @@ fn get_central_skills() -> Result<Vec<SkillItem>, String> {
             let path = entry.path();
             if path.is_dir() {
                 let folder_name = entry.file_name().to_string_lossy().to_string();
+                if folder_name.starts_with('.') {
+                    continue;
+                }
                 let skill_md = path.join("SKILL.md");
                 let content = if skill_md.exists() {
                     fs::read_to_string(&skill_md).unwrap_or_default()
@@ -79,10 +104,10 @@ fn get_central_skills() -> Result<Vec<SkillItem>, String> {
                 let mut is_symlink_map = HashMap::new();
 
                 for agent in &agents {
-                    let agent_skills_dir = expand_tilde(&agent.skills_dir);
-                    let target_skill_dir = agent_skills_dir.join(&folder_name);
-                    if target_skill_dir.exists() {
-                        let is_link = is_junction_or_symlink(&target_skill_dir);
+                    let skill_dirs = agent_skill_dirs(agent);
+                    let mounted = skill_dirs.iter().any(|dir| dir.join(&folder_name).exists());
+                    let is_link = skill_dirs.iter().any(|dir| is_junction_or_symlink(&dir.join(&folder_name)));
+                    if mounted {
                         is_symlink_map.insert(agent.id.clone(), is_link || agent.id == "antigravity");
                         mounted_agents.push(agent.id.clone());
                     }
@@ -116,6 +141,9 @@ fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
     let ignored = config.ignored_skills.unwrap_or_default();
     let mut unmanaged = Vec::new();
 
+    // 存量“待纳管”只扫描各 Agent 的主 skillsDir。
+    // DSH 的公共 ~/.dsh/skills 是配置仓库里的受控公共技能，不把它们当待纳管噪音展示；
+    // 但停用/删除时仍会清理这些根目录，确保开关生效。
     for agent in agents {
         let skills_dir = expand_tilde(&agent.skills_dir);
         if !skills_dir.exists() {
@@ -208,12 +236,14 @@ fn delete_skill(skill_name: String) -> Result<(), String> {
     let central_dir = get_central_skills_dir();
     let skill_folder = central_dir.join(&skill_name);
 
-    // Unlink from all agents first
+    // Unlink from all agents first (DSH 需要清理所有 skill 根目录)
     let agents = load_agents();
     for a in agents {
-        let target = expand_tilde(&a.skills_dir).join(&skill_name);
-        if target.exists() || is_junction_or_symlink(&target) {
-            let _ = remove_junction(&target);
+        for dir in agent_skill_dirs(&a) {
+            let target = dir.join(&skill_name);
+            if target.exists() || is_junction_or_symlink(&target) {
+                let _ = remove_junction(&target);
+            }
         }
     }
 
@@ -234,10 +264,11 @@ fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool) ->
         return Err(format!("中央技能库中不存在技能: {}", skill_name));
     }
 
-    let agent_skills_dir = expand_tilde(&agent.skills_dir);
-    let target_link = agent_skills_dir.join(&skill_name);
+    let skill_dirs = agent_skill_dirs(&agent);
 
     if enable {
+        // 启用只挂载主目录，不清理其他根目录，避免误删公共/共享技能。
+        let target_link = skill_dirs[0].join(&skill_name);
         if agent.id == "antigravity" {
             let _ = remove_junction(&target_link);
             create_hardlink_dir_all(&central_skill, &target_link).map_err(|e| e.to_string())?;
@@ -245,7 +276,10 @@ fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool) ->
             create_junction(&target_link, &central_skill)?;
         }
     } else {
-        remove_junction(&target_link)?;
+        // 停用必须清理该 Agent 所有 skill 根目录，否则 DSH 仍会从其他根读到同名技能。
+        for dir in skill_dirs {
+            remove_junction(&dir.join(&skill_name))?;
+        }
     }
 
     Ok(())
@@ -261,9 +295,10 @@ fn takeover_unmanaged_skill(
     let agent = agents.into_iter().find(|a| a.id == agent_id)
         .ok_or_else(|| format!("未找到 Agent: {}", agent_id))?;
 
-    let local_dir = expand_tilde(&agent.skills_dir).join(&skill_name);
-    if !local_dir.exists() {
-        return Err("物理目录不存在".to_string());
+    let local_dir = find_agent_skill_dir(&agent, &skill_name)
+        .unwrap_or_else(|| expand_tilde(&agent.skills_dir).join(&skill_name));
+    if !local_dir.exists() || is_junction_or_symlink(&local_dir) {
+        return Err("物理目录不存在或已被 AgentHub 托管".to_string());
     }
 
     let central_dir = get_central_skills_dir();
@@ -275,15 +310,29 @@ fn takeover_unmanaged_skill(
                 let _ = fs::remove_dir_all(&target_central);
             }
             copy_dir_all(&local_dir, &target_central).map_err(|e| e.to_string())?;
-            fs::remove_dir_all(&local_dir).map_err(|e| e.to_string())?;
-            create_junction(&local_dir, &target_central)?;
+            let _ = remove_junction(&local_dir);
+            if local_dir.exists() {
+                let _ = fs::remove_dir_all(&local_dir);
+            }
+            if agent.id == "antigravity" {
+                create_hardlink_dir_all(&target_central, &local_dir).map_err(|e| e.to_string())?;
+            } else {
+                create_junction(&local_dir, &target_central)?;
+            }
         }
         "rename" => {
             let new_name = format!("{}-{}", skill_name, agent_id);
             let rename_central = central_dir.join(&new_name);
             copy_dir_all(&local_dir, &rename_central).map_err(|e| e.to_string())?;
-            fs::remove_dir_all(&local_dir).map_err(|e| e.to_string())?;
-            create_junction(&local_dir, &rename_central)?;
+            let _ = remove_junction(&local_dir);
+            if local_dir.exists() {
+                let _ = fs::remove_dir_all(&local_dir);
+            }
+            if agent.id == "antigravity" {
+                create_hardlink_dir_all(&rename_central, &local_dir).map_err(|e| e.to_string())?;
+            } else {
+                create_junction(&local_dir, &rename_central)?;
+            }
         }
         "skip" => {
             // Do nothing
@@ -419,7 +468,9 @@ fn delete_project(project_id: String) -> Result<(), String> {
     if let Some(p) = projs.iter().find(|p| p.id == project_id) {
         // Rollback rules
         let p_path = Path::new(&p.path);
-        let _ = uninstall_git_hooks(p_path);
+        let backup_dir = get_backups_dir().join(&p.id);
+        let _ = uninstall_git_hooks(p_path, Some(&backup_dir));
+        clean_all_private_rules(p_path);
     }
     projs.retain(|p| p.id != project_id);
     save_projects(&projs)
@@ -434,70 +485,89 @@ pub fn apply_project_rules(proj: &ProjectInfo) -> Result<(), String> {
     let custom_file = backup_dir.join("CUSTOM_AGENTS.md");
     let _ = fs::write(&custom_file, &proj.custom_rule_content);
 
+    // Case 1: Disabled -> Rollback everything and clean private files
     if !proj.override_enabled {
-        // Disabled: Rollback everything
-        uninstall_git_hooks(p_path)?;
-        // Clean local rules
-        for a in &all_agents {
-            let lrf = p_path.join(&a.local_rule_filename);
-            if lrf.exists() {
-                let _ = fs::remove_file(lrf);
+        uninstall_git_hooks(p_path, Some(&backup_dir))?;
+        restore_all_baselines(p_path, Some(&backup_dir));
+        clean_all_private_rules(p_path);
+        return Ok(());
+    }
+
+    // Case 2: Overwrite Mode -> Overwrite target baselines (AGENTS.md, CLAUDE.md, etc.) & CLEAN ALL private rules
+    if proj.rule_mode == "overwrite" {
+        // 1. Clean all private rules so agents don't receive double custom rules
+        clean_all_private_rules(p_path);
+
+        // 2. Identify all baseline files to overwrite based on linked agents
+        let mut targets_to_protect: Vec<&str> = vec!["AGENTS.md"];
+        if proj.linked_agents.iter().any(|id| id == "claude-code" || id == "dsh" || id == "trae") {
+            targets_to_protect.push("CLAUDE.md");
+        }
+        if proj.linked_agents.iter().any(|id| id == "cursor") {
+            targets_to_protect.push(".cursorrules");
+        }
+        if proj.linked_agents.iter().any(|id| id == "windsurf") {
+            targets_to_protect.push(".windsurfrules");
+        }
+
+        // 3. Backup and overwrite baselines
+        for baseline in &targets_to_protect {
+            let b_file = p_path.join(baseline);
+            let orig_git = p_path.join(".git").join("info").join(format!("{}.orig", baseline));
+            let orig_backup = backup_dir.join(format!("{}.orig", baseline));
+            let no_orig_marker = backup_dir.join(format!("{}.no_orig", baseline));
+
+            if b_file.exists() {
+                if !orig_git.exists() && proj.is_git {
+                    let _ = fs::copy(&b_file, &orig_git);
+                }
+                if !orig_backup.exists() {
+                    let _ = fs::copy(&b_file, &orig_backup);
+                }
+            } else if !orig_backup.exists() {
+                let _ = fs::write(&no_orig_marker, "no_original");
             }
+
+            fs::write(&b_file, &proj.custom_rule_content).map_err(|e| e.to_string())?;
+        }
+
+        // 4. Install Git Guard hooks
+        if proj.is_git {
+            let enable_pc = proj.pre_commit_guard.unwrap_or(true);
+            install_git_hooks(p_path, &backup_dir, &custom_file, enable_pc, &targets_to_protect)?;
         }
         return Ok(());
     }
 
-    // Enabled:
-    // 1. Clean up rule files for unlinked agents
-    for a in &all_agents {
-        if !proj.linked_agents.contains(&a.id) {
-            let lrf = p_path.join(&a.local_rule_filename);
-            if lrf.exists() {
-                let _ = fs::remove_file(lrf);
-            }
+    // Case 3: Append Mode -> 100% Restore baselines, uninstall hooks, and write ONLY to private local rule files
+    if proj.rule_mode == "append" {
+        // 1. 100% Restore team baselines
+        if proj.is_git {
+            uninstall_git_hooks(p_path, Some(&backup_dir))?;
+        } else {
+            restore_all_baselines(p_path, Some(&backup_dir));
         }
-    }
 
-    // 2. Always distribute to ALL linked agents' native rule files (CLAUDE.local.md, .agents/rules, ZCODE.local.md, etc.)
-    let mut filenames_to_exclude = Vec::new();
-    for a in &all_agents {
-        if proj.linked_agents.contains(&a.id) {
-            let lrf = p_path.join(&a.local_rule_filename);
-            if let Some(parent) = lrf.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            fs::write(&lrf, &proj.custom_rule_content).map_err(|e| e.to_string())?;
-            if a.local_rule_filename != "AGENTS.md" {
+        // 2. Clean all private rules first
+        clean_all_private_rules(p_path);
+
+        // 3. Write ONLY to linked agents' private rule files
+        let mut filenames_to_exclude = Vec::new();
+        for a in &all_agents {
+            if proj.linked_agents.contains(&a.id) && !a.local_rule_filename.is_empty() && a.local_rule_filename != "AGENTS.md" {
+                let lrf = p_path.join(&a.local_rule_filename);
+                if let Some(parent) = lrf.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                fs::write(&lrf, &proj.custom_rule_content).map_err(|e| e.to_string())?;
                 filenames_to_exclude.push(a.local_rule_filename.as_str());
             }
         }
-    }
 
-    // 3. Mode specific handling for AGENTS.md
-    if proj.rule_mode == "overwrite" {
-        let agents_md = p_path.join("AGENTS.md");
-        let orig_backup = p_path.join(".git").join("info").join("AGENTS.orig");
-
-        if agents_md.exists() && !orig_backup.exists() {
-            let _ = fs::copy(&agents_md, &orig_backup);
-            let _ = fs::copy(&agents_md, backup_dir.join("AGENTS.md.orig"));
+        // 4. Add private rule files to .git/info/exclude
+        if proj.is_git && !filenames_to_exclude.is_empty() {
+            add_to_git_exclude(p_path, &filenames_to_exclude)?;
         }
-        fs::write(&agents_md, &proj.custom_rule_content).map_err(|e| e.to_string())?;
-
-        if proj.is_git {
-            let enable_pc = proj.pre_commit_guard.unwrap_or(true);
-            install_git_hooks(p_path, &backup_dir, &custom_file, enable_pc)?;
-        }
-    } else {
-        // Append mode: restore original AGENTS.md if it was modified
-        if proj.is_git {
-            let _ = uninstall_git_hooks(p_path);
-        }
-    }
-
-    // 4. Add private rule files to .git/info/exclude
-    if proj.is_git && !filenames_to_exclude.is_empty() {
-        add_to_git_exclude(p_path, &filenames_to_exclude)?;
     }
 
     Ok(())
@@ -546,6 +616,11 @@ pub fn run() {
             update_project_rule,
             delete_project,
             repair_git_hooks,
+            skills_sync::get_skills_sync_status,
+            skills_sync::init_skills_sync,
+            skills_sync::pull_skills_sync,
+            skills_sync::push_skills_sync,
+            skills_sync::set_skills_sync_auto_pull,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

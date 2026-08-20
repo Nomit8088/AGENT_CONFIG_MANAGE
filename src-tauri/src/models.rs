@@ -15,6 +15,54 @@ pub struct IgnoredSkill {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillsSyncConfig {
+    #[serde(rename = "remoteUrl", default)]
+    pub remote_url: String,
+    #[serde(default)]
+    pub branch: String,
+    #[serde(rename = "autoPullOnStartup", default)]
+    pub auto_pull_on_startup: bool,
+    #[serde(rename = "lastSyncAt", default)]
+    pub last_sync_at: u64,
+    #[serde(rename = "lastSyncStatus", default)]
+    pub last_sync_status: String, // "idle", "syncing", "success", "error"
+    #[serde(rename = "lastError", default)]
+    pub last_error: Option<String>,
+}
+
+impl Default for SkillsSyncConfig {
+    fn default() -> Self {
+        Self {
+            remote_url: String::new(),
+            branch: "main".to_string(),
+            auto_pull_on_startup: false,
+            last_sync_at: 0,
+            last_sync_status: "idle".to_string(),
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillsSyncStatus {
+    pub initialized: bool,
+    #[serde(rename = "remoteUrl", default)]
+    pub remote_url: Option<String>,
+    #[serde(default)]
+    pub branch: Option<String>,
+    pub ahead: i32,
+    pub behind: i32,
+    #[serde(rename = "dirtyCount")]
+    pub dirty_count: i32,
+    #[serde(rename = "lastSyncAt", default)]
+    pub last_sync_at: Option<u64>,
+    #[serde(rename = "lastSyncStatus", default)]
+    pub last_sync_status: String,
+    #[serde(rename = "lastError", default)]
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub auto_start: bool,
     pub theme: String,
@@ -25,6 +73,8 @@ pub struct AppConfig {
     pub ignored_skills: Option<Vec<IgnoredSkill>>,
     #[serde(default, rename = "system_theme")]
     pub system_theme: Option<String>,
+    #[serde(default, rename = "skills_sync")]
+    pub skills_sync: Option<SkillsSyncConfig>,
 }
 
 impl Default for AppConfig {
@@ -37,6 +87,7 @@ impl Default for AppConfig {
             toast_notifications: true,
             ignored_skills: Some(Vec::new()),
             system_theme: Some("light".to_string()),
+            skills_sync: None,
         }
     }
 }
