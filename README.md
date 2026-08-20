@@ -65,6 +65,8 @@ AgentHub 原生深度适配主流 AI Agent 矩阵，严格按照各官方规范�
 | `workbuddy` | **WorkBuddy** | `~/.workbuddy/skills` | `AGENTS.md`、Codex 指令 | ❓ | `AGENTS.md` | Robot Blue (`#3B82F6`) |
 | `kiro` | **Kiro CLI** | `~/.kiro/skills` | `~/.kiro/agents/*`、`AGENTS.md`、`AmazonQ.md` | ✅ | `AGENTS.md` | Magenta Gradient (`#E056FD`) |
 
+> **DSH 多根说明**：DSH 的 `skill-filesystem` 会同时扫描 `~/.dsh/skills-personal`、`~/.dsh/skills` 与 `~/.agents/skills`。AgentHub 对 `dsh` 已按多根目录管理，启用/停用/删除/纳管时会同步清理这些用户级技能根，确保 Skills Matrix 的开关对 DSH 真正生效。
+
 ---
 
 ## 🛠️ 四大核心功能系统
@@ -113,6 +115,11 @@ flowchart TD
 - **自动检测未受控实体**：按 Agent 聚合扫描存在的独立实体文件夹；
 - **同名冲突智能比对**：发现与中央库同名但内容不同的技能时，提供双栏 Diff 语法高亮对比；
 - **一键决策策略**：支持「覆盖现有版本 (Overwrite)」、「保留两者并重命名 (Rename)」及「跳过 (Skip)」，决策后自动替换为软链。
+
+### 5. 同步中心 (Sync Center)
+- **仅同步中央技能库**：以 `%APPDATA%\AgentHub` 为 Git 仓库根，`skills/` 作为子目录；未来可扩展 `dsh/`、`mcp/` 等分类；
+- **任意 Git 私有仓库承载**：支持 GitHub / Gitee / GitLab 等，提供手动拉取/推送、查看 ahead/behind 与未提交修改数；
+- **启动自动拉取**：可配置开关，默认仅 fast-forward，遇本地修改/冲突时安全跳过并提示。
 
 ---
 
@@ -204,6 +211,7 @@ npm run tauri build
 │       ├── AgentCard.vue               # Agent 卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue              # Agent Hub 主视图
 │       ├── SkillsMatrix.vue            # Skills 矩阵与分发中枢
+│       ├── SyncView.vue                # 同步中心 (中央技能库 Git 多端同步)
 │       ├── UnmanagedGroupSection.vue   # 本地存量检测与分类管理
 │       ├── AgentDetailModal.vue        # 存量待纳管/已忽略双 Tab 弹窗
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
@@ -221,6 +229,7 @@ npm run tauri build
     │   ├── models.rs                   # Rust 数据结构
     │   ├── fs_junction.rs              # Windows NTFS Junction / Hardlink 驱动
     │   ├── git_guard.rs                # Git Hook 注入与还原引擎
+    │   ├── skills_sync.rs              # 中央技能库 Git 同步 (init/pull/push/status)
     │   ├── agent_detector.rs           # 本地 Agent 探测与路径校验
     │   ├── storage.rs                  # %APPDATA%\AgentHub 本地持久化
     │   └── watcher.rs                  # Notify 内核级文件监听后台线程
@@ -231,6 +240,7 @@ npm run tauri build
 
 ## 🗺️ 后续演进计划 (Roadmap)
 
+- [ ] **应用本体在线更新**：接入 Tauri Updater，支持检查更新、下载与自动安装新版本；
 - [ ] **MCP Server 配置总线**：集中可视化管理与跨 Agent 共享多 Agent 的 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp` 等）；
 - [ ] **Skills 市场生态导入**：支持一键从 GitHub / npm 官方 skills 生态中检索并下载至中央库；
 - [ ] **CodeMirror 6 嵌入双栏 Diff**：在 ProjectEditor 与 DiffModal 中引入行级实时对比编辑器；

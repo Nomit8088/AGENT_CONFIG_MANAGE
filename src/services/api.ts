@@ -1,4 +1,4 @@
-import { AgentInfo, AppConfig, ProjectInfo, SkillItem, UnmanagedSkill, ValidationResult } from '../types';
+import { AgentInfo, AppConfig, ProjectInfo, SkillItem, SkillsSyncStatus, UnmanagedSkill, ValidationResult } from '../types';
 
 export const isTauri = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -190,6 +190,41 @@ export const api = {
       return invokeTauri('repair_git_hooks', { projectId });
     }
     return requestApi<void>('/api/projects/repair-hooks', 'POST', { projectId });
+  },
+
+  async getSkillsSyncStatus(): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('get_skills_sync_status');
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/status');
+  },
+
+  async initSkillsSync(remoteUrl: string, branch?: string): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('init_skills_sync', { remoteUrl, branch });
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/init', 'POST', { remoteUrl, branch });
+  },
+
+  async pullSkillsSync(): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('pull_skills_sync');
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/pull', 'POST');
+  },
+
+  async pushSkillsSync(message?: string): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('push_skills_sync', { message });
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/push', 'POST', { message });
+  },
+
+  async setSkillsSyncAutoPull(enabled: boolean): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('set_skills_sync_auto_pull', { enabled });
+    }
+    return requestApi<void>('/api/skills/sync/auto-pull', 'POST', { enabled });
   },
 
   onExternalSkillCreated(callback: (path: string) => void): void {

@@ -254,14 +254,14 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 font-serif font-semibold text-slate-900 dark:text-white/95">
                 <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'append' ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30']"></span>
-                <span>追加模式 (Append / 推荐)</span>
+                <span>追加模式 (Append / 零冲突私有隔离)</span>
               </div>
               <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#30d158]/10 text-[#30d158] font-medium border border-[#30d158]/30">
-                0 Git 冲突
+                免 Hook · 推荐
               </span>
             </div>
             <p class="text-slate-500 dark:text-white/60 text-[11px] leading-relaxed">
-              原版团队 AGENTS.md 保持 0 修改。规则精准写入各 Agent 私有文件（CLAUDE.local.md、ZCODE.local.md 等），并自动加入 .git/info/exclude，零 Git 污染、免 Hook。
+              团队基线文件（AGENTS.md / CLAUDE.md）保持 100% 原版 0 修改；定制规则写入各 Agent 私有文件（CLAUDE.local.md、.agents/rules、AGENTS.override.md 等）并加入 .git/info/exclude，Git 永久静默忽略。
             </p>
           </div>
 
@@ -278,7 +278,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 font-serif font-semibold text-slate-900 dark:text-white/95">
                 <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'overwrite' ? 'bg-[#0a84ff]' : 'bg-slate-300 dark:bg-white/30']"></span>
-                <span>覆盖模式 (Overwrite / 接管)</span>
+                <span>覆盖模式 (Overwrite / 多基线接管)</span>
               </div>
               <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#0a84ff]/10 text-[#0a84ff] font-medium border border-[#0a84ff]/30">
                 Hook 守卫守护
