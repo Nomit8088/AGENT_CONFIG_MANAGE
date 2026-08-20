@@ -64,13 +64,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Bot, Layers, FolderGit2, AlertTriangle, Plus } from 'lucide-vue-next';
+import { Bot, Layers, FolderGit2, UploadCloud, AlertTriangle, Plus } from 'lucide-vue-next';
 
 const store = useAppStore();
 
 const tabs = computed(() => [
   { id: 'agents', label: 'Agent Hub (大厅)', icon: Bot, badge: store.detectedAgentsCount },
   { id: 'skills', label: 'Skills Matrix (技能矩阵)', icon: Layers, badge: store.skills.length },
+  { id: 'sync', label: '同步中心', icon: UploadCloud, badge: store.skillsSyncStatus.dirtyCount },
   { id: 'projects', label: 'Project Rules (规则中心)', icon: FolderGit2, badge: store.projects.length },
   ...(store.totalUnmanagedCount > 0
     ? [{ id: 'unmanaged', label: '待纳管存量', icon: AlertTriangle, badge: store.totalUnmanagedCount }]

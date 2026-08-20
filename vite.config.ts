@@ -20,6 +20,11 @@ import {
   checkGitStatus,
   applyProjectRules,
   uninstallGitHooks,
+  getSkillsSyncStatus,
+  initSkillsSync,
+  pullSkillsSync,
+  pushSkillsSync,
+  setSkillsSyncAutoPull,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -122,7 +127,7 @@ function localApiPlugin(): Plugin {
               if (fs.existsSync(central)) {
                 const entries = fs.readdirSync(central, { withFileTypes: true });
                 for (const ent of entries) {
-                  if (ent.isDirectory()) {
+                  if (ent.isDirectory() && !ent.name.startsWith('.')) {
                     const skillFolder = path.join(central, ent.name);
                     const smd = path.join(skillFolder, 'SKILL.md');
                     const content = fs.existsSync(smd) ? fs.readFileSync(smd, 'utf-8') : '';
@@ -522,6 +527,44 @@ function localApiPlugin(): Plugin {
                 projects = projects.filter(p => p.id !== projectId);
                 fs.writeFileSync(projectsFile, JSON.stringify(projects, null, 2), 'utf-8');
               }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/skills/sync/status
+            if (pathname === '/api/skills/sync/status' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSkillsSyncStatus()));
+            }
+
+            // POST /api/skills/sync/init
+            if (pathname === '/api/skills/sync/init' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              if (!remoteUrl) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'remoteUrl 不能为空' }));
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(initSkillsSync(remoteUrl, branch)));
+            }
+
+            // POST /api/skills/sync/pull
+            if (pathname === '/api/skills/sync/pull' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pullSkillsSync()));
+            }
+
+            // POST /api/skills/sync/push
+            if (pathname === '/api/skills/sync/push' && req.method === 'POST') {
+              const { message } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(pushSkillsSync(message)));
+            }
+
+            // POST /api/skills/sync/auto-pull
+            if (pathname === '/api/skills/sync/auto-pull' && req.method === 'POST') {
+              const { enabled } = jsonBody;
+              setSkillsSyncAutoPull(!!enabled);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

@@ -66,6 +66,27 @@ export interface IgnoredSkill {
   ignoredAt: number;
 }
 
+export interface SkillsSyncConfig {
+  remoteUrl: string;
+  branch: string;
+  autoPullOnStartup: boolean;
+  lastSyncAt: number;
+  lastSyncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  lastError?: string;
+}
+
+export interface SkillsSyncStatus {
+  initialized: boolean;
+  remoteUrl?: string;
+  branch?: string;
+  ahead: number;
+  behind: number;
+  dirtyCount: number;
+  lastSyncAt?: number;
+  lastSyncStatus: string;
+  lastError?: string;
+}
+
 export interface AppConfig {
   auto_start: boolean;
   theme: 'dark' | 'light' | 'system';
@@ -74,6 +95,7 @@ export interface AppConfig {
   toast_notifications: boolean;
   ignored_skills?: IgnoredSkill[];
   system_theme?: 'dark' | 'light';
+  skills_sync?: SkillsSyncConfig;
 }
 
 export interface ValidationResult {

@@ -3,6 +3,7 @@ pub mod fs_junction;
 pub mod git_guard;
 pub mod agent_detector;
 pub mod storage;
+pub mod skills_sync;
 pub mod watcher;
 
 use std::collections::HashMap;
@@ -86,6 +87,9 @@ fn get_central_skills() -> Result<Vec<SkillItem>, String> {
             let path = entry.path();
             if path.is_dir() {
                 let folder_name = entry.file_name().to_string_lossy().to_string();
+                if folder_name.starts_with('.') {
+                    continue;
+                }
                 let skill_md = path.join("SKILL.md");
                 let content = if skill_md.exists() {
                     fs::read_to_string(&skill_md).unwrap_or_default()
@@ -612,6 +616,11 @@ pub fn run() {
             update_project_rule,
             delete_project,
             repair_git_hooks,
+            skills_sync::get_skills_sync_status,
+            skills_sync::init_skills_sync,
+            skills_sync::pull_skills_sync,
+            skills_sync::push_skills_sync,
+            skills_sync::set_skills_sync_auto_pull,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

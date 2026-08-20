@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
 
 export function expandTilde(p: string): string {
@@ -464,6 +464,271 @@ export function parseSkillMd(content: string, folderName: string) {
   } catch {}
 
   return { name, description, version, metadata };
+}
+
+// ==================== Skills Sync (中央库多端同步) ====================
+
+export interface SkillsSyncStatus {
+  initialized: boolean;
+  remoteUrl?: string;
+  branch?: string;
+  ahead: number;
+  behind: number;
+  dirtyCount: number;
+  lastSyncAt?: number;
+  lastSyncStatus: string;
+  lastError?: string;
+}
+
+const SYNC_GITIGNORE_CONTENT = `# AgentHub sync repo local-only files
+config.json
+agents.json
+projects.json
+backups/
+*.log
+.DS_Store
+Thumbs.db
+`;
+
+function ensureSyncGitignore(root: string) {
+  const gitignore = path.join(root, '.gitignore');
+  if (!fs.existsSync(gitignore)) {
+    fs.writeFileSync(gitignore, SYNC_GITIGNORE_CONTENT, 'utf-8');
+  }
+}
+
+function readConfigFile(): any {
+  const configFile = path.join(getAppDataDir(), 'config.json');
+  if (fs.existsSync(configFile)) {
+    try {
+      return JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+    } catch {}
+  }
+  return {};
+}
+
+function writeConfigFile(cfg: any) {
+  const configFile = path.join(getAppDataDir(), 'config.json');
+  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2), 'utf-8');
+}
+
+function readSkillsSyncConfig(): any {
+  const cfg = readConfigFile();
+  return cfg.skills_sync || {
+    remoteUrl: '',
+    branch: 'main',
+    autoPullOnStartup: false,
+    lastSyncAt: 0,
+    lastSyncStatus: 'idle',
+    lastError: undefined,
+  };
+}
+
+function saveSkillsSyncConfig(syncCfg: any) {
+  const cfg = readConfigFile();
+  cfg.skills_sync = syncCfg;
+  writeConfigFile(cfg);
+}
+
+function gitExec(cwd: string, args: string[]): string {
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
+  } catch (e: any) {
+    const stderr = e?.stderr?.toString().trim();
+    const stdout = e?.stdout?.toString().trim();
+    throw new Error(stderr || stdout || e?.message || 'git command failed');
+  }
+}
+
+function gitTry(cwd: string, args: string[]): string {
+  try {
+    return gitExec(cwd, args);
+  } catch {
+    return '';
+  }
+}
+
+function gitOk(cwd: string, args: string[]): boolean {
+  try {
+    gitExec(cwd, args);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function gitDirtyCount(cwd: string): number {
+  const out = gitTry(cwd, ['status', '--porcelain']);
+  return out ? out.split(/\r?\n/).filter(l => l.trim()).length : 0;
+}
+
+function parseAheadBehind(statusSb: string): { ahead: number; behind: number } {
+  const first = statusSb.split(/\r?\n/)[0] || '';
+  if (!first.startsWith('## ')) return { ahead: 0, behind: 0 };
+
+  let ahead = 0;
+  let behind = 0;
+  const idx = first.indexOf('[');
+  if (idx >= 0) {
+    const bracket = first.slice(idx);
+    const aheadMatch = bracket.match(/ahead (\d+)/);
+    const behindMatch = bracket.match(/behind (\d+)/);
+    if (aheadMatch) ahead = parseInt(aheadMatch[1], 10) || 0;
+    if (behindMatch) behind = parseInt(behindMatch[1], 10) || 0;
+  }
+  return { ahead, behind };
+}
+
+export function getSkillsSyncStatus(): SkillsSyncStatus {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+  const initialized = fs.existsSync(path.join(root, '.git'));
+
+  const status: SkillsSyncStatus = {
+    initialized,
+    remoteUrl: syncCfg.remoteUrl || undefined,
+    branch: undefined,
+    ahead: 0,
+    behind: 0,
+    dirtyCount: 0,
+    lastSyncAt: syncCfg.lastSyncAt > 0 ? syncCfg.lastSyncAt : undefined,
+    lastSyncStatus: syncCfg.lastSyncStatus || 'idle',
+    lastError: syncCfg.lastError || undefined,
+  };
+
+  if (initialized) {
+    const branch = gitTry(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (branch) status.branch = branch;
+
+    const sb = gitTry(root, ['status', '-sb', '--porcelain=v1']);
+    if (sb) {
+      const { ahead, behind } = parseAheadBehind(sb);
+      status.ahead = ahead;
+      status.behind = behind;
+      const lines = sb.split(/\r?\n/).filter(l => l.trim());
+      status.dirtyCount = sb.startsWith('## ') ? Math.max(0, lines.length - 1) : lines.length;
+    }
+  }
+
+  return status;
+}
+
+export function initSkillsSync(remoteUrl: string, branch?: string): SkillsSyncStatus {
+  const root = getAppDataDir();
+  fs.mkdirSync(root, { recursive: true });
+  ensureSyncGitignore(root);
+
+  const targetBranch = (branch || 'main').trim() || 'main';
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    try {
+      gitExec(root, ['init', '-b', targetBranch]);
+    } catch {
+      gitExec(root, ['init']);
+      gitTry(root, ['symbolic-ref', 'HEAD', `refs/heads/${targetBranch}`]);
+    }
+  }
+
+  gitTry(root, ['remote', 'remove', 'origin']);
+  gitExec(root, ['remote', 'add', 'origin', remoteUrl]);
+
+  if (gitOk(root, ['fetch', 'origin'])) {
+    const remoteRef = `origin/${targetBranch}`;
+    if (gitOk(root, ['rev-parse', '--verify', remoteRef])) {
+      const head = gitTry(root, ['rev-parse', '--verify', 'HEAD']);
+      if (!head) {
+        gitTry(root, ['symbolic-ref', 'HEAD', `refs/heads/${targetBranch}`]);
+        gitTry(root, ['reset', '--mixed', remoteRef]);
+      }
+    }
+  }
+
+  const syncCfg = readSkillsSyncConfig();
+  syncCfg.remoteUrl = remoteUrl;
+  syncCfg.branch = targetBranch;
+  syncCfg.lastSyncStatus = 'idle';
+  syncCfg.lastError = undefined;
+  saveSkillsSyncConfig(syncCfg);
+
+  return getSkillsSyncStatus();
+}
+
+function updateLastSync(status: string, error?: string) {
+  const syncCfg = readSkillsSyncConfig();
+  syncCfg.lastSyncStatus = status;
+  syncCfg.lastSyncAt = Date.now();
+  syncCfg.lastError = error;
+  saveSkillsSyncConfig(syncCfg);
+}
+
+export function pullSkillsSync(): SkillsSyncStatus {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
+  }
+  if (!syncCfg.remoteUrl) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  const dirty = gitDirtyCount(root);
+  if (dirty > 0) {
+    const msg = `本地有 ${dirty} 个未提交修改，已跳过拉取；请先推送或手动处理`;
+    updateLastSync('error', msg);
+    throw new Error(msg);
+  }
+
+  const branch = syncCfg.branch || 'main';
+  try {
+    gitExec(root, ['pull', '--ff-only', 'origin', branch]);
+    updateLastSync('success');
+    return getSkillsSyncStatus();
+  } catch (e: any) {
+    const msg = `拉取失败: ${e.message}`;
+    updateLastSync('error', msg);
+    throw new Error(msg);
+  }
+}
+
+export function pushSkillsSync(message?: string): SkillsSyncStatus {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
+  }
+  if (!syncCfg.remoteUrl) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  gitExec(root, ['add', '-A']);
+
+  const staged = gitTry(root, ['diff', '--cached', '--name-only']);
+  if (staged && staged.trim()) {
+    const msg = (message || '').trim() || `sync central skills [${new Date().toLocaleString()}]`;
+    gitExec(root, ['commit', '-m', msg]);
+  }
+
+  const branch = syncCfg.branch || 'main';
+  try {
+    gitExec(root, ['push', '-u', 'origin', branch]);
+    updateLastSync('success');
+    return getSkillsSyncStatus();
+  } catch (e: any) {
+    const msg = `推送失败: ${e.message}`;
+    updateLastSync('error', msg);
+    throw new Error(msg);
+  }
+}
+
+export function setSkillsSyncAutoPull(enabled: boolean): void {
+  const syncCfg = readSkillsSyncConfig();
+  syncCfg.autoPullOnStartup = enabled;
+  saveSkillsSyncConfig(syncCfg);
 }
 
 export interface GitStatus {

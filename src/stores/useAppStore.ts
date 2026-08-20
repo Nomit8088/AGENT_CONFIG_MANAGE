@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { AgentInfo, AppConfig, IgnoredSkill, ProjectInfo, SkillItem, ToastMessage, UnmanagedSkill } from '../types';
+import { AgentInfo, AppConfig, IgnoredSkill, ProjectInfo, SkillItem, SkillsSyncStatus, ToastMessage, UnmanagedSkill } from '../types';
 import { api } from '../services/api';
 
 export interface DiffModalState {
@@ -16,7 +16,7 @@ export interface DiffModalState {
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    currentTab: 'agents' as 'agents' | 'skills' | 'projects' | 'settings',
+    currentTab: 'agents' as 'agents' | 'skills' | 'sync' | 'projects' | 'settings',
     agents: [] as AgentInfo[],
     skills: [] as SkillItem[],
     unmanagedSkills: [] as UnmanagedSkill[],
@@ -66,6 +66,20 @@ export const useAppStore = defineStore('app', {
     settingsModal: {
       visible: false,
     },
+
+    // Skills Sync (中央库多端同步)
+    skillsSyncStatus: {
+      initialized: false,
+      remoteUrl: undefined,
+      branch: undefined,
+      ahead: 0,
+      behind: 0,
+      dirtyCount: 0,
+      lastSyncAt: undefined,
+      lastSyncStatus: 'idle',
+      lastError: undefined,
+    } as SkillsSyncStatus,
+    skillsSyncLoading: false,
 
     // Agent Unmanaged Details Modal/Drawer
     agentDetailModal: {
@@ -148,6 +162,12 @@ export const useAppStore = defineStore('app', {
 
         if (this.projects.length > 0 && !this.activeProjectId) {
           this.activeProjectId = this.projects[0].id;
+        }
+
+        // Skills Sync: load status, and if enabled, try a silent fast-forward pull on startup
+        this.loadSkillsSyncStatus();
+        if (this.config.skills_sync?.autoPullOnStartup && this.config.skills_sync.remoteUrl) {
+          this.pullSkillsSync(false).catch(() => {});
         }
 
         api.onExternalSkillCreated((path) => {
@@ -284,6 +304,93 @@ export const useAppStore = defineStore('app', {
 
     async scanUnmanaged() {
       this.unmanagedSkills = await api.scanUnmanagedSkills();
+    },
+
+    async loadSkillsSyncStatus() {
+      this.skillsSyncStatus = await api.getSkillsSyncStatus();
+    },
+
+    async initSkillsSync(remoteUrl: string, branch?: string) {
+      this.skillsSyncLoading = true;
+      try {
+        this.skillsSyncStatus = await api.initSkillsSync(remoteUrl, branch);
+        await this.loadConfig();
+        this.showToast({
+          title: '同步仓库已连接',
+          message: `中央技能库已初始化，远端: ${remoteUrl}`,
+          type: 'success',
+        });
+      } finally {
+        this.skillsSyncLoading = false;
+      }
+    },
+
+    async pullSkillsSync(showToast = true) {
+      this.skillsSyncLoading = true;
+      try {
+        this.skillsSyncStatus = await api.pullSkillsSync();
+        await this.loadSkills();
+        if (showToast) {
+          this.showToast({
+            title: '拉取完成',
+            message: '中央技能库已与远端同步',
+            type: 'success',
+          });
+        }
+      } catch (e: any) {
+        this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
+        if (showToast) {
+          this.showToast({
+            title: '拉取失败',
+            message: e?.message || '无法拉取远端技能库',
+            type: 'error',
+          });
+        }
+        throw e;
+      } finally {
+        this.skillsSyncLoading = false;
+      }
+    },
+
+    async pushSkillsSync(message?: string) {
+      this.skillsSyncLoading = true;
+      try {
+        this.skillsSyncStatus = await api.pushSkillsSync(message);
+        await this.loadSkills();
+        this.showToast({
+          title: '推送完成',
+          message: '中央技能库已提交并推送到远端',
+          type: 'success',
+        });
+      } catch (e: any) {
+        this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
+        this.showToast({
+          title: '推送失败',
+          message: e?.message || '无法推送中央技能库',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.skillsSyncLoading = false;
+      }
+    },
+
+    async setSkillsSyncAutoPull(enabled: boolean) {
+      await api.setSkillsSyncAutoPull(enabled);
+      this.config.skills_sync = {
+        remoteUrl: '',
+        branch: 'main',
+        lastSyncAt: 0,
+        lastSyncStatus: 'idle',
+        ...(this.config.skills_sync || {}),
+        autoPullOnStartup: enabled,
+      };
+      await this.loadConfig();
+      this.showToast({
+        title: enabled ? '启动自动拉取已开启' : '启动自动拉取已关闭',
+        message: enabled ? '每次启动 AgentHub 会静默拉取最新中央技能库' : 'AgentHub 启动时将不再自动联网拉取',
+        type: 'info',
+      });
     },
 
     async toggleSkillForAgent(skillName: string, agentId: string, enable: boolean) {

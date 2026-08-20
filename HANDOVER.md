@@ -86,7 +86,15 @@
       "path": "C:\\Users\\nomit\\.claude\\skills\\omc-doctor",
       "ignoredAt": 1723982400000
     }
-  ]
+  ],
+  "skills_sync": {                   // 中央技能库多端同步
+    "remoteUrl": "https://github.com/you/agenthub-skills.git",
+    "branch": "main",
+    "autoPullOnStartup": true,
+    "lastSyncAt": 1723982400000,
+    "lastSyncStatus": "success",
+    "lastError": null
+  }
 }
 ```
 
@@ -236,6 +244,7 @@ flowchart TD
 │       ├── AgentCard.vue               # Agent 大厅状态卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分组 + 关键词检索)
 │       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (中央技能库全维度搜索、来源/挂载过滤与排序)
+│       ├── SyncView.vue                # 面板: 同步中心 (中央技能库 Git 多端同步)
 │       ├── UnmanagedGroupSection.vue   # 存量检测按 Agent 归类卡片区 (支持状态筛选、排序与一键纳管全部)
 │       ├── AgentDetailModal.vue        # 存量管理弹窗 (待纳管/已忽略 Tabs + 弹窗内技能搜索)
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
@@ -259,6 +268,7 @@ flowchart TD
         ├── models.rs                   # Rust 数据结构
         ├── fs_junction.rs              # Windows NTFS Junction 驱动
         ├── git_guard.rs                # Git Hook 注入与多基线还原引擎
+        ├── skills_sync.rs              # 中央技能库 Git 同步 (init/pull/push/status)
         ├── agent_detector.rs           # 本地 Agent 探测与路径校验
         ├── storage.rs                  # %APPDATA%\AgentHub 本地持久化
         └── watcher.rs                  # Notify 内核级文件监听后台线程
@@ -344,6 +354,7 @@ npm run tauri build
 
 ## 9. 后续演进建议与待办清单 (TODO)
 
+- [ ] **应用本体在线更新**：接入 Tauri Updater，支持 GitHub Releases 检查更新、下载与自动安装新版本。
 - [ ] **MCP Server 配置总线**：扩展多 Agent 的 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp`）集中可视化管理与共享。
 - [ ] **Skills 市场导入**：接入 GitHub / npm skills 生态一键搜索并远程下载至中央库。
 - [ ] **CodeMirror 6 嵌入双栏 Diff**：在 ProjectEditor 与 DiffModal 中进一步引入 CodeMirror 6 的 MergeView 实时行级对比。
@@ -497,6 +508,16 @@ npm run tauri build
     - Node/Web 端：新增 `getAgentSkillDirs()` / `findAgentSkillDir()`，`vite.config.ts` 的挂载状态判断、卸载、删除、纳管逻辑按 Agent 多根目录处理；存量待纳管仍只扫主目录，避免公共技能噪音。
     - Rust/Tauri 端：新增 `agent_skill_dirs()` / `find_agent_skill_dir()`，`lib.rs` 的 `get_central_skills`、`delete_skill`、`toggle_skill_for_agent`、`takeover_unmanaged_skill` 同步支持多根目录；`watcher.rs` 增加 `~/.dsh/skills` 与 `~/.agents/skills` 监听。
     - 修复纳管误删中央库风险：`findAgentSkillDir()` 只返回物理目录，跳过 Junction/Symlink；纳管删除本地目录改用 `removeSkillMount()` 安全移除，避免 `fs.rmSync` 递归清空 Junction 指向的中央库。
+
+- **2026-08-20 (Session 16)**:
+  - **中央技能库多端同步 (Skills Sync)**:
+    - 新增独立「同步中心」Tab（`SyncView.vue`），仅同步中央技能库，不涉及 Agent/项目配置。
+    - 以 `%APPDATA%\AgentHub` 作为 Git 仓库根，`skills/` 作为仓库子目录；初始化时自动生成 `.gitignore` 排除 `config.json`、`agents.json`、`projects.json`、`backups/` 等本机私有文件。
+    - 仓库结构为单一私有仓库多分类：`skills/`（当前）、`dsh/`、`mcp/`（未来扩展），远端可为 GitHub/Gitee/GitLab 等任意 Git 仓库。
+    - 提供状态查看、初始化连接、手动拉取/推送、启动自动拉取开关。
+    - 自动拉取仅 fast-forward：本地有未提交修改或冲突时安全跳过并提示，绝不覆盖本地 skills。
+    - Rust 后端新增 `skills_sync.rs`（`get_skills_sync_status` / `init_skills_sync` / `pull_skills_sync` / `push_skills_sync` / `set_skills_sync_auto_pull`）；Node 本地 API 与 `vite.config.ts` 路由 `/api/skills/sync/*` 双端对齐。
+    - `config.json` 新增 `skills_sync` 配置块，保存远端地址、分支、启动自动拉取与最后同步状态。
 
 ---
 *文档更新时间：2026-08-20 | AgentHub Core Team*
