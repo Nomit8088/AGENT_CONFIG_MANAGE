@@ -84,11 +84,94 @@ pub fn add_to_git_exclude(project_path: &Path, filenames: &[&str]) -> Result<(),
     Ok(())
 }
 
+pub const BASELINE_RULE_FILES: &[&str] = &[
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".cursorrules",
+    ".windsurfrules",
+    "GEMINI.md",
+];
+
+pub const PRIVATE_RULE_FILES: &[&str] = &[
+    "CLAUDE.local.md",
+    ".agents/rules/local-override.md",
+    "AGENTS.override.md",
+    "ZCODE.local.md",
+    "AGENTS.local.md",
+    ".cursor/rules/local-override.mdc",
+    "WINDSURF.local.md",
+    ".omo/rules/local.md",
+    ".github/copilot-instructions.local.md",
+    "GEMINI.local.md",
+];
+
+pub fn clean_all_private_rules(project_path: &Path) {
+    for rel_path in PRIVATE_RULE_FILES {
+        let full_path = project_path.join(rel_path);
+        if full_path.exists() {
+            let _ = fs::remove_file(&full_path);
+            if let Some(parent) = full_path.parent() {
+                if parent != project_path {
+                    if let Ok(entries) = fs::read_dir(parent) {
+                        if entries.count() == 0 {
+                            let _ = fs::remove_dir(parent);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn restore_all_baselines(project_path: &Path, backup_dir: Option<&Path>) {
+    let git_dir = project_path.join(".git");
+    let has_git = git_dir.exists();
+
+    for baseline in BASELINE_RULE_FILES {
+        let target_file = project_path.join(baseline);
+        let git_orig = if has_git {
+            Some(git_dir.join("info").join(format!("{}.orig", baseline)))
+        } else {
+            None
+        };
+        let backup_orig = backup_dir.map(|b| b.join(format!("{}.orig", baseline)));
+
+        let mut restored = false;
+        if let Some(ref go) = git_orig {
+            if go.exists() {
+                if fs::copy(go, &target_file).is_ok() {
+                    let _ = fs::remove_file(go);
+                    restored = true;
+                }
+            }
+        }
+
+        if !restored {
+            if let Some(ref bo) = backup_orig {
+                if bo.exists() {
+                    let _ = fs::copy(bo, &target_file);
+                    restored = true;
+                }
+            }
+        }
+
+        if !restored {
+            if let Some(bd) = backup_dir {
+                let marker_no_orig = bd.join(format!("{}.no_orig", baseline));
+                if marker_no_orig.exists() && target_file.exists() {
+                    let _ = fs::remove_file(&target_file);
+                }
+            }
+        }
+    }
+}
+
 pub fn install_git_hooks(
     project_path: &Path,
     backup_dir: &Path,
     custom_rule_path: &Path,
     enable_pre_commit: bool,
+    targets_to_protect: &[&str],
 ) -> Result<(), String> {
     let git_dir = project_path.join(".git");
     if !git_dir.exists() {
@@ -98,52 +181,86 @@ pub fn install_git_hooks(
     let hooks_dir = git_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).map_err(|e| format!("创建 .git/hooks 失败: {}", e))?;
 
-    let orig_backup = git_dir.join("info").join("AGENTS.orig");
-    let agents_md = project_path.join("AGENTS.md");
+    let info_dir = git_dir.join("info");
+    fs::create_dir_all(&info_dir).map_err(|e| format!("创建 .git/info 失败: {}", e))?;
 
-    // Ensure initial orig backup exists if AGENTS.md exists
-    if agents_md.exists() && !orig_backup.exists() {
-        let _ = fs::copy(&agents_md, &orig_backup);
-        let _ = fs::copy(&agents_md, backup_dir.join("AGENTS.md.orig"));
+    // Backup baselines
+    for target in targets_to_protect {
+        let file = project_path.join(target);
+        let orig_git = info_dir.join(format!("{}.orig", target));
+        let orig_backup = backup_dir.join(format!("{}.orig", target));
+        let no_orig_marker = backup_dir.join(format!("{}.no_orig", target));
+
+        if file.exists() {
+            if !orig_git.exists() {
+                let _ = fs::copy(&file, &orig_git);
+            }
+            if !orig_backup.exists() {
+                let _ = fs::copy(&file, &orig_backup);
+            }
+        } else if !orig_backup.exists() {
+            let _ = fs::write(&no_orig_marker, "no_original");
+        }
     }
 
-    // Generate hook scripts (POSIX sh for Git on Windows/Linux/macOS)
-    let pre_checkout_script = r#"#!/bin/sh
-# AgentHub Git Hook Guard: Pre-Checkout
-# Restore original AGENTS.md before git switches branch to avoid merge conflicts
-ORIG=".git/info/AGENTS.orig"
-if [ -f "$ORIG" ]; then
-    cp "$ORIG" "AGENTS.md" 2>/dev/null || true
-fi
+    let targets_list_str = targets_to_protect
+        .iter()
+        .map(|t| format!("\"{}\"", t))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let pre_checkout_script = format!(
+        r#"#!/bin/sh
+# AgentHub Git Hook Guard: Pre-Checkout (Multi-Baseline)
+# Restore all original baseline files before git switches branch to avoid merge conflicts
+for f in {}; do
+    ORIG=".git/info/${{f}}.orig"
+    if [ -f "$ORIG" ]; then
+        cp "$ORIG" "$f" 2>/dev/null || true
+    fi
+done
 exit 0
-"#;
+"#,
+        targets_list_str
+    );
 
     let post_checkout_script = format!(
         r#"#!/bin/sh
-# AgentHub Git Hook Guard: Post-Checkout
-# Re-apply custom AGENTS.md after git switched branch
+# AgentHub Git Hook Guard: Post-Checkout (Multi-Baseline)
+# Re-apply custom rules to overwritten baselines after git switched branch
 CUSTOM="{}"
 if [ -f "$CUSTOM" ]; then
-    cp "$CUSTOM" "AGENTS.md" 2>/dev/null || true
+    for f in {}; do
+        ORIG=".git/info/${{f}}.orig"
+        if [ -f "$ORIG" ] || [ -f ".git/info/${{f}}.no_orig" ]; then
+            cp "$CUSTOM" "$f" 2>/dev/null || true
+        fi
+    done
 fi
 exit 0
 "#,
-        custom_rule_path.to_string_lossy().replace('\\', "/")
+        custom_rule_path.to_string_lossy().replace('\\', "/"),
+        targets_list_str
     );
 
-    let pre_commit_script = r#"#!/bin/sh
-# AgentHub Git Hook Guard: Pre-Commit Protection
-# Prevents accidentally committing the custom/overwritten AGENTS.md to team git repo
-ORIG=".git/info/AGENTS.orig"
-if [ -f "$ORIG" ]; then
-    if git diff --cached --name-only | grep -q "^AGENTS.md$"; then
-        printf "\033[1;33m[AgentHub 守卫提示]\033[0m 检测到您处于【覆盖模式】，已自动拦截对本地 AGENTS.md 的提交。\n"
-        printf "\033[1;33m[AgentHub 守卫提示]\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\n"
-        exit 1
+    let pre_commit_script = format!(
+        r#"#!/bin/sh
+# AgentHub Git Hook Guard: Pre-Commit Protection (Multi-Baseline)
+# Prevents accidentally committing any overwritten baseline files to team git repo
+for f in {}; do
+    ORIG=".git/info/${{f}}.orig"
+    if [ -f "$ORIG" ] || [ -f ".git/info/${{f}}.no_orig" ]; then
+        if git diff --cached --name-only | grep -q "^${{f}}$"; then
+            printf "\033[1;33m[AgentHub 守卫提示]\033[0m 检测到处于【覆盖模式】，已自动拦截对本地 %s 的提交。\n" "$f"
+            printf "\033[1;33m[AgentHub 守卫提示]\033[0m 为防止本地个性化规则污染团队仓库，请在 AgentHub 中切换为「追加模式」或暂时关闭定制后再提交。\n"
+            exit 1
+        fi
     fi
-fi
+done
 exit 0
-"#;
+"#,
+        targets_list_str
+    );
 
     let pre_checkout_path = hooks_dir.join("pre-checkout");
     let post_checkout_path = hooks_dir.join("post-checkout");
@@ -164,9 +281,10 @@ exit 0
     Ok(())
 }
 
-pub fn uninstall_git_hooks(project_path: &Path) -> Result<(), String> {
+pub fn uninstall_git_hooks(project_path: &Path, backup_dir: Option<&Path>) -> Result<(), String> {
     let git_dir = project_path.join(".git");
     if !git_dir.exists() {
+        restore_all_baselines(project_path, backup_dir);
         return Ok(());
     }
 
@@ -185,13 +303,7 @@ pub fn uninstall_git_hooks(project_path: &Path) -> Result<(), String> {
         let _ = fs::remove_file(pre_commit);
     }
 
-    // Restore original AGENTS.md if orig exists
-    let orig_backup = git_dir.join("info").join("AGENTS.orig");
-    let agents_md = project_path.join("AGENTS.md");
-    if orig_backup.exists() {
-        let _ = fs::copy(&orig_backup, &agents_md);
-        let _ = fs::remove_file(orig_backup);
-    }
+    restore_all_baselines(project_path, backup_dir);
 
     Ok(())
 }
