@@ -83,8 +83,18 @@ fn git_try(cwd: &Path, args: &[&str]) -> String {
     run_git(cwd, args.iter().copied()).unwrap_or_default()
 }
 
-fn git_dirty_count(cwd: &Path) -> i32 {
-    let out = git_try(cwd, &["status", "--porcelain"]);
+/// 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。
+fn git_dirty_count_paths(cwd: &Path, paths: &[&str]) -> i32 {
+    let mut args = vec!["status", "--porcelain", "--"];
+    for p in paths {
+        if cwd.join(p).exists() {
+            args.push(p);
+        }
+    }
+    if args.len() == 3 {
+        return 0; // 范围内没有任何路径存在
+    }
+    let out = git_try(cwd, &args);
     out.lines().filter(|l| !l.trim().is_empty()).count() as i32
 }
 
@@ -126,6 +136,55 @@ fn save_sync_config(cfg: &DshPluginsSyncConfig) -> Result<(), String> {
     save_config(&app_cfg)
 }
 
+/// 与 skills sync 共用同一 .git：本功能配置为空时，回退到共享仓库实际的 origin / 当前分支，
+/// 再回退到另一功能的配置，避免同一仓库出现“一边已配置、一边未配置”的假象。
+fn effective_remote_url(cfg: &DshPluginsSyncConfig) -> String {
+    let global = crate::sync_repo::global_remote_url();
+    if !global.is_empty() {
+        return global;
+    }
+    if !cfg.remote_url.is_empty() {
+        return cfg.remote_url.clone();
+    }
+    let root = sync_root();
+    if root.join(".git").exists() {
+        if let Ok(url) = run_git(&root, ["remote", "get-url", "origin"]) {
+            let url = url.trim().to_string();
+            if !url.is_empty() {
+                return url;
+            }
+        }
+    }
+    load_config()
+        .skills_sync
+        .map(|s| s.remote_url)
+        .unwrap_or_default()
+}
+
+fn effective_branch(cfg: &DshPluginsSyncConfig) -> String {
+    let global = crate::sync_repo::global_branch();
+    if !global.is_empty() {
+        return global;
+    }
+    if !cfg.branch.is_empty() {
+        return cfg.branch.clone();
+    }
+    let root = sync_root();
+    if root.join(".git").exists() {
+        if let Ok(branch) = run_git(&root, ["rev-parse", "--abbrev-ref", "HEAD"]) {
+            let branch = branch.trim().to_string();
+            if !branch.is_empty() && branch != "HEAD" {
+                return branch;
+            }
+        }
+    }
+    load_config()
+        .skills_sync
+        .map(|s| s.branch)
+        .filter(|b| !b.is_empty())
+        .unwrap_or_else(|| "main".to_string())
+}
+
 fn update_last_sync(status: &str, error: Option<&str>) -> Result<(), String> {
     let mut cfg = sync_config();
     cfg.last_sync_status = status.to_string();
@@ -142,10 +201,13 @@ pub fn get_dsh_plugins_sync_status() -> SkillsSyncStatus {
 
     let mut status = SkillsSyncStatus {
         initialized,
-        remote_url: if cfg.remote_url.is_empty() {
-            None
-        } else {
-            Some(cfg.remote_url.clone())
+        remote_url: {
+            let url = effective_remote_url(&cfg);
+            if url.is_empty() {
+                None
+            } else {
+                Some(url)
+            }
         },
         branch: None,
         ahead: 0,
@@ -168,12 +230,8 @@ pub fn get_dsh_plugins_sync_status() -> SkillsSyncStatus {
             let (ahead, behind) = parse_ahead_behind(&sb);
             status.ahead = ahead;
             status.behind = behind;
-            let lines: Vec<&str> = sb.lines().filter(|l| !l.trim().is_empty()).collect();
-            status.dirty_count = if sb.starts_with("## ") {
-                lines.len().saturating_sub(1) as i32
-            } else {
-                lines.len() as i32
-            };
+            // 按功能隔离：只统计 DSH 插件范围内的未提交修改（与技能同步分开）
+            status.dirty_count = git_dirty_count_paths(&root, &["dsh", ".gitignore"]);
         }
     }
 
@@ -239,19 +297,19 @@ pub fn pull_dsh_plugins_sync() -> Result<SkillsSyncStatus, String> {
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先在插件同步中初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    let dirty = git_dirty_count(&root);
+    let dirty = git_dirty_count_paths(&root, &["dsh", ".gitignore"]);
     if dirty > 0 {
-        let msg = format!("本地有 {} 个未提交修改，已跳过拉取；请先推送或手动处理", dirty);
+        let msg = format!("DSH 插件同步：本地有 {} 个未提交修改（dsh/.gitignore），已跳过拉取；请先推送或手动处理", dirty);
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
-    match run_git(&root, ["pull", "--ff-only", "origin", branch]) {
+    let branch = effective_branch(&cfg);
+    match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
             update_last_sync("success", None)?;
             Ok(get_dsh_plugins_sync_status())
@@ -343,7 +401,7 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先在插件同步中初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
@@ -351,6 +409,10 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
 
     if dsh_mirror_dir().exists() {
         let _ = run_git(&root, ["add", "-A", "--", "dsh"]);
+    }
+    // 共享的 .gitignore 有变更时也随插件同步提交，避免被遗漏
+    if root.join(".gitignore").exists() {
+        let _ = run_git(&root, ["add", "-A", "--", ".gitignore"]);
     }
 
     let staged = git_try(&root, &["diff", "--cached", "--name-only"]);
@@ -367,8 +429,8 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
             .map_err(|e| format!("提交 dsh 配置改动失败: {}", e))?;
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
-    if let Err(e) = run_git(&root, ["push", "-u", "origin", branch]) {
+    let branch = effective_branch(&cfg);
+    if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = format!("推送失败: {}", e);
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);

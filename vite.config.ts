@@ -27,6 +27,9 @@ import {
   setSkillsSyncAutoPull,
   testSkillsSyncConnection,
   resetSkillsSyncToRemote,
+  getSyncRepoConfig,
+  validateSyncRepo,
+  saveSyncRepo,
   scanDshPlugins,
   diagnoseDshWeb,
   toggleDshPlugin,
@@ -598,6 +601,30 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/skills/sync/reset' && req.method === 'POST') {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(resetSkillsSyncToRemote()));
+            }
+
+            // GET /api/sync/repo
+            if (pathname === '/api/sync/repo' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSyncRepoConfig()));
+            }
+
+            // POST /api/sync/repo/validate
+            if (pathname === '/api/sync/repo/validate' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(await validateSyncRepo(remoteUrl || '', branch || undefined)));
+            }
+
+            // POST /api/sync/repo
+            if (pathname === '/api/sync/repo' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              if (!remoteUrl) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'remoteUrl 不能为空' }));
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(await saveSyncRepo(remoteUrl, branch || undefined)));
             }
 
             // GET /api/dsh/plugins/scan

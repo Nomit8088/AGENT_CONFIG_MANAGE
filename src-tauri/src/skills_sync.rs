@@ -16,6 +16,7 @@ const GITIGNORE_CONTENT: &str = "# AgentHub sync repo local-only files
 config.json
 agents.json
 projects.json
+dsh_install_state.json
 backups/
 *.log
 .DS_Store
@@ -26,6 +27,21 @@ fn ensure_gitignore(root: &Path) {
     let gitignore = root.join(".gitignore");
     if !gitignore.exists() {
         let _ = fs::write(&gitignore, GITIGNORE_CONTENT);
+        return;
+    }
+    // 已有 .gitignore 时补齐新增的私有文件条目（幂等）
+    if let Ok(text) = fs::read_to_string(&gitignore) {
+        let missing: Vec<&str> = GITIGNORE_CONTENT
+            .lines()
+            .filter(|l| !l.trim().is_empty() && !text.contains(l.trim()))
+            .collect();
+        if !missing.is_empty() {
+            let mut new_text = text.trim_end().to_string();
+            new_text.push('\n');
+            new_text.push_str(&missing.join("\n"));
+            new_text.push('\n');
+            let _ = fs::write(&gitignore, new_text);
+        }
     }
 }
 
@@ -49,8 +65,18 @@ where
     Ok(stdout)
 }
 
-fn git_dirty_count(cwd: &Path) -> i32 {
-    let out = run_git(cwd, ["status", "--porcelain"]).unwrap_or_default();
+/// 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。
+fn git_dirty_count_paths(cwd: &Path, paths: &[&str]) -> i32 {
+    let mut args = vec!["status", "--porcelain", "--"];
+    for p in paths {
+        if cwd.join(p).exists() {
+            args.push(p);
+        }
+    }
+    if args.len() == 3 {
+        return 0; // 范围内没有任何路径存在
+    }
+    let out = run_git(cwd, args).unwrap_or_default();
     out.lines().filter(|l| !l.trim().is_empty()).count() as i32
 }
 
@@ -83,6 +109,57 @@ fn sync_config() -> SkillsSyncConfig {
     load_config().skills_sync.unwrap_or_default()
 }
 
+/// 与 DSH 插件同步共用同一 .git：本功能配置为空时，回退到共享仓库实际的 origin / 当前分支，
+/// 再回退到另一功能的配置，避免同一仓库出现“一边已配置、一边未配置”的假象。
+fn effective_remote_url(cfg: &SkillsSyncConfig) -> String {
+    let global = crate::sync_repo::global_remote_url();
+    if !global.is_empty() {
+        return global;
+    }
+    if !cfg.remote_url.is_empty() {
+        return cfg.remote_url.clone();
+    }
+    let root = sync_root();
+    if root.join(".git").exists() {
+        if let Ok(url) = run_git(&root, ["remote", "get-url", "origin"]) {
+            let url = url.trim().to_string();
+            if !url.is_empty() {
+                return url;
+            }
+        }
+    }
+    load_config()
+        .dsh_plugins
+        .and_then(|p| p.sync)
+        .map(|s| s.remote_url)
+        .unwrap_or_default()
+}
+
+fn effective_branch(cfg: &SkillsSyncConfig) -> String {
+    let global = crate::sync_repo::global_branch();
+    if !global.is_empty() {
+        return global;
+    }
+    if !cfg.branch.is_empty() {
+        return cfg.branch.clone();
+    }
+    let root = sync_root();
+    if root.join(".git").exists() {
+        if let Ok(branch) = run_git(&root, ["rev-parse", "--abbrev-ref", "HEAD"]) {
+            let branch = branch.trim().to_string();
+            if !branch.is_empty() && branch != "HEAD" {
+                return branch;
+            }
+        }
+    }
+    load_config()
+        .dsh_plugins
+        .and_then(|p| p.sync)
+        .map(|s| s.branch)
+        .filter(|b| !b.is_empty())
+        .unwrap_or_else(|| "main".to_string())
+}
+
 fn save_sync_config(cfg: &SkillsSyncConfig) -> Result<(), String> {
     let mut app_cfg = load_config();
     app_cfg.skills_sync = Some(cfg.clone());
@@ -105,10 +182,13 @@ pub fn get_skills_sync_status() -> SkillsSyncStatus {
 
     let mut status = SkillsSyncStatus {
         initialized,
-        remote_url: if cfg.remote_url.is_empty() {
-            None
-        } else {
-            Some(cfg.remote_url.clone())
+        remote_url: {
+            let url = effective_remote_url(&cfg);
+            if url.is_empty() {
+                None
+            } else {
+                Some(url)
+            }
         },
         branch: None,
         ahead: 0,
@@ -131,12 +211,8 @@ pub fn get_skills_sync_status() -> SkillsSyncStatus {
             let (ahead, behind) = parse_ahead_behind(&sb);
             status.ahead = ahead;
             status.behind = behind;
-            let lines: Vec<&str> = sb.lines().filter(|l| !l.trim().is_empty()).collect();
-            status.dirty_count = if sb.starts_with("## ") {
-                lines.len().saturating_sub(1) as i32
-            } else {
-                lines.len() as i32
-            };
+            // 按功能隔离：只统计技能范围内的未提交修改（与 DSH 插件同步分开）
+            status.dirty_count = git_dirty_count_paths(&root, &["skills", ".gitignore"]);
         }
     }
 
@@ -197,19 +273,19 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先在同步中心初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    let dirty = git_dirty_count(&root);
+    let dirty = git_dirty_count_paths(&root, &["skills", ".gitignore"]);
     if dirty > 0 {
-        let msg = format!("本地有 {} 个未提交修改，已跳过拉取；请先推送或手动处理", dirty);
+        let msg = format!("技能同步：本地有 {} 个未提交修改（skills/.gitignore），已跳过拉取；请先推送或手动处理", dirty);
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
-    match run_git(&root, ["pull", "--ff-only", "origin", branch]) {
+    let branch = effective_branch(&cfg);
+    match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
             update_last_sync("success", None)?;
             Ok(get_skills_sync_status())
@@ -230,11 +306,21 @@ pub fn push_skills_sync(message: Option<String>) -> Result<SkillsSyncStatus, Str
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先在同步中心初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    run_git(&root, ["add", "-A"]).map_err(|e| format!("暂存中央库改动失败: {}", e))?;
+    // 按功能隔离：只暂存技能相关路径（skills/ 与共享的 .gitignore），不把 dsh/ 等其他功能改动卷进技能提交
+    let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
+    if root.join("skills").exists() {
+        add_args.push("skills");
+    }
+    if root.join(".gitignore").exists() {
+        add_args.push(".gitignore");
+    }
+    if add_args.len() > 3 {
+        run_git(&root, add_args).map_err(|e| format!("暂存中央库改动失败: {}", e))?;
+    }
 
     let staged = run_git(&root, ["diff", "--cached", "--name-only"]).unwrap_or_default();
     if !staged.trim().is_empty() {
@@ -250,8 +336,8 @@ pub fn push_skills_sync(message: Option<String>) -> Result<SkillsSyncStatus, Str
             .map_err(|e| format!("提交中央库改动失败: {}", e))?;
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
-    if let Err(e) = run_git(&root, ["push", "-u", "origin", branch]) {
+    let branch = effective_branch(&cfg);
+    if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = format!("推送失败: {}", e);
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);
@@ -276,11 +362,11 @@ pub fn test_skills_sync_connection() -> Result<String, String> {
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
+    let branch = effective_branch(&cfg);
     let refspec = format!("refs/heads/{}", branch);
     let out = run_git(&root, ["ls-remote", "origin", refspec.as_str()])
         .map_err(|e| format!("连接失败: {}", e))?;
@@ -304,22 +390,39 @@ pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
     if !root.join(".git").exists() {
         return Err("尚未初始化同步仓库，请先初始化".to_string());
     }
-    if cfg.remote_url.is_empty() {
+    if effective_remote_url(&cfg).is_empty() {
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    let branch = if cfg.branch.is_empty() { "main" } else { cfg.branch.as_str() };
-    run_git(&root, ["fetch", "origin", branch]).map_err(|e| format!("拉取远端失败: {}", e))?;
+    let branch = effective_branch(&cfg);
+    run_git(&root, ["fetch", "origin", branch.as_str()]).map_err(|e| format!("拉取远端失败: {}", e))?;
 
     let remote_ref = format!("origin/{}", branch);
     if run_git(&root, ["rev-parse", "--verify", remote_ref.as_str()]).is_err() {
         return Err(format!("远端分支 {} 不存在或仓库为空", branch));
     }
 
-    // 仅重置受管文件（skills/ 与 .gitignore）；config.json / agents.json / projects.json / backups/
-    // 均为未跟踪的本地私有文件，git reset --hard 不会触碰它们。
-    run_git(&root, ["reset", "--hard", remote_ref.as_str()])
+    // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
+    // 不碰 dsh/ 等同一仓库内其他功能的未提交修改（git reset --mixed 不动工作区）。
+    run_git(&root, ["reset", "--mixed", remote_ref.as_str()])
         .map_err(|e| format!("重置本地失败: {}", e))?;
+
+    let mut checkout_args = vec!["checkout", "--"];
+    let skills_exists_in_remote = run_git(
+        &root,
+        ["ls-tree", "--name-only", remote_ref.as_str(), "skills"],
+    )
+    .map(|out| !out.trim().is_empty())
+    .unwrap_or(false);
+    if root.join("skills").exists() || skills_exists_in_remote {
+        checkout_args.push("skills");
+    }
+    if root.join(".gitignore").exists() {
+        checkout_args.push(".gitignore");
+    }
+    if checkout_args.len() > 2 {
+        let _ = run_git(&root, checkout_args);
+    }
 
     update_last_sync("success", None)?;
     Ok(get_skills_sync_status())

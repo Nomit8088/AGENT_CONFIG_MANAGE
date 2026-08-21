@@ -7,6 +7,7 @@ pub mod skills_sync;
 pub mod git_sync;
 pub mod dsh_plugins;
 pub mod dsh_plugins_sync;
+pub mod sync_repo;
 pub mod watcher;
 
 use std::collections::{HashMap, HashSet};
@@ -604,6 +605,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             update_config,
+            sync_repo::get_sync_repo_config,
+            sync_repo::validate_sync_repo,
+            sync_repo::save_sync_repo,
             get_agents,
             scan_agents,
             save_agents_list,

@@ -4,6 +4,7 @@ import os from 'os';
 import { spawn, spawnSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
 import { gitProxyArgs, runGit } from './gitSyncUtil';
+import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import type {
   DshDiagnoseResult,
   DshInstallFailure,
@@ -1673,6 +1674,31 @@ function saveDshSyncConfig(syncCfg: any): void {
   fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2), 'utf-8');
 }
 
+/** 与 skills sync 共用同一 .git：优先全局 sync_repo，本功能配置为空时，回退到共享仓库实际的 origin / 当前分支，再回退到另一功能的配置。 */
+function effectiveDshRemoteUrl(syncCfg: any): string {
+  const global = globalSyncRemoteUrl();
+  if (global) return global;
+  if (syncCfg.remoteUrl) return syncCfg.remoteUrl;
+  const root = syncRoot();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const url = gitTry(root, ['remote', 'get-url', 'origin']).trim();
+    if (url) return url;
+  }
+  return readConfigFile().skills_sync?.remoteUrl || '';
+}
+
+function effectiveDshBranch(syncCfg: any): string {
+  const global = globalSyncBranch();
+  if (global) return global;
+  if (syncCfg.branch) return syncCfg.branch;
+  const root = syncRoot();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const branch = gitTry(root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    if (branch && branch !== 'HEAD') return branch;
+  }
+  return readConfigFile().skills_sync?.branch || 'main';
+}
+
 function gitExec(cwd: string, args: string[]): string {
   return runGit(cwd, args);
 }
@@ -1694,8 +1720,11 @@ function gitOk(cwd: string, args: string[]): boolean {
   }
 }
 
-function gitDirtyCount(cwd: string): number {
-  const out = gitTry(cwd, ['status', '--porcelain']);
+/** 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。 */
+function gitDirtyCountPaths(cwd: string, paths: string[]): number {
+  const existing = paths.filter(p => fs.existsSync(path.join(cwd, p)));
+  if (existing.length === 0) return 0;
+  const out = gitTry(cwd, ['status', '--porcelain', '--', ...existing]);
   return out ? out.split(/\r?\n/).filter(l => l.trim()).length : 0;
 }
 
@@ -1722,7 +1751,7 @@ export function getDshPluginsSyncStatus(): SkillsSyncStatus {
 
   const status: SkillsSyncStatus = {
     initialized,
-    remoteUrl: syncCfg.remoteUrl || undefined,
+    remoteUrl: effectiveDshRemoteUrl(syncCfg) || undefined,
     branch: undefined,
     ahead: 0,
     behind: 0,
@@ -1740,8 +1769,8 @@ export function getDshPluginsSyncStatus(): SkillsSyncStatus {
       const { ahead, behind } = parseAheadBehind(sb);
       status.ahead = ahead;
       status.behind = behind;
-      const lines = sb.split(/\r?\n/).filter(l => l.trim());
-      status.dirtyCount = sb.startsWith('## ') ? Math.max(0, lines.length - 1) : lines.length;
+      // 按功能隔离：只统计 DSH 插件范围内的未提交修改（与技能同步分开）
+      status.dirtyCount = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
     }
   }
 
@@ -1807,18 +1836,18 @@ export function pullDshPluginsSync(): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveDshRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  const dirty = gitDirtyCount(root);
+  const dirty = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
   if (dirty > 0) {
-    const msg = `本地有 ${dirty} 个未提交修改，已跳过拉取；请先推送或手动处理`;
+    const msg = `DSH 插件同步：本地有 ${dirty} 个未提交修改（dsh/.gitignore），已跳过拉取；请先推送或手动处理`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveDshBranch(syncCfg);
   try {
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
     updateLastSync('success');
@@ -1884,7 +1913,7 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveDshRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
@@ -1893,6 +1922,10 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
   if (fs.existsSync(dshMirrorDir())) {
     gitExec(root, ['add', '-A', '--', 'dsh']);
   }
+  // 共享的 .gitignore 有变更时也随插件同步提交，避免被遗漏
+  if (fs.existsSync(path.join(root, '.gitignore'))) {
+    gitExec(root, ['add', '-A', '--', '.gitignore']);
+  }
 
   const staged = gitTry(root, ['diff', '--cached', '--name-only']);
   if (staged && staged.trim()) {
@@ -1900,7 +1933,7 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
     gitExec(root, ['commit', '-m', msg]);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveDshBranch(syncCfg);
   try {
     gitExec(root, ['push', '-u', 'origin', branch]);
     updateLastSync('success');
