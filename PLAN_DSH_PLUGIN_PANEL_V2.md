@@ -1,6 +1,6 @@
 # AgentHub DSH 插件面板 V2 — 安装状态对账与安装器设计
 
-> 状态：设计已锁定，待实施（本轮不动代码）。本文档是「插件面板」四类增强的实现方案：
+> 状态：✅ 已实施（Session 21 落地）。本文档是「插件面板」四类增强的实现方案：
 > 全量状态对账展示、分模式安装、失败结果回写、实时安装终端。
 > 第 8 节 6 项决策均已按推荐项锁定。落地后需同步 `HANDOVER.md` 与 `PLAN_DSH_PLUGIN_MANAGER.md`。
 > 评审修订：§2.4 / §3 / §4 / §10 已按本机 DSH 环境与现有代码核对后修订——内置包整体豁免、非语义化 spec 版本对比豁免、lock 只扫 `packages:` 段、安装状态文件入 `.gitignore`、安装流水线异步化并收紧回滚范围。
@@ -265,10 +265,10 @@ actions: {
 
 ## 9. 分阶段实施
 
-- **Phase A — 对账视图（P1）**：数据模型 + `reconcile_dsh_install` 双端 + `DshPluginList` 状态徽章展示。先跑通「读全量状态」。
-- **Phase B — 安装器（P2+P3）**：四模式安装 + L3 校验 + 安装状态持久化 + 失败回写/回显。
-- **Phase C — 实时终端（P4）**：流式安装 + 终端组件 + store 订阅。
-- **Phase D — 验收与文档**：`tsc` / `build` / 真机回归 + `HANDOVER.md` 同步。
+- **Phase A — 对账视图（P1）**：✅ 数据模型 + `reconcile_dsh_install` 双端 + `DshPluginList` 状态徽章展示。
+- **Phase B — 安装器（P2+P3）**：✅ 四模式安装 + L3 校验 + 安装状态持久化 + 失败回写/回显。
+- **Phase C — 实时终端（P4）**：✅ 流式安装 + `DshInstallTerminal.vue` + store 订阅。
+- **Phase D — 验收与文档**：✅ `tsc` / `build` / `cargo check` 全部零错误零警告 + `HANDOVER.md` 同步（Session 21）。
 
 ---
 

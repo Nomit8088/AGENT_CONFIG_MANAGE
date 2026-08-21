@@ -428,6 +428,51 @@ npm run tauri build
 
 ---
 
+## 8B. DSH 插件面板 V2 — 安装状态对账与安装器
+
+将「插件面板」从只读配置声明升级为「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账视图，补齐安装器能力（详见 `PLAN_DSH_PLUGIN_PANEL_V2.md`）：
+
+| 能力 | 实现 |
+|---|---|
+| P1 全量状态对账 | 条目 = 配置声明 ∪ 本机已装，状态：`ok` / `pending` / `orphan` / `version-mismatch` / `failed` |
+| P2 分模式安装 | `incremental` = `pnpm install`；`update` = `pnpm update`；`reinstall-all` / `reinstall-failed` = `pnpm install --force`（二次确认） |
+| P3 失败回写 | `%APPDATA%\AgentHub\dsh_install_state.json` 持久化失败状态与堆栈（截断 4KB），磁盘自愈后自动清除 |
+| P4 实时终端 | Tauri `Channel<String>` / Web SSE，统一汇入 `store.installTerminal.lines[]`，`DshInstallTerminal.vue` 展示 |
+
+### 状态判定核心规则
+- 内置 bundle（`@deepseek-ai/dsh-*`，`kind='inbox'`）整体豁免：不判 pending / orphan / version-mismatch，直接 `ok` 且只读。
+- 仅语义化版本 spec（`1.2.3` / `^1.0.0` / `~1.0.0` / `>=1 <2` 等）参与版本对比；`requiredVersion` 优先取 `pnpm-lock.yaml` **`packages:` 段**解析版本，lock 缺失且 spec 为精确号时用 spec。
+- 非语义化 spec（tarball / `git+` / `github:` / `link:` / `file:` 等）`requiredVersion = undefined`，永不判 `version-mismatch`。
+- 孤儿只扫 profile `node_modules` 顶层直接依赖，排除内置、`.bin` / `.pnpm` / 隐藏目录。
+- 版本对比不引入 semver 依赖：lock 解析版本字符串等值对比。
+
+### 安装流水线
+```
+1. 快照备份：仅 package.json / cordis.patch.yml（不备份 lock）
+2. 后端互斥 + 异步执行 pnpm（Rust spawn_blocking；Node 异步 spawn，600s 超时）
+3. 逐包 L3 校验：读 node_modules/<pkg>/package.json，
+   入口优先 main / exports，其次 dsh.bundle.patch；缺失 → missing-entry
+4. 回写 dsh_install_state.json（磁盘 ok 的包清除旧 failed）
+5. 生成 DshInstallReport
+6. 失败回滚：仅 incremental / update 回滚两个配置文件；
+   reinstall-all / reinstall-failed 只回写失败状态
+```
+`align_dsh_plugins` 内部改为调用 `install(profile, 'incremental')`，失败则回滚对齐前本地配置并抛出报告。
+
+### 同步边界
+- `dsh_install_state.json` 位于 skills sync 的 git 根 `%APPDATA%\AgentHub\` 下，**已加入共享 `.gitignore`**（`SYNC_GITIGNORE_CONTENT` / Rust `GITIGNORE_CONTENT` 均含该条目；已有 `.gitignore` 会幂等补齐）。
+- 该文件是 AgentHub 自己的运营缓存，不是第二份插件事实源；事实源仍是 `~/.dsh/profiles/<name>/package.json` + `cordis.patch.yml`。
+
+### API 命令表（V2 新增，双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `reconcile_dsh_install` | `GET /api/dsh/plugins/install-entries` | 安装状态对账扫描 |
+| `install_dsh_plugins_v2` | `POST /api/dsh/plugins/install` | 分模式安装（返回 `DshInstallReport`） |
+| `install_dsh_plugins_streamed` | `GET /api/dsh/plugins/install/stream` | 流式安装（Channel / SSE） |
+| `clear_dsh_install_state` | `POST /api/dsh/plugins/install-state/clear` | 清除安装失败状态 |
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [ ] **应用本体在线更新**：接入 Tauri Updater，支持 GitHub Releases 检查更新、下载与自动安装新版本。
@@ -632,6 +677,45 @@ npm run tauri build
       - `row:` → 从 `cordis.patch.yml` 删除该顶层条目。
     - 与「停用」区分：停用仅从 `bundles` 移除或追加 `disabled:true` patch；卸载则彻底移出依赖声明并清理安装产物。
     - `api.ts` 新增 `removeDshPlugin`，`useAppStore.ts` 新增 `removeDshPlugin` action（卸载后自动重扫 + Toast），`DshPluginList.vue` 接入。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 21)**:
+  - **DSH 插件面板 V2：安装状态对账与安装器（PLAN_DSH_PLUGIN_PANEL_V2 落地）**:
+    - 新增 `DshPluginInstallEntry` / `DshInstallFailure` / `DshInstallReport` / `DshInstallMode` / `DshPluginInstallStatus` 数据模型（TS + Rust `models.rs` 双端对齐）。
+    - P1 全量状态对账：`reconcile_dsh_install`（Rust）/ `reconcileDshInstall`（Node）按「配置声明 ∪ 本机已装」生成 `ok / pending / orphan / version-mismatch / failed` 状态；内置 bundle 整体豁免；版本对比仅限语义化 spec 且只扫 `pnpm-lock.yaml` 的 `packages:` 段；孤儿只扫顶层 node_modules 并排除 `.bin` / `.pnpm` / 隐藏目录。
+    - P2 分模式安装：`install_dsh_plugins_v2`（Rust）/ `installDshPluginsV2`（Node）支持 `incremental / update / reinstall-all / reinstall-failed`，异步执行 pnpm（Rust `spawn_blocking`；Node 异步 `spawn`，600s 超时）。
+    - P3 失败回写：新增 `%APPDATA%\AgentHub\dsh_install_state.json` 持久化（独立文件，不塞 config.json），L3 入口校验（main/exports/dsh.bundle.patch）+ 失败堆栈截断 4KB；磁盘自愈自动清除陈旧 failed；`incremental/update` 失败回滚 package.json / cordis.patch.yml。
+    - P4 实时终端：`install_dsh_plugins_streamed`（Tauri `Channel<String>`）+ `GET /api/dsh/plugins/install/stream`（Web SSE），新增 `DshInstallTerminal.vue`（`font-mono` 日志 + 自动滚动 + 状态行）。
+    - `DshPluginList.vue` 改造：状态徽章（绿/琥珀/红语义色）、spec/installed/required 三列对比、四个安装按钮 + 终端开关、失败堆栈弹窗、孤儿移除。
+    - `align_dsh_plugins`（Rust/Node）内部改为调用 incremental 安装并拿报告，失败回滚对齐前本地配置。
+    - 同步安全：`dsh_install_state.json` 加入共享 `.gitignore`（Rust/Node 双端；已有 `.gitignore` 幂等补齐），避免被 skills sync `git add -A` 推送到远端。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 22)**:
+  - **DSH 插件面板 V2 分组化 UI 重构**:
+    - `DshPluginList.vue` 从平铺大卡片改为「健康摘要条 + 分组分区 + 区内列表行」的 macOS 设置列表布局。
+    - 新增 6 格健康摘要条（正常 / 待装 / 版本冲突 / 失败 / 孤儿 / 不可移植）。
+    - 分组展示：官方内置插件（`@deepseek-ai/dsh-*` chips 网格，只读）、用户插件·可移植、用户插件·本地开发（琥珀描边）、Patch 配置行、孤儿安装（红色描边）。
+    - 行内三列版本对比（spec / installed / required），版本冲突与失败红色高亮，失败行附「查看失败堆栈」。
+    - 轻量子组件改为本文件内 `defineComponent` 渲染函数（`PluginRow` / `SegmentedToggle` / `IconButton`），避免为小组件单独建文件。
+    - 同步镜像（Node `snapshotLocalToMirror` / `alignDshPlugins` 与 Rust `snapshot_local_to_mirror` / `align_dsh_plugins`）新增 `pnpm-workspace.yaml` 文件同步，确保 git 安装依赖所需的 `allowBuilds`（pnpm 10+ 安全白名单）可跨机复现。
+    - 修复插件面板 watcher 注册顺序导致的「profiles 已加载时不拉取对账数据」竞态：先注册 `selectedProfile` 监听（`immediate`）再注册 `profiles` 监听（`immediate`）。
+    - 孤儿检测过滤 pnpm `hoistedLocations`（`.modules.yaml`）：顶层 `node_modules` 中被 pnpm 主动提升的传递依赖（如 `dsh-notification` -> `zod`）不再误判为孤儿，避免误删运行时依赖。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 23)**:
+  - **DSH 插件面板 V2 单包更新检查 / 更新**:
+    - 新增 `DshPluginUpdateCheck` 数据模型（TS + Rust `models.rs`），可移植插件行尾新增「检查更新」按钮；发现更新时显示琥珀色「可更新：<current> → <latest>」并出现「更新」按钮。
+    - `check_dsh_plugin_update`（Rust）/ `checkDshPluginUpdate`（Node）：支持 `git+https:` / `github:` 规格，`git ls-remote HEAD` 与 `pnpm-lock.yaml` importers 段当前 commit 对比；先直连，失败再注入系统代理（兼顾 gh-proxy 与 GitHub 直连）。
+    - `update_dsh_plugin`（Rust）/ `updateDshPlugin`（Node）：单包 `pnpm update <pkg>`，复用 L3 校验 + 安装状态回写 + 失败回滚两个配置文件，返回 `DshInstallReport`。
+    - Web 路由新增 `POST /api/dsh/plugins/check-update` 与 `POST /api/dsh/plugins/update`；`api.ts` / `useAppStore` / `DshPluginList.vue` 接入。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告；Web 模式实测 `bundle:dsh-context-doctor` 检查更新返回 `updateAvailable:false, current=a15e68d`。
+
+- **2026-08-20 (Session 24)**:
+  - **安装流水线 L3 判定修正（pnpm 非 0 退出 ≠ 全部失败）**:
+    - 根因：pnpm 11 对 `cpu-features` / `node-pty` / `ssh2` 等原生依赖默认拦截构建脚本，报 `ERR_PNPM_IGNORED_BUILDS` 并以非 0 退出；但包实际已安装（176 packages added）。旧流水线把全部声明包标为 `non-zero-exit` 失败。
+    - 修复：Node `installDshPluginsV2` / Rust `install_inner` 改为以 L3 入口校验为最终判定——L3 通过即计入 `installed` 并清除旧失败状态；pnpm 非 0 退出仅作为 `warnings` 保留；新增 `parseIgnoredBuilds`（Node/Rust）解析 `Ignored build scripts:` 并提示在 `pnpm-workspace.yaml` 的 `allowBuilds` 中放行。
+    - 本机 `~/.dsh/profiles/web/pnpm-workspace.yaml` 已把 `cpu-features` / `node-pty` / `ssh2` 加入 `allowBuilds`，`pnpm install` 重新执行成功；`dsh_install_state.json` 已清空，12 个对账条目全部 `ok`。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---

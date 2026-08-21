@@ -1,6 +1,7 @@
 # AgentHub DSH 插件管理器 — 详细实施计划
 
-> 状态：已评审待实施。本文档是「DSH 插件中心」功能的设计与开发蓝图，落地后需同步更新 `HANDOVER.md`。
+> 状态：✅ 已实施（Session 17 落地）。本文档是「DSH 插件中心」功能的设计与开发蓝图，落地后需同步更新 `HANDOVER.md`。
+> 后续增强见 `PLAN_DSH_PLUGIN_PANEL_V2.md`（Session 21 落地）：插件面板 V2 安装状态对账与安装器。
 
 ## 1. 目标与范围
 
