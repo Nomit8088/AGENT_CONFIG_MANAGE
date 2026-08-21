@@ -89,6 +89,11 @@ fn git_proxy() -> Option<&'static str> {
     PROXY.get_or_init(detect_system_proxy).as_deref()
 }
 
+/// 供 pnpm 等子进程注入代理使用：返回探测到的系统代理（含 `http://` 前缀）。
+pub fn system_proxy() -> Option<String> {
+    git_proxy().map(|s| s.to_string())
+}
+
 /// 若探测到系统代理，返回注入给 git 的 `-c` 参数；否则返回空数组。
 /// 统一注入到所有 git 命令是安全的：本地命令会忽略 http.proxy。
 pub fn proxy_args() -> Vec<String> {

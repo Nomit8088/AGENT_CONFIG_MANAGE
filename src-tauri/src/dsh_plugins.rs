@@ -1065,6 +1065,8 @@ fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, St
         if let Some(s) = &snapshot_patch {
             let _ = fs::write(&patch_file, s);
         }
+        // 回滚后重对账 node_modules，清理失败更新残留（best-effort）
+        reconcile_node_modules(&profile_dir);
     }
 
     Ok(report)
@@ -2019,6 +2021,16 @@ fn run_pnpm_streaming(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    // pnpm（Node fetch）不读 Windows WinINET 系统代理，本机直连 GitHub 会被 reset；
+    // 与 git 命令一致地注入探测到的系统代理。
+    if let Some(proxy) = crate::git_sync::system_proxy() {
+        command
+            .env("HTTP_PROXY", &proxy)
+            .env("HTTPS_PROXY", &proxy)
+            .env("http_proxy", &proxy)
+            .env("https_proxy", &proxy);
+    }
+
     let mut child = command.spawn().map_err(|e| format!("无法执行 pnpm: {}", e))?;
 
     let stdout = child.stdout.take();
@@ -2094,6 +2106,18 @@ fn run_pnpm_streaming(
         timed_out,
         output: output_lines.join("\n"),
     })
+}
+
+/// 安装失败回滚配置后，尽力重跑一次 `pnpm install` 把 node_modules 剪枝/对账回当前配置，
+/// 避免失败安装留下的残留包在下次对账中被误判为孤儿。失败不回抛，只做 best-effort。
+pub(crate) fn reconcile_node_modules(profile_dir: &Path) {
+    let cfg = load_config();
+    let pnpm_cmd = match resolve_pnpm_command(&cfg) {
+        Some(c) => c,
+        None => return,
+    };
+    let mut noop = |_line: String| {};
+    let _ = run_pnpm_streaming(&pnpm_cmd, &vec!["install".to_string()], profile_dir, &mut noop);
 }
 
 fn declared_pkgs(profile_dir: &Path) -> Vec<(String, String, Option<String>)> {
@@ -2302,6 +2326,8 @@ fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(S
         if let Some(s) = &snapshot_patch {
             let _ = fs::write(&patch_file, s);
         }
+        // 回滚配置后重对账 node_modules，避免失败安装残留被误判为孤儿（best-effort）
+        reconcile_node_modules(&profile_dir);
     }
 
     let mut installed = installed;

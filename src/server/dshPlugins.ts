@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import { spawn, spawnSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
-import { gitProxyArgs, runGit } from './gitSyncUtil';
+import { detectSystemProxy, gitProxyArgs, runGit } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import type {
   DshDiagnoseResult,
@@ -532,6 +532,19 @@ interface RunPnpmStreamResult {
   lines: string[];
 }
 
+/** pnpm（Node fetch）不读 Windows WinINET 系统代理，本机直连 GitHub 会被 reset。
+ *  与 git 命令一致地注入探测到的系统代理；未探测到代理时返回空对象。 */
+function pnpmProxyEnv(): Record<string, string> {
+  const proxy = detectSystemProxy();
+  if (!proxy) return {};
+  return {
+    HTTP_PROXY: proxy,
+    HTTPS_PROXY: proxy,
+    http_proxy: proxy,
+    https_proxy: proxy,
+  };
+}
+
 function runPnpmStream(
   pnpmCmd: string,
   args: string[],
@@ -546,7 +559,7 @@ function runPnpmStream(
         cwd,
         shell: process.platform === 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env },
+        env: { ...process.env, ...pnpmProxyEnv() },
       });
     } catch (e: any) {
       resolve({
@@ -595,6 +608,20 @@ function runPnpmStream(
       resolve({ exitCode: code, timedOut: false, output: lines.join('\n'), lines });
     });
   });
+}
+
+/** 安装失败回滚配置后，尽力重跑一次 `pnpm install` 把 node_modules 剪枝/对账回当前配置，
+ *  避免失败安装留下的残留包在下次对账中被误判为孤儿。失败不回抛，只做 best-effort。 */
+async function reconcileNodeModules(profileDir: string, onLine?: (line: string) => void): Promise<void> {
+  const cfg = readConfigFile();
+  const pnpmCmd = resolvePnpmCommand(cfg);
+  if (!pnpmCmd) return;
+  const collect = onLine || (() => {});
+  try {
+    await runPnpmStream(pnpmCmd, ['install'], profileDir, collect);
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ==================== 单包更新检查 / 更新 ====================
@@ -831,6 +858,8 @@ export async function updateDshPlugin(profile: string, key: string, onLine?: (li
         } catch {}
       }
     }
+    // 回滚配置后重对账 node_modules，清理失败安装留下的残留（best-effort）
+    await reconcileNodeModules(profileDir, collect);
   }
 
   return report;
@@ -983,6 +1012,8 @@ export async function installDshPluginsV2(profile: string, mode: DshInstallMode,
         } catch {}
       }
     }
+    // 回滚配置后重对账 node_modules，避免失败安装残留被误判为孤儿（best-effort）
+    await reconcileNodeModules(profileDir, collect);
   }
 
   return {
@@ -1946,6 +1977,84 @@ export function pullDshPluginsSync(): SkillsSyncStatus {
   }
 }
 
+/** 顶层条目 key 中内嵌不可移植 spec 的识别（如 `dep@link:../x`、`@scope/pkg@file:...`）。
+ *  包名本身不含 `:`，因此 key 里出现这些前缀只可能来自 spec。 */
+const UNPORTABLE_LOCK_KEY_RE = /@(?:link:|file:|workspace:|portal:|catalog:|git\+ssh:|ssh:|git@)/;
+
+/** 清洗 pnpm-lock.yaml：剔除不可移植（link:/file:/workspace:/portal:/catalog:/git+ssh:/ssh:/git@）条目的引用，
+ *  避免本机路径/内部协议漏进同步镜像。只做文本级过滤，保留 pnpm 原始格式与注释。 */
+function sanitizeLockForMirror(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const out: string[] = [];
+  let section: 'none' | 'importers' | 'packages' | 'snapshots' = 'none';
+  let skipDeepBlock = false;
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // 顶层 section 切换（列 0 的非缩进行）
+    if (line.length > 0 && !line.startsWith(' ') && !line.startsWith('\t')) {
+      section = line.startsWith('importers:')
+        ? 'importers'
+        : line.startsWith('packages:')
+          ? 'packages'
+          : line.startsWith('snapshots:')
+            ? 'snapshots'
+            : 'none';
+      skipDeepBlock = false;
+      out.push(line);
+      i += 1;
+      continue;
+    }
+
+    if (section === 'importers') {
+      // 依赖条目 key：6 空格缩进；紧随其后的 8 空格 `specifier:` 为真实 spec
+      if (/^      [^ ].*:$/.test(line)) {
+        const specLine = lines[i + 1] || '';
+        const m = specLine.match(/^\s{8}specifier:\s*(.+?)\s*$/);
+        const spec = m?.[1]?.trim().replace(/^['"]|['"]$/g, '');
+        if (spec && !isPortableSpec(spec)) {
+          // 跳过该依赖条目（key + specifier + version 等 8 空格子行）
+          i += 1;
+          while (i < lines.length && /^\s{8}\S/.test(lines[i])) {
+            i += 1;
+          }
+          continue;
+        }
+      }
+      out.push(line);
+      i += 1;
+      continue;
+    }
+
+    if (section === 'packages' || section === 'snapshots') {
+      if (skipDeepBlock) {
+        // 已删除条目的子行（4+ 空格）
+        if (/^\s{3,}/.test(line)) {
+          i += 1;
+          continue;
+        }
+        skipDeepBlock = false;
+      }
+      // 条目 key：2 空格缩进，key 内嵌 spec
+      if (/^  [^ ].*:$/.test(line) && UNPORTABLE_LOCK_KEY_RE.test(line)) {
+        skipDeepBlock = true;
+        i += 1;
+        continue;
+      }
+      out.push(line);
+      i += 1;
+      continue;
+    }
+
+    out.push(line);
+    i += 1;
+  }
+
+  return out.join('\n');
+}
+
 /** 本地 ~/.dsh → 镜像（剔除内置 bundle 与不可移植依赖）。返回警告列表。 */
 export function snapshotLocalToMirror(): string[] {
   const warnings: string[] = [];
@@ -1984,8 +2093,16 @@ export function snapshotLocalToMirror(): string[] {
 
     for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
       const src = path.join(localDir, f);
-      if (fs.existsSync(src)) {
-        fs.copyFileSync(src, path.join(mirrorDir, f));
+      if (!fs.existsSync(src)) continue;
+      const dest = path.join(mirrorDir, f);
+      if (f === 'pnpm-lock.yaml') {
+        // lock 里可能残留 link:/file: 等本机路径，进入镜像前清洗
+        const lockText = readTextSafe(src);
+        if (lockText !== null) {
+          fs.writeFileSync(dest, sanitizeLockForMirror(lockText), 'utf-8');
+        }
+      } else {
+        fs.copyFileSync(src, dest);
       }
     }
   }
@@ -2208,6 +2325,8 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
           } catch {}
         }
       }
+      // 回滚后重对账 node_modules，清理对齐安装残留（best-effort）
+      await reconcileNodeModules(localDir);
       throw e;
     }
   }

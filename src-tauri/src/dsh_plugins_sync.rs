@@ -7,8 +7,8 @@ use std::process::Command;
 use serde_json::Value as JsonValue;
 
 use crate::dsh_plugins::{
-    is_portable_spec, list_profile_dirs, read_pkg, resolve_dsh_home, run_install_blocking, write_pkg,
-    BUILTIN_BUNDLE_PREFIX,
+    is_portable_spec, list_profile_dirs, read_pkg, reconcile_node_modules, resolve_dsh_home,
+    run_install_blocking, write_pkg, BUILTIN_BUNDLE_PREFIX,
 };
 use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -322,6 +322,98 @@ pub fn pull_dsh_plugins_sync() -> Result<SkillsSyncStatus, String> {
     }
 }
 
+/// 判断一行是否是「n 空格 + 非空格」开头的子行（用于锁文件的文本级块跳过）。
+fn is_indent_sub(line: &str, n: usize) -> bool {
+    let b = line.as_bytes();
+    b.len() > n && b[..n].iter().all(|c| *c == b' ') && b[n] != b' '
+}
+
+/// 顶层条目 key 中内嵌不可移植 spec 的识别（如 `dep@link:../x`、`@scope/pkg@file:...`）。
+/// 包名本身不含 `:`，因此 key 里出现这些前缀只可能来自 spec。
+fn unportable_lock_key(line: &str) -> bool {
+    let re = regex::Regex::new(r"@(?:link:|file:|workspace:|portal:|catalog:|git\+ssh:|ssh:|git@)").unwrap();
+    re.is_match(line)
+}
+
+/// 清洗 pnpm-lock.yaml：剔除不可移植（link:/file:/workspace:/portal:/catalog:/git+ssh:/ssh:/git@）条目引用，
+/// 避免本机路径/内部协议漏进同步镜像。只做文本级过滤，保留 pnpm 原始格式与注释。
+fn sanitize_lock_for_mirror(text: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out: Vec<&str> = Vec::new();
+    let mut section: u8 = 0; // 0=none 1=importers 2=packages 3=snapshots
+    let mut skip_deep = false;
+    let mut i = 0usize;
+
+    while i < lines.len() {
+        let line = lines[i];
+
+        // 顶层 section 切换（列 0 的非缩进行）
+        if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
+            section = if line.starts_with("importers:") {
+                1
+            } else if line.starts_with("packages:") {
+                2
+            } else if line.starts_with("snapshots:") {
+                3
+            } else {
+                0
+            };
+            skip_deep = false;
+            out.push(line);
+            i += 1;
+            continue;
+        }
+
+        if section == 1 {
+            // 依赖条目 key：6 空格缩进；紧随其后的 `specifier:` 为真实 spec
+            if is_indent_sub(line, 6) && line.trim_end().ends_with(':') {
+                if let Some(spec_line) = lines.get(i + 1) {
+                    let t = spec_line.trim_start();
+                    if let Some(v) = t.strip_prefix("specifier:") {
+                        let spec = v.trim().trim_matches(|c| c == '\'' || c == '"');
+                        if !is_portable_spec(Some(spec)) {
+                            // 跳过该依赖条目（key + specifier + version 等 8 空格子行）
+                            i += 1;
+                            while i < lines.len() && is_indent_sub(lines[i], 8) {
+                                i += 1;
+                            }
+                            continue;
+                        }
+                    }
+                }
+            }
+            out.push(line);
+            i += 1;
+            continue;
+        }
+
+        if section == 2 || section == 3 {
+            if skip_deep {
+                // 已删除条目的子行（4+ 空格）
+                if line.starts_with("    ") {
+                    i += 1;
+                    continue;
+                }
+                skip_deep = false;
+            }
+            // 条目 key：2 空格缩进，key 内嵌 spec
+            if is_indent_sub(line, 2) && line.trim_end().ends_with(':') && unportable_lock_key(line) {
+                skip_deep = true;
+                i += 1;
+                continue;
+            }
+            out.push(line);
+            i += 1;
+            continue;
+        }
+
+        out.push(line);
+        i += 1;
+    }
+
+    out.join("\n")
+}
+
 /// 本地 ~/.dsh → 镜像（剔除内置 bundle 与不可移植依赖）。返回警告列表。
 fn snapshot_local_to_mirror() -> Vec<String> {
     let mut warnings = Vec::new();
@@ -384,8 +476,17 @@ fn snapshot_local_to_mirror() -> Vec<String> {
 
         for f in ["cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"] {
             let src = local_dir.join(f);
-            if src.exists() {
-                let _ = fs::copy(&src, mirror_dir.join(f));
+            if !src.exists() {
+                continue;
+            }
+            let dest = mirror_dir.join(f);
+            if f == "pnpm-lock.yaml" {
+                // lock 里可能残留 link:/file: 等本机路径，进入镜像前清洗
+                if let Some(text) = read_text_opt(&src) {
+                    let _ = fs::write(&dest, sanitize_lock_for_mirror(&text));
+                }
+            } else {
+                let _ = fs::copy(&src, &dest);
             }
         }
     }
@@ -737,6 +838,8 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
                     }
                 }
             }
+            // 回滚后重对账 node_modules，清理对齐安装残留（best-effort）
+            reconcile_node_modules(&local_dir);
             let detail = report
                 .failed
                 .iter()

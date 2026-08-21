@@ -268,9 +268,9 @@ flowchart TD
 │       ├── AddAgentModal.vue           # 自定义 Agent 注册弹窗
 │       ├── AddProjectModal.vue         # 纳管新项目弹窗
 │       ├── DiffModal.vue               # 面板 4: Diff 语法高亮冲突决策弹窗
-│       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（插件面板 / 诊断修复 / 同步与对账 三分段 Tab）
-│       ├── DshPluginList.vue           # DSH 本地插件可视化扫描面板（profile 选择 + 搜索/状态/类型筛选 + 启停开关 + 可移植性标签）
-│       ├── DshPluginRow.vue            # DSH 插件可展开行（默认仅名称/徽章/开关，点击展开 spec/installed/required 与操作）
+│       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（插件面板 / 诊断修复 两分段 Tab）
+│       ├── DshPluginList.vue           # DSH 插件面板 V3：单条 sticky 操作栏（profile+搜索+视图切换+安装+终端）+ 健康胶囊行 + 按来源/按状态双视图分组
+│       ├── DshPluginRow.vue            # DSH 插件统一行（固定列：状态点/图标/名称/单一徽章/内联 spec·installed·required/启停/操作，不再折叠展开）
 │       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（崩溃堆栈解析 + 一键关闭并重试）
 │       ├── DshPluginSync.vue           # DSH 插件配置同步 + 对账面板（推送/拉取/一键对齐；可隐藏仓库状态卡以嵌入同步页）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
@@ -823,5 +823,24 @@ npm run tauri build
     - 状态语义色保持绿色/橙色/红色，品牌标识色（蓝/紫）只用于功能区分，不干扰状态判断。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
 
+- **2026-08-20 (Session 36)**:
+  - **DSH 插件面板展示逻辑重构（消除多轴重叠与工具栏堆叠）**:
+    - **根因**：原面板同时铺开「来源（kind/portability）」与「健康（status）」两套正交分类轴——「孤儿」「不可移植」既是分区、又是筛选选项、又是健康摘要格，观感混乱；且内容前堆叠 4 条工具栏（profile / 安装 / 筛选 / 摘要）。
+    - **单条 sticky 操作栏**：合并 profile 下拉 + 搜索 + 视图切换 + 安装下拉 + 终端开关为一条 sticky 操作栏，首屏内容区立即露出。
+    - **双视图单一主轴**：新增 `[ 按来源 | 按状态 ]` 分段切换。按来源 = 官方内置 / 用户·可移植 / 用户·本地开发 / Patch 行 / 孤儿；按状态 = 正常 / 待装 / 版本冲突 / 失败 / 孤儿。同一时刻只让一个轴当分区主角，另一轴退化为行内「单一徽章」。
+    - **健康胶囊行**：以「全部/正常/待装/版本冲突/失败/孤儿」可点击胶囊替代原 6 格摘要条，点击即按状态筛选；移除「不可移植」独立格（已由分区承载）。
+    - **统一行组件**：`DshPluginRow.vue` 固定列（状态点 / 图标 / 名称+单一徽章 / 内联 spec·installed·required / 启停 / 操作），默认平铺版本列、移除点击展开机制；内置只读、孤儿提供「纳入配置/移除」、patch 行提供「删除」，操作图标常驻。
+    - 移除 `kindFilter` 下拉（来源靠分组与徽章表达），搜索与状态筛选保留。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建，6.3s）零错误零警告。
+
+- **2026-08-21 (Session 37)**:
+  - **DSH 插件同步/安装链路加固（修复本机增量安装失败与 186 孤儿）**:
+    - **根因**：一次「一键对齐」安装失败后，回滚仅还原 `package.json`/`cordis.patch.yml`，未清理失败安装写入的 `node_modules`，且 `.modules.yaml` 陈旧，导致对账把 10 个插件及其传递依赖全部误判为孤儿（186 个）；同时本机直连 GitHub 的 tarball/git spec 被 reset，增量安装报 `missing-entry` 失败。
+    - **镜像 lock 清洗**：Node `snapshotLocalToMirror` 与 Rust `snapshot_local_to_mirror` 在复制 `pnpm-lock.yaml` 前先做文本级清洗（`sanitizeLockForMirror` / `sanitize_lock_for_mirror`），剔除 `link:`/`file:`/`workspace:`/`portal:`/`catalog:`/`git+ssh:`/`ssh:`/`git@` 等不可移植条目引用，杜绝本机路径/死链漏进同步镜像。
+    - **pnpm 注入系统代理**：Node `runPnpmStream` 与 Rust `run_pnpm_streaming` 统一把 `detectSystemProxy()` / `git_sync::system_proxy()` 探测到的代理注入 `HTTP_PROXY`/`HTTPS_PROXY`，与 git 命令对齐，修复本机直连 GitHub 被 reset 的问题。
+    - **失败回滚后重对账 node_modules**：Node `installDshPluginsV2`/`updateDshPlugin`/`alignDshPlugins` 与 Rust `install_inner`/`update_one_inner`/`align_dsh_plugins` 在回滚配置后 best-effort 重跑 `pnpm install` 剪枝（`reconcileNodeModules` / `reconcile_node_modules`），避免残留包被误判为孤儿。
+    - **本机运维修复**：`~/.dsh/profiles/web` 恢复远程 10 插件 + 保留 `dsh-super-injector`（改 `ghproxy.net` 反代 tarball）+ 内置 bundle；清空 `node_modules` 干净重装（+195 包，原生构建全过）；`dsh_install_state.json` 清空；孤儿 186→0；镜像 lock 清掉死链并 push（commit `f1c4188`）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
 ---
-*文档更新时间：2026-08-20 | AgentHub Core Team*
+*文档更新时间：2026-08-21 | AgentHub Core Team*
