@@ -144,6 +144,60 @@ export interface DshDiagnoseResult {
   hint?: string;            // 如「端口占用」等非插件失败提示
 }
 
+export type DshPluginInstallStatus =
+  | 'ok'               // 本机已装 + 配置已声明 + 版本一致
+  | 'pending'          // 配置已声明，本机未装
+  | 'orphan'           // 本机已装，配置未声明（多余）
+  | 'version-mismatch' // 本机已装，但版本与配置/lock 不一致
+  | 'failed';          // 上次安装失败（来自持久化状态）
+
+export type DshInstallMode = 'incremental' | 'update' | 'reinstall-all' | 'reinstall-failed';
+
+export interface DshPluginInstallEntry {
+  key: string;                 // bundle:<pkg> | dep:<pkg> | row:<id> | orphan:<pkg>
+  profileName: string;
+  name: string;                // 包名或 row id
+  kind: DshPluginKind;
+  spec?: string;               // 配置声明的规格
+  declaredInConfig: boolean;   // 是否出现在 package.json / cordis.patch.yml
+  installed: boolean;          // node_modules 是否存在
+  installedVersion?: string;
+  requiredVersion?: string;    // lock 解析版本（无 lock 时用精确 spec）
+  status: DshPluginInstallStatus;
+  installError?: string;       // 失败原因 + 堆栈（截断）
+  portability: 'portable' | 'unportable';
+  enabled: boolean;
+  disabledBy?: 'bundles' | 'patch';
+}
+
+export interface DshInstallFailure {
+  name: string;
+  reason: 'non-zero-exit' | 'missing-entry' | 'resolve-error';
+  stack: string;               // pnpm 相关错误片段
+}
+
+export interface DshInstallReport {
+  profile: string;
+  mode: DshInstallMode;
+  ok: boolean;
+  installed: string[];         // 校验通过的包
+  updated: string[];           // 本次发生版本变化的包
+  failed: DshInstallFailure[];
+  warnings: string[];
+  output: string;              // 完整日志（供终端回放）
+}
+
+export interface DshPluginUpdateCheck {
+  key: string;
+  name: string;
+  checkedAt: number;
+  updateAvailable: boolean;
+  current?: string;            // 当前 commit / 版本
+  latest?: string;             // 远端最新 commit / 版本
+  error?: string;
+  hint?: string;
+}
+
 export interface DshPluginDiffItem {
   kind: 'missing' | 'extra' | 'version' | 'patch';
   profileName: string;
