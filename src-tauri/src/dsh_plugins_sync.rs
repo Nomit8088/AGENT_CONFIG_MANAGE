@@ -7,7 +7,7 @@ use std::process::Command;
 use serde_json::Value as JsonValue;
 
 use crate::dsh_plugins::{
-    install_dsh_plugins, is_portable_spec, list_profile_dirs, read_pkg, resolve_dsh_home, write_pkg,
+    is_portable_spec, list_profile_dirs, read_pkg, resolve_dsh_home, run_install_blocking, write_pkg,
     BUILTIN_BUNDLE_PREFIX,
 };
 use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus};
@@ -30,6 +30,7 @@ const GITIGNORE_CONTENT: &str = "# AgentHub sync repo local-only files
 config.json
 agents.json
 projects.json
+dsh_install_state.json
 backups/
 *.log
 .DS_Store
@@ -40,6 +41,21 @@ fn ensure_gitignore(root: &Path) {
     let gitignore = root.join(".gitignore");
     if !gitignore.exists() {
         let _ = fs::write(&gitignore, GITIGNORE_CONTENT);
+        return;
+    }
+    // 已有 .gitignore 时补齐新增的私有文件条目（幂等）
+    if let Ok(text) = fs::read_to_string(&gitignore) {
+        let missing: Vec<&str> = GITIGNORE_CONTENT
+            .lines()
+            .filter(|l| !l.trim().is_empty() && !text.contains(l.trim()))
+            .collect();
+        if !missing.is_empty() {
+            let mut new_text = text.trim_end().to_string();
+            new_text.push('\n');
+            new_text.push_str(&missing.join("\n"));
+            new_text.push('\n');
+            let _ = fs::write(&gitignore, new_text);
+        }
     }
 }
 
@@ -308,7 +324,7 @@ fn snapshot_local_to_mirror() -> Vec<String> {
 
         write_pkg(&mirror_dir, &port_pkg);
 
-        for f in ["cordis.patch.yml", "pnpm-lock.yaml"] {
+        for f in ["cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"] {
             let src = local_dir.join(f);
             if src.exists() {
                 let _ = fs::copy(&src, mirror_dir.join(f));
@@ -570,6 +586,14 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
             continue;
         }
 
+        // 对齐前快照：安装失败时回滚本地配置
+        let snap_files = ["package.json", "cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"];
+        let mut snapshots: Vec<(String, Option<String>)> = Vec::new();
+        for f in snap_files {
+            let p = local_dir.join(f);
+            snapshots.push((f.to_string(), read_text_opt(&p)));
+        }
+
         let local_pkg = read_pkg(&local_dir).unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
         let builtin_bundles: Vec<String> = match local_pkg
@@ -628,14 +652,37 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
 
         write_pkg(&local_dir, &merged_pkg);
 
-        for f in ["cordis.patch.yml", "pnpm-lock.yaml"] {
+        for f in ["cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"] {
             let src = mirror_dir.join(f);
             if src.exists() {
                 let _ = fs::copy(&src, local_dir.join(f));
             }
         }
 
-        install_dsh_plugins(name.clone())?;
+        let report = run_install_blocking(name.clone(), "incremental".to_string())?;
+        if !report.ok {
+            // 安装失败：回滚对齐写盘前的本地配置
+            for (f, content) in &snapshots {
+                let target = local_dir.join(f);
+                match content {
+                    Some(text) => {
+                        let _ = fs::write(&target, text);
+                    }
+                    None => {
+                        if target.exists() {
+                            let _ = fs::remove_file(&target);
+                        }
+                    }
+                }
+            }
+            let detail = report
+                .failed
+                .iter()
+                .map(|f| format!("{}: {}", f.name, f.reason))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(format!("对齐安装失败: {}", detail));
+        }
     }
 
     Ok(())

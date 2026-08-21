@@ -133,6 +133,950 @@ fn read_installed_version(profile_dir: &Path, pkg_name: &str) -> Option<String> 
     v.get("version")?.as_str().map(|s| s.to_string())
 }
 
+// ==================== 安装状态持久化 ====================
+
+type InstallStateMap = HashMap<String, HashMap<String, DshInstallStateItem>>;
+
+fn install_state_file() -> PathBuf {
+    crate::storage::get_app_data_dir().join("dsh_install_state.json")
+}
+
+fn read_install_state() -> InstallStateMap {
+    let f = install_state_file();
+    if !f.exists() {
+        return HashMap::new();
+    }
+    if let Ok(text) = fs::read_to_string(&f) {
+        if let Ok(v) = serde_json::from_str::<JsonValue>(&text) {
+            if let Some(obj) = v.as_object() {
+                let mut out = HashMap::new();
+                for (profile, pkg_map) in obj {
+                    if let Some(pkgs) = pkg_map.as_object() {
+                        let mut pm = HashMap::new();
+                        for (pkg, item) in pkgs {
+                            if let Ok(s) = serde_json::from_value::<DshInstallStateItem>(item.clone()) {
+                                pm.insert(pkg.clone(), s);
+                            }
+                        }
+                        out.insert(profile.clone(), pm);
+                    }
+                }
+                return out;
+            }
+        }
+    }
+    HashMap::new()
+}
+
+fn write_install_state(state: &InstallStateMap) {
+    let dir = crate::storage::get_app_data_dir();
+    let _ = fs::create_dir_all(&dir);
+    let pretty = serde_json::to_string_pretty(state).unwrap_or_else(|_| "{}".to_string());
+    let _ = fs::write(dir.join("dsh_install_state.json"), format!("{}\n", pretty));
+}
+
+// ==================== 对账（配置 ∪ 本机磁盘） ====================
+
+fn is_semver_spec(spec: Option<&str>) -> bool {
+    let spec = match spec {
+        Some(s) => s.trim(),
+        None => return false,
+    };
+    if spec.is_empty() {
+        return false;
+    }
+    let re = regex::Regex::new(r"^(?:\^|~|>=|<=|>|<|=)?\s*v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?$").unwrap();
+    spec.split_whitespace().all(|t| re.is_match(t))
+}
+
+fn is_exact_semver_spec(spec: Option<&str>) -> bool {
+    let spec = match spec {
+        Some(s) => s.trim(),
+        None => return false,
+    };
+    let re = regex::Regex::new(r"^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$").unwrap();
+    re.is_match(spec)
+}
+
+fn read_lock_resolved_version(profile_dir: &Path, pkg_name: &str) -> Option<String> {
+    let lock_file = profile_dir.join("pnpm-lock.yaml");
+    let text = read_to_string_opt(&lock_file)?;
+    let lines: Vec<&str> = text.lines().collect();
+
+    let mut start = None;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim_end() == "packages:" {
+            start = Some(i + 1);
+            break;
+        }
+    }
+    let start = start?;
+
+    let mut end = lines.len();
+    for (i, line) in lines.iter().enumerate().skip(start) {
+        if !line.trim().is_empty() && !line.starts_with(' ') {
+            end = i;
+            break;
+        }
+    }
+
+    let parse_key_name = |raw: &str| -> Option<String> {
+        let k = raw.trim().trim_matches(|c| c == '\'' || c == '"').trim_end_matches(':').trim();
+        if k.is_empty() {
+            return None;
+        }
+        if let Some(rest) = k.strip_prefix('@') {
+            let mut parts = rest.splitn(2, '/');
+            let scope = parts.next()?;
+            let pkg = parts.next()?;
+            let pkg_name = pkg.split('@').next().unwrap_or(pkg);
+            return Some(format!("@{}/{}", scope, pkg_name));
+        }
+        Some(k.split('@').next().unwrap_or(k).to_string())
+    };
+
+    let mut i = start;
+    while i < end {
+        let line = lines[i];
+        let trimmed = line.trim();
+        let is_pkg_key = line.starts_with("  ")
+            && line.as_bytes().get(2).map(|b| *b != b' ').unwrap_or(false)
+            && trimmed.ends_with(':')
+            && !trimmed.starts_with("version:")
+            && !trimmed.starts_with("resolution:")
+            && !trimmed.starts_with("dev:")
+            && !trimmed.starts_with("optional:")
+            && !trimmed.starts_with("dependencies:")
+            && !trimmed.starts_with("peerDependencies:")
+            && !trimmed.starts_with("engines:")
+            && !trimmed.starts_with("os:")
+            && !trimmed.starts_with("cpu:")
+            && !trimmed.starts_with("libc:")
+            && !trimmed.starts_with("hasBin:")
+            && !trimmed.starts_with("name:");
+        if is_pkg_key {
+            if parse_key_name(line).as_deref() == Some(pkg_name) {
+                let mut j = i + 1;
+                while j < end {
+                    let sub = lines[j];
+                    if sub.starts_with("  ")
+                        && sub.as_bytes().get(2).map(|b| *b != b' ').unwrap_or(false)
+                        && sub.trim().ends_with(':')
+                    {
+                        break;
+                    }
+                    if let Some(v) = sub.trim().strip_prefix("version:") {
+                        let v = v.trim().trim_matches(|c| c == '\'' || c == '"');
+                        return Some(v.to_string());
+                    }
+                    j += 1;
+                }
+                return None;
+            }
+        }
+        i += 1;
+    }
+
+    None
+}
+
+fn list_installed_top_level_pkgs(profile_dir: &Path) -> Vec<String> {
+    let nm = profile_dir.join("node_modules");
+    if !nm.exists() {
+        return Vec::new();
+    }
+    let entries = match fs::read_dir(&nm) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut names = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == ".bin" || name == ".pnpm" || name.starts_with('.') {
+            continue;
+        }
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if name.starts_with('@') {
+            if let Ok(subs) = fs::read_dir(&path) {
+                for sub in subs.flatten() {
+                    let sn = sub.file_name().to_string_lossy().to_string();
+                    if sn == ".bin" || sn.starts_with('.') || !sub.path().is_dir() {
+                        continue;
+                    }
+                    names.push(format!("{}/{}", name, sn));
+                }
+            }
+        } else {
+            names.push(name);
+        }
+    }
+    names.sort();
+    names
+}
+
+/// 读取 pnpm 的 .modules.yaml 中 hoistedLocations，返回被 pnpm 主动提升到顶层 node_modules 的包名集合。
+/// 这些包是声明依赖的传递依赖（如 dsh-notification -> zod），不是孤儿，删除会破坏运行时。
+fn read_hoisted_pkg_names(profile_dir: &Path) -> HashSet<String> {
+    let mut hoisted = HashSet::new();
+    let modules_yaml = profile_dir.join("node_modules").join(".modules.yaml");
+    let text = match read_to_string_opt(&modules_yaml) {
+        Some(t) => t,
+        None => return hoisted,
+    };
+    let parsed: JsonValue = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return hoisted,
+    };
+    if let Some(locations) = parsed.get("hoistedLocations").and_then(|v| v.as_object()) {
+        for paths in locations.values() {
+            if let Some(arr) = paths.as_array() {
+                for p in arr {
+                    if let Some(s) = p.as_str() {
+                        // 路径形如 `node_modules\zod` 或 `node_modules\@scope\pkg`
+                        let normalized = s
+                            .strip_prefix("node_modules\\")
+                            .or_else(|| s.strip_prefix("node_modules/"))
+                            .unwrap_or(s)
+                            .replace('\\', "/");
+                        if !normalized.is_empty() {
+                            hoisted.insert(normalized);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    hoisted
+}
+
+fn read_pkg_from_dir(pkg_dir: &Path) -> Option<JsonValue> {
+    let text = read_to_string_opt(&pkg_dir.join("package.json"))?;
+    serde_json::from_str(&text).ok()
+}
+
+fn trim_stack(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        s.chars().rev().take(max).collect::<Vec<_>>().into_iter().rev().collect()
+    }
+}
+
+fn validate_installed_pkg(profile_dir: &Path, pkg_name: &str) -> Result<(), String> {
+    let mut pkg_dir = profile_dir.join("node_modules");
+    for part in pkg_name.split('/') {
+        pkg_dir = pkg_dir.join(part);
+    }
+    let pkg = read_pkg_from_dir(&pkg_dir)
+        .ok_or_else(|| "node_modules 中缺少该包".to_string())?;
+
+    let check_file = |rel: &str| -> bool {
+        let p = if std::path::Path::new(rel).is_absolute() {
+            std::path::PathBuf::from(rel)
+        } else {
+            pkg_dir.join(rel)
+        };
+        p.exists()
+    };
+
+    if let Some(main) = pkg.get("main").and_then(|v| v.as_str()) {
+        if check_file(main) {
+            return Ok(());
+        }
+    }
+
+    if let Some(exports) = pkg.get("exports") {
+        if let Some(s) = exports.as_str() {
+            if check_file(s) {
+                return Ok(());
+            }
+        } else if let Some(obj) = exports.as_object() {
+            for key in [".", "import", "require", "default"] {
+                if let Some(v) = obj.get(key).and_then(|v| v.as_str()) {
+                    if check_file(v) {
+                        return Ok(());
+                    }
+                }
+                if let Some(inner) = obj.get(key).and_then(|v| v.as_object()) {
+                    for kk in ["import", "require", "default"] {
+                        if let Some(v) = inner.get(kk).and_then(|v| v.as_str()) {
+                            if check_file(v) {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(patch) = pkg
+        .get("dsh")
+        .and_then(|d| d.get("bundle"))
+        .and_then(|b| b.get("patch"))
+        .and_then(|v| v.as_str())
+    {
+        if check_file(patch) {
+            return Ok(());
+        }
+    }
+
+    Err("入口文件缺失（main / exports / dsh.bundle.patch 均不存在）".to_string())
+}
+
+fn scan_patch_disabled(profile_dir: &Path) -> HashSet<String> {
+    let patch_file = profile_dir.join("cordis.patch.yml");
+    let mut disabled = HashSet::new();
+    for row in parse_patch_rows(&patch_file) {
+        if row.disabled == Some(true) {
+            if let Some(id) = row.id.as_ref().or(row.name.as_ref()) {
+                disabled.insert(id.clone());
+            }
+        }
+    }
+    disabled
+}
+
+#[tauri::command]
+pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntry>, String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let profile_dir = resolve_dsh_home().join("profiles").join(&profile_name);
+    if !profile_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let pkg = read_pkg(&profile_dir).unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
+    let mut bundles: Vec<String> = Vec::new();
+    if let Some(arr) = pkg
+        .get("dsh")
+        .and_then(|d| d.get("profile"))
+        .and_then(|p| p.get("bundles"))
+        .and_then(|b| b.as_array())
+    {
+        bundles = arr
+            .iter()
+            .filter_map(|b| b.as_str())
+            .map(|s| s.to_string())
+            .collect();
+    }
+
+    let mut deps: HashMap<String, String> = HashMap::new();
+    if let Some(obj) = pkg.get("dependencies").and_then(|d| d.as_object()) {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                deps.insert(k.clone(), s.to_string());
+            }
+        }
+    }
+
+    let patch_rows = parse_patch_rows(&profile_dir.join("cordis.patch.yml"));
+    let patch_disabled = scan_patch_disabled(&profile_dir);
+
+    let state = read_install_state();
+    let mut profile_state = state.get(&profile_name).cloned().unwrap_or_default();
+    let installed_set: HashSet<String> = list_installed_top_level_pkgs(&profile_dir)
+        .into_iter()
+        .collect();
+
+    let mut entries: Vec<DshPluginInstallEntry> = Vec::new();
+    let mut declared: HashSet<String> = HashSet::new();
+
+    let mut push_declared = |name: String,
+                             kind: &str,
+                             spec: Option<String>,
+                             enabled: bool,
+                             disabled_by: Option<String>|
+     -> () {
+        declared.insert(name.clone());
+        let is_inbox = kind == "inbox" || name.starts_with(BUILTIN_BUNDLE_PREFIX);
+        let installed = installed_set.contains(&name);
+        let installed_version = if installed {
+            read_installed_version(&profile_dir, &name)
+        } else {
+            None
+        };
+
+        let mut required_version: Option<String> = None;
+        if is_semver_spec(spec.as_deref()) {
+            required_version = read_lock_resolved_version(&profile_dir, &name);
+            if required_version.is_none() && is_exact_semver_spec(spec.as_deref()) {
+                required_version = spec
+                    .as_deref()
+                    .map(|s| s.trim().trim_start_matches('v').to_string());
+            }
+        }
+
+        if is_inbox {
+            entries.push(DshPluginInstallEntry {
+                key: format!("bundle:{}", name),
+                profile_name: profile_name.clone(),
+                name,
+                kind: "inbox".to_string(),
+                spec,
+                declared_in_config: true,
+                installed: false,
+                installed_version: None,
+                required_version: None,
+                status: "ok".to_string(),
+                install_error: None,
+                portability: "portable".to_string(),
+                enabled,
+                disabled_by,
+            });
+            return;
+        }
+
+        let disk_status: &str = if !installed {
+            "pending"
+        } else if let (Some(req), Some(inst)) = (required_version.as_ref(), installed_version.as_ref()) {
+            if req != inst {
+                "version-mismatch"
+            } else {
+                "ok"
+            }
+        } else {
+            "ok"
+        };
+
+        let portability = if is_portable_spec(spec.as_deref()) {
+            "portable".to_string()
+        } else {
+            "unportable".to_string()
+        };
+
+        let persisted = profile_state.get(&name);
+        let (status, install_error) = if persisted.map(|p| p.status.as_str()) == Some("failed")
+            && disk_status != "ok"
+        {
+            let err = format!(
+                "{}{}",
+                persisted.map(|p| p.reason.clone()).unwrap_or_default(),
+                persisted
+                    .and_then(|p| p.stack.clone())
+                    .map(|s| format!("\n{}", s))
+                    .unwrap_or_default()
+            );
+            ("failed".to_string(), Some(err))
+        } else {
+            (disk_status.to_string(), None)
+        };
+
+        if persisted.map(|p| p.status.as_str()) == Some("failed") && disk_status == "ok" {
+            profile_state.remove(&name);
+        }
+
+        entries.push(DshPluginInstallEntry {
+            key: format!("{}:{}", if kind == "plain" { "dep" } else { "bundle" }, name),
+            profile_name: profile_name.clone(),
+            name,
+            kind: kind.to_string(),
+            spec: spec.clone(),
+            declared_in_config: true,
+            installed,
+            installed_version,
+            required_version,
+            status,
+            install_error,
+            portability,
+            enabled,
+            disabled_by,
+        });
+    };
+
+    // bundles -> inbox | bundle
+    for b in &bundles {
+        let is_inbox = b.starts_with(BUILTIN_BUNDLE_PREFIX);
+        push_declared(
+            b.clone(),
+            if is_inbox { "inbox" } else { "bundle" },
+            deps.get(b).cloned(),
+            !patch_disabled.contains(b),
+            if patch_disabled.contains(b) {
+                Some("patch".to_string())
+            } else {
+                None
+            },
+        );
+    }
+
+    // deps not in bundles -> plain
+    let mut dep_names: Vec<String> = deps.keys().cloned().collect();
+    dep_names.sort();
+    for dep in dep_names {
+        if bundles.contains(&dep) {
+            continue;
+        }
+        push_declared(
+            dep.clone(),
+            "plain",
+            deps.get(&dep).cloned(),
+            false,
+            None,
+        );
+    }
+
+    // patch rows -> row（不可安装，视为 ok 配置行）
+    let mut row_idx = 0usize;
+    for row in &patch_rows {
+        let row_name = row
+            .id
+            .clone()
+            .or_else(|| row.name.clone())
+            .unwrap_or_else(|| format!("row-{}", row_idx));
+        entries.push(DshPluginInstallEntry {
+            key: format!("row:{}", row_name),
+            profile_name: profile_name.clone(),
+            name: row_name.clone(),
+            kind: "row".to_string(),
+            spec: None,
+            declared_in_config: true,
+            installed: false,
+            installed_version: None,
+            required_version: None,
+            status: "ok".to_string(),
+            install_error: None,
+            portability: "portable".to_string(),
+            enabled: row.disabled != Some(true),
+            disabled_by: if row.disabled == Some(true) {
+                Some("patch".to_string())
+            } else {
+                None
+            },
+        });
+        row_idx += 1;
+    }
+
+    // 孤儿：本机已装、配置未声明、非内置、非 pnpm 主动提升的传递依赖（hoisted）。
+    // 顶层 node_modules 中存在但不属于上述任何一类，才认为是真正多余的包，避免误删 zod 这类传递依赖。
+    let hoisted_pkg_names = read_hoisted_pkg_names(&profile_dir);
+    let mut orphans: Vec<String> = installed_set
+        .iter()
+        .filter(|n| {
+            !declared.contains(*n)
+                && !n.starts_with(BUILTIN_BUNDLE_PREFIX)
+                && !hoisted_pkg_names.contains(*n)
+        })
+        .cloned()
+        .collect();
+    orphans.sort();
+    for o in orphans {
+        let installed_version = read_installed_version(&profile_dir, &o);
+        entries.push(DshPluginInstallEntry {
+            key: format!("orphan:{}", o),
+            profile_name: profile_name.clone(),
+            name: o.clone(),
+            kind: "plain".to_string(),
+            spec: None,
+            declared_in_config: false,
+            installed: true,
+            installed_version,
+            required_version: None,
+            status: "orphan".to_string(),
+            install_error: None,
+            portability: "portable".to_string(),
+            enabled: false,
+            disabled_by: None,
+        });
+    }
+
+    // 自愈清理落盘
+    if profile_state.len() != state.get(&profile_name).map(|m| m.len()).unwrap_or(0) {
+        let mut new_state = state;
+        if profile_state.is_empty() {
+            new_state.remove(&profile_name);
+        } else {
+            new_state.insert(profile_name, profile_state);
+        }
+        write_install_state(&new_state);
+    }
+
+    Ok(entries)
+}
+
+#[tauri::command]
+pub fn clear_dsh_install_state(profile: String, pkg: Option<String>) -> Result<(), String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let mut state = read_install_state();
+    match pkg {
+        Some(p) if !p.trim().is_empty() => {
+            if let Some(profile_state) = state.get_mut(&profile_name) {
+                profile_state.remove(&p);
+                if profile_state.is_empty() {
+                    state.remove(&profile_name);
+                }
+            }
+        }
+        _ => {
+            state.remove(&profile_name);
+        }
+    }
+    write_install_state(&state);
+    Ok(())
+}
+
+// ==================== 单包更新检查 / 更新 ====================
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn git_url_from_spec(spec: &str) -> Option<String> {
+    let s = spec.trim();
+    if let Some(url) = s.strip_prefix("git+https://").or_else(|| s.strip_prefix("git+http://")) {
+        return Some(url.to_string());
+    }
+    if let Some(repo) = s.strip_prefix("github:") {
+        return Some(format!("https://github.com/{}.git", repo));
+    }
+    None
+}
+
+fn git_ls_remote(url: &str) -> Result<String, String> {
+    let args = vec!["ls-remote".to_string(), url.to_string(), "HEAD".to_string()];
+
+    // 先直连（gh-proxy 等代理域名直连通常可用）；失败再注入系统代理（GitHub 直连场景）
+    let direct = run_with_timeout("git", &args, None, 20000);
+    if direct.exit_code == Some(0) {
+        if let Some(line) = direct.output.lines().next() {
+            if !line.trim().is_empty() {
+                return Ok(line.trim().to_string());
+            }
+        }
+    }
+
+    let mut proxy_args = crate::git_sync::proxy_args();
+    proxy_args.extend(args);
+    let fallback = run_with_timeout("git", &proxy_args, None, 20000);
+    if fallback.exit_code == Some(0) {
+        if let Some(line) = fallback.output.lines().next() {
+            if !line.trim().is_empty() {
+                return Ok(line.trim().to_string());
+            }
+        }
+    }
+
+    let detail = if fallback.output.is_empty() {
+        direct.output.clone()
+    } else {
+        fallback.output.clone()
+    };
+    Err(if detail.is_empty() {
+        "git ls-remote 失败".to_string()
+    } else {
+        detail
+    })
+}
+
+fn extract_commit_hash(value: Option<&str>) -> Option<String> {
+    let v = value?;
+    let pos = v.find('#')?;
+    let hash = &v[pos + 1..];
+    let hash: String = hash
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
+    if hash.len() >= 7 {
+        Some(hash)
+    } else {
+        None
+    }
+}
+
+fn read_lock_importer_version(profile_dir: &Path, pkg_name: &str) -> Option<String> {
+    let lock_file = profile_dir.join("pnpm-lock.yaml");
+    let text = read_to_string_opt(&lock_file)?;
+    let lines: Vec<&str> = text.lines().collect();
+
+    let mut start = None;
+    let mut end = lines.len();
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim_end() == "importers:" {
+            start = Some(i + 1);
+            break;
+        }
+    }
+    let start = start?;
+    for (i, line) in lines.iter().enumerate().skip(start) {
+        if line.trim_end() == "packages:" {
+            end = i;
+            break;
+        }
+    }
+
+    let key_re = regex::Regex::new(&format!(r#"^\s{{6}}['"]?{}['"]?:\s*$"#, regex::escape(pkg_name)))
+        .ok()?;
+    let mut i = start;
+    while i < end {
+        if key_re.is_match(lines[i]) {
+            let mut j = i + 1;
+            while j < end {
+                if let Some(v) = lines[j].trim().strip_prefix("version:") {
+                    let v = v.trim().trim_matches(|c| c == '\'' || c == '"');
+                    return Some(v.to_string());
+                }
+                if !lines[j].is_empty() && !lines[j].starts_with(' ') {
+                    break;
+                }
+                j += 1;
+            }
+            return None;
+        }
+        i += 1;
+    }
+    None
+}
+
+#[tauri::command]
+pub fn check_dsh_plugin_update(profile: String, key: String) -> DshPluginUpdateCheck {
+    let now = now_millis();
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+
+    let (_prefix, pkg_name) = if let Some(p) = key.strip_prefix("bundle:") {
+        ("bundle", p.to_string())
+    } else if let Some(p) = key.strip_prefix("dep:") {
+        ("dep", p.to_string())
+    } else {
+        return DshPluginUpdateCheck {
+            key: key.clone(),
+            name: key,
+            checked_at: now,
+            update_available: false,
+            current: None,
+            latest: None,
+            error: None,
+            hint: Some("仅支持 bundle / 依赖条目的更新检查".to_string()),
+        };
+    };
+
+    let profile_dir = match ensure_profile_dir(&profile_name) {
+        Ok(d) => d,
+        Err(e) => {
+            return DshPluginUpdateCheck {
+                key: key.clone(),
+                name: pkg_name,
+                checked_at: now,
+                update_available: false,
+                current: None,
+                latest: None,
+                error: Some(e),
+                hint: None,
+            };
+        }
+    };
+
+    let pkg = match read_pkg(&profile_dir) {
+        Some(p) => p,
+        None => {
+            return DshPluginUpdateCheck {
+                key: key.clone(),
+                name: pkg_name,
+                checked_at: now,
+                update_available: false,
+                current: None,
+                latest: None,
+                error: Some("无法读取 profile package.json".to_string()),
+                hint: None,
+            };
+        }
+    };
+    let spec = match pkg
+        .get("dependencies")
+        .and_then(|d| d.get(&pkg_name))
+        .and_then(|v| v.as_str())
+    {
+        Some(s) => s.to_string(),
+        None => {
+            return DshPluginUpdateCheck {
+                key: key.clone(),
+                name: pkg_name,
+                checked_at: now,
+                update_available: false,
+                current: None,
+                latest: None,
+                error: None,
+                hint: Some("配置中未找到该包的 spec".to_string()),
+            };
+        }
+    };
+
+    let git_url = match git_url_from_spec(&spec) {
+        Some(u) => u,
+        None => {
+            return DshPluginUpdateCheck {
+                key: key.clone(),
+                name: pkg_name,
+                checked_at: now,
+                update_available: false,
+                current: None,
+                latest: None,
+                error: None,
+                hint: Some(format!("当前 spec 类型不支持检查更新（仅 git+https / github: 可用）：{}", spec)),
+            };
+        }
+    };
+
+    match git_ls_remote(&git_url) {
+        Ok(line) => {
+            let remote_head = line.split_whitespace().next().unwrap_or("").to_string();
+            let current = extract_commit_hash(
+                read_lock_importer_version(&profile_dir, &pkg_name).as_deref(),
+            );
+            let latest = remote_head.chars().take(7).collect::<String>();
+            let current_short = current.as_ref().map(|c| c.chars().take(7).collect::<String>());
+            DshPluginUpdateCheck {
+                key: key.clone(),
+                name: pkg_name,
+                checked_at: now,
+                update_available: current.as_deref() != Some(remote_head.as_str()),
+                current: current_short,
+                latest: Some(latest),
+                error: None,
+                hint: None,
+            }
+        }
+        Err(e) => DshPluginUpdateCheck {
+            key: key.clone(),
+            name: pkg_name,
+            checked_at: now,
+            update_available: false,
+            current: None,
+            latest: None,
+            error: Some(e),
+            hint: None,
+        },
+    }
+}
+
+fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let profile_dir = ensure_profile_dir(&profile_name)?;
+
+    let pkg_name = if let Some(p) = key.strip_prefix("bundle:") {
+        p.to_string()
+    } else if let Some(p) = key.strip_prefix("dep:") {
+        p.to_string()
+    } else {
+        return Err(format!("无法识别的插件 key: {}", key));
+    };
+
+    let cfg = load_config();
+    let pnpm_cmd = resolve_pnpm_command(&cfg)
+        .ok_or_else(|| "未找到 pnpm 命令，请在「设置」中配置 pnpmCommand".to_string())?;
+
+    let pkg_file = profile_dir.join("package.json");
+    let patch_file = profile_dir.join("cordis.patch.yml");
+    let snapshot_pkg = read_to_string_opt(&pkg_file);
+    let snapshot_patch = read_to_string_opt(&patch_file);
+
+    let before = read_installed_version(&profile_dir, &pkg_name);
+
+    let mut noop = |_line: String| {};
+    let run = run_pnpm_streaming(
+        &pnpm_cmd,
+        &vec!["update".to_string(), pkg_name.clone()],
+        &profile_dir,
+        &mut noop,
+    )?;
+
+    let after = read_installed_version(&profile_dir, &pkg_name);
+    let l3 = validate_installed_pkg(&profile_dir, &pkg_name);
+    let ok = run.exit_code == Some(0) && !run.timed_out && l3.is_ok();
+
+    let mut state = read_install_state();
+    let mut report = DshInstallReport {
+        profile: profile_name.clone(),
+        mode: "update".to_string(),
+        ok,
+        installed: Vec::new(),
+        updated: Vec::new(),
+        failed: Vec::new(),
+        warnings: Vec::new(),
+        output: run.output.clone(),
+    };
+
+    if run.timed_out {
+        report
+            .warnings
+            .push("pnpm update 执行超过 10 分钟，已强制终止（timeout）".to_string());
+    }
+
+    if ok {
+        if before.as_deref() != after.as_deref() {
+            report.updated.push(pkg_name.clone());
+        }
+        report.installed.push(pkg_name.clone());
+        if let Some(profile_state) = state.get_mut(&profile_name) {
+            profile_state.remove(&pkg_name);
+        }
+    } else {
+        let reason = if run.exit_code != Some(0) || run.timed_out {
+            "non-zero-exit"
+        } else {
+            "missing-entry"
+        };
+        let stack = if reason == "non-zero-exit" {
+            run.output.clone()
+        } else {
+            l3.err().unwrap_or_else(|| "入口校验失败".to_string())
+        };
+        report.failed.push(DshInstallFailure {
+            name: pkg_name.clone(),
+            reason: reason.to_string(),
+            stack: trim_stack(&stack, 4096),
+        });
+        persist_install_failure(&mut state, &profile_name, &pkg_name, reason, &stack);
+    }
+
+    if let Some(profile_state) = state.get(&profile_name) {
+        if profile_state.is_empty() {
+            state.remove(&profile_name);
+        }
+    }
+    write_install_state(&state);
+
+    // update 失败仅回滚两个配置文件
+    if !ok {
+        if let Some(s) = &snapshot_pkg {
+            let _ = fs::write(&pkg_file, s);
+        }
+        if let Some(s) = &snapshot_patch {
+            let _ = fs::write(&patch_file, s);
+        }
+    }
+
+    Ok(report)
+}
+
+#[tauri::command]
+pub async fn update_dsh_plugin(profile: String, key: String) -> Result<DshInstallReport, String> {
+    tauri::async_runtime::spawn_blocking(move || update_one_inner(profile, key))
+        .await
+        .map_err(|e| format!("更新执行失败: {}", e))?
+}
+
 fn parse_patch_rows(patch_file: &Path) -> Vec<DshPatchRow> {
     let mut rows = Vec::new();
     let text = match read_to_string_opt(patch_file) {
@@ -865,6 +1809,17 @@ pub fn remove_dsh_plugin(profile: String, key: String) -> Result<(), String> {
         return Ok(());
     }
 
+    if let Some(pkg_name) = key.strip_prefix("orphan:") {
+        let mut target = profile_dir.join("node_modules");
+        for part in pkg_name.split('/') {
+            target = target.join(part);
+        }
+        if target.exists() {
+            let _ = fs::remove_dir_all(&target);
+        }
+        return Ok(());
+    }
+
     Err(format!("无法识别的插件 key: {}", key))
 }
 
@@ -890,27 +1845,383 @@ pub fn apply_dsh_recovery(action: DshRecoveryAction) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-pub fn install_dsh_plugins(profile: String) -> Result<String, String> {
+// ==================== 安装器 ====================
+
+fn pnpm_install_args(mode: &str) -> Vec<String> {
+    match mode {
+        "update" => vec!["update".to_string()],
+        "reinstall-all" => vec!["install".to_string(), "--force".to_string()],
+        "reinstall-failed" => vec!["install".to_string(), "--force".to_string()],
+        _ => vec!["install".to_string()],
+    }
+}
+
+struct PnpmRunResult {
+    exit_code: Option<i32>,
+    timed_out: bool,
+    output: String,
+}
+
+fn run_pnpm_streaming(
+    cmd: &str,
+    args: &[String],
+    cwd: &Path,
+    on_line: &mut dyn FnMut(String),
+) -> Result<PnpmRunResult, String> {
+    use std::io::{BufRead, BufReader};
+    use std::sync::mpsc::{channel, RecvTimeoutError};
+
+    let mut command = Command::new(cmd);
+    command
+        .args(args)
+        .current_dir(cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = command.spawn().map_err(|e| format!("无法执行 pnpm: {}", e))?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let (tx, rx) = channel::<String>();
+
+    if let Some(out) = stdout {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(out);
+            for line in reader.lines() {
+                match line {
+                    Ok(l) => {
+                        let _ = tx.send(l);
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+    }
+    if let Some(err) = stderr {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(err);
+            for line in reader.lines() {
+                match line {
+                    Ok(l) => {
+                        let _ = tx.send(l);
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+    }
+    drop(tx);
+
+    let mut output_lines: Vec<String> = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(600);
+    let mut exit_code = None;
+    let mut timed_out = false;
+
+    loop {
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(line) => {
+                on_line(line.clone());
+                output_lines.push(line);
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if let Ok(Some(status)) = child.try_wait() {
+                    exit_code = status.code();
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    kill_tree(child.id());
+                    let _ = child.kill();
+                    timed_out = true;
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                // 管道关闭：等待进程退出
+                if let Ok(status) = child.wait() {
+                    exit_code = status.code();
+                }
+                break;
+            }
+        }
+    }
+
+    Ok(PnpmRunResult {
+        exit_code,
+        timed_out,
+        output: output_lines.join("\n"),
+    })
+}
+
+fn declared_pkgs(profile_dir: &Path) -> Vec<(String, String, Option<String>)> {
+    let pkg = match read_pkg(profile_dir) {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+
+    let mut bundles: Vec<String> = Vec::new();
+    if let Some(arr) = pkg
+        .get("dsh")
+        .and_then(|d| d.get("profile"))
+        .and_then(|p| p.get("bundles"))
+        .and_then(|b| b.as_array())
+    {
+        bundles = arr
+            .iter()
+            .filter_map(|b| b.as_str())
+            .map(|s| s.to_string())
+            .collect();
+    }
+
+    let mut deps: HashMap<String, String> = HashMap::new();
+    if let Some(obj) = pkg.get("dependencies").and_then(|d| d.as_object()) {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                deps.insert(k.clone(), s.to_string());
+            }
+        }
+    }
+
+    let mut list = Vec::new();
+    for b in bundles {
+        if b.starts_with(BUILTIN_BUNDLE_PREFIX) {
+            continue; // 内置不参与安装校验
+        }
+        let kind = "bundle".to_string();
+        let spec = deps.get(&b).cloned();
+        list.push((b, kind, spec));
+    }
+    let mut dep_names: Vec<String> = deps.keys().cloned().collect();
+    dep_names.sort();
+    for dep in dep_names {
+        if list.iter().any(|(name, _, _)| name == &dep) {
+            continue;
+        }
+        let spec = deps.get(&dep).cloned();
+        list.push((dep, "plain".to_string(), spec));
+    }
+    list
+}
+
+fn persist_install_failure(
+    state: &mut InstallStateMap,
+    profile: &str,
+    name: &str,
+    reason: &str,
+    stack: &str,
+) {
+    let entry = state.entry(profile.to_string()).or_default();
+    entry.insert(
+        name.to_string(),
+        DshInstallStateItem {
+            status: "failed".to_string(),
+            reason: reason.to_string(),
+            stack: Some(trim_stack(stack, 4096)),
+            last_attempt_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
+        },
+    );
+}
+
+/// 解析 pnpm 输出中的 `Ignored build scripts: pkg1, pkg2`（pnpm 10+ 构建脚本白名单拦截）。
+fn parse_ignored_builds(output: &str) -> Vec<String> {
+    let Some(marker) = output.find("Ignored build scripts:") else {
+        return Vec::new();
+    };
+    let rest = &output[marker + "Ignored build scripts:".len()..];
+    let line = rest.lines().next().unwrap_or("");
+    line.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && !s.to_lowercase().contains("run \"pnpm approve-builds\""))
+        .collect()
+}
+
+fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(String)>) -> Result<DshInstallReport, String> {
     let cfg = load_config();
     let pnpm_cmd = resolve_pnpm_command(&cfg)
         .ok_or_else(|| "未找到 pnpm 命令，请在「设置」中配置 pnpmCommand".to_string())?;
-    let profile_dir = ensure_profile_dir(&profile)?;
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let profile_dir = ensure_profile_dir(&profile_name)?;
 
-    let output = Command::new(&pnpm_cmd)
-        .arg("install")
-        .current_dir(&profile_dir)
-        .output()
-        .map_err(|e| format!("无法执行 pnpm install: {}", e))?;
+    let safe_mode = match mode.as_str() {
+        "update" | "reinstall-all" | "reinstall-failed" | "incremental" => mode.as_str().to_string(),
+        _ => "incremental".to_string(),
+    };
 
-    let out = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    // 1. 快照备份：仅 package.json / cordis.patch.yml
+    let pkg_file = profile_dir.join("package.json");
+    let patch_file = profile_dir.join("cordis.patch.yml");
+    let snapshot_pkg = read_to_string_opt(&pkg_file);
+    let snapshot_patch = read_to_string_opt(&patch_file);
 
-    if !output.status.success() {
-        return Err(format!("pnpm install 失败:\n{}", out));
+    let before_versions: HashMap<String, Option<String>> = declared_pkgs(&profile_dir)
+        .iter()
+        .map(|(name, _, _)| (name.clone(), read_installed_version(&profile_dir, name)))
+        .collect();
+
+    let mut noop = |_line: String| {};
+    let line_sink: &mut dyn FnMut(String) = on_line.unwrap_or(&mut noop);
+
+    let run = run_pnpm_streaming(
+        &pnpm_cmd,
+        &pnpm_install_args(&safe_mode),
+        &profile_dir,
+        line_sink,
+    )?;
+
+    let declared = declared_pkgs(&profile_dir);
+    let mut installed: Vec<String> = Vec::new();
+    let mut updated: Vec<String> = Vec::new();
+    let mut failed: Vec<DshInstallFailure> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+
+    if run.timed_out {
+        warnings.push("pnpm 执行超过 10 分钟，已强制终止（timeout）".to_string());
     }
-    Ok(out)
+
+    let mut state = read_install_state();
+
+    let ignored_builds = parse_ignored_builds(&run.output);
+    if !ignored_builds.is_empty() {
+        warnings.push(format!(
+            "pnpm 忽略了以下依赖的构建脚本：{}；如为原生模块，请在 pnpm-workspace.yaml 的 allowBuilds 中放行后重试",
+            ignored_builds.join(", ")
+        ));
+    }
+
+    for (name, _kind, _spec) in &declared {
+        let before = before_versions.get(name).cloned().flatten();
+        let after = read_installed_version(&profile_dir, name);
+        let l3 = validate_installed_pkg(&profile_dir, name);
+        let version_changed = before.is_some() && after.is_some() && before.as_deref() != after.as_deref();
+
+        // L3 是最终判定：磁盘上入口文件存在即视为该包安装成功。
+        // pnpm 可能因「忽略构建脚本」等非致命原因返回非 0 退出码，但包实际已安装，
+        // 此时不应把全部声明包都标记为失败。
+        if l3.is_ok() {
+            installed.push(name.clone());
+            if version_changed {
+                updated.push(name.clone());
+            }
+            if let Some(profile_state) = state.get_mut(&profile_name) {
+                profile_state.remove(name);
+            }
+            continue;
+        }
+
+        if run.timed_out || run.exit_code != Some(0) {
+            failed.push(DshInstallFailure {
+                name: name.clone(),
+                reason: "non-zero-exit".to_string(),
+                stack: trim_stack(&run.output, 4096),
+            });
+            persist_install_failure(&mut state, &profile_name, name, "non-zero-exit", &run.output);
+        } else if let Err(reason) = &l3 {
+            failed.push(DshInstallFailure {
+                name: name.clone(),
+                reason: "missing-entry".to_string(),
+                stack: trim_stack(reason, 4096),
+            });
+            persist_install_failure(&mut state, &profile_name, name, "missing-entry", reason);
+        }
+    }
+
+    if run.exit_code != Some(0) && !run.timed_out {
+        warnings.push(format!(
+            "pnpm 退出码为 {:?}，但声明插件已按 L3 入口校验结果记录；请查看终端日志确认是否存在非致命错误",
+            run.exit_code
+        ));
+    }
+
+    // 安装成功与否以 L3 校验结果为准；pnpm 非 0 退出但所有声明包入口校验通过时，
+    // 仍视为成功，同时用 warnings 保留 pnpm 的原始退出信息。
+    let ok = failed.is_empty() && !run.timed_out;
+
+    // 清理空 profile state
+    if let Some(profile_state) = state.get(&profile_name) {
+        if profile_state.is_empty() {
+            state.remove(&profile_name);
+        }
+    }
+    write_install_state(&state);
+
+    // 失败回滚：仅 incremental / update，且只回滚两个配置文件
+    if !ok && (safe_mode == "incremental" || safe_mode == "update") {
+        if let Some(s) = &snapshot_pkg {
+            let _ = fs::write(&pkg_file, s);
+        }
+        if let Some(s) = &snapshot_patch {
+            let _ = fs::write(&patch_file, s);
+        }
+    }
+
+    let mut installed = installed;
+    let mut updated = updated;
+    installed.sort();
+    installed.dedup();
+    updated.sort();
+    updated.dedup();
+
+    Ok(DshInstallReport {
+        profile: profile_name,
+        mode: safe_mode,
+        ok,
+        installed,
+        updated,
+        failed,
+        warnings,
+        output: run.output,
+    })
+}
+
+/// 供其他模块（如 dsh_plugins_sync 对齐流程）同步调用的安装入口。
+pub fn run_install_blocking(profile: String, mode: String) -> Result<DshInstallReport, String> {
+    install_inner(profile, mode, None)
+}
+
+/// 兼容旧签名：增量安装并返回完整日志；失败抛错。
+#[tauri::command]
+pub fn install_dsh_plugins(profile: String) -> Result<String, String> {
+    let report = install_inner(profile, "incremental".to_string(), None)?;
+    if !report.ok {
+        let detail = report
+            .failed
+            .iter()
+            .map(|f| format!("{}: {}\n{}", f.name, f.reason, f.stack))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!("pnpm install 未完全成功:\n{}", detail));
+    }
+    Ok(report.output)
+}
+
+#[tauri::command]
+pub async fn install_dsh_plugins_v2(profile: String, mode: String) -> Result<DshInstallReport, String> {
+    tauri::async_runtime::spawn_blocking(move || install_inner(profile, mode, None))
+        .await
+        .map_err(|e| format!("安装执行失败: {}", e))?
+}
+
+#[tauri::command]
+pub async fn install_dsh_plugins_streamed(
+    profile: String,
+    mode: String,
+    on_event: tauri::ipc::Channel<String>,
+) -> Result<DshInstallReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut on_line = |line: String| {
+            let _ = on_event.send(line);
+        };
+        install_inner(profile, mode, Some(&mut on_line))
+    })
+    .await
+    .map_err(|e| format!("安装执行失败: {}", e))?
 }
