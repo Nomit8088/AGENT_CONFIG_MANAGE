@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::models::{SkillsSyncConfig, SkillsSyncStatus};
+use crate::models::{SkillsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
 
 /// Git 仓库根目录：使用 %APPDATA%\AgentHub（而非 skills 子目录），
@@ -217,6 +217,18 @@ pub fn get_skills_sync_status() -> SkillsSyncStatus {
     }
 
     status
+}
+
+/// 技能范围的「本地 vs 远端」文件级差异（复用共享仓库 origin/<branch>）。
+#[tauri::command]
+pub fn get_skills_sync_diff() -> Vec<SyncDiffEntry> {
+    let root = sync_root();
+    if !root.join(".git").exists() {
+        return Vec::new();
+    }
+    let cfg = sync_config();
+    let branch = effective_branch(&cfg);
+    crate::git_sync::sync_diff(&root, "skills", &branch)
 }
 
 #[tauri::command]

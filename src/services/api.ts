@@ -12,6 +12,7 @@ import {
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncDiffEntry,
   SyncRepoConfig,
   SyncRepoValidation,
   UnmanagedSkill,
@@ -298,6 +299,13 @@ export const api = {
     return requestApi<SkillsSyncStatus>('/api/skills/sync/reset', 'POST');
   },
 
+  async getSkillsSyncDiff(): Promise<SyncDiffEntry[]> {
+    if (isTauri()) {
+      return invokeTauri<SyncDiffEntry[]>('get_skills_sync_diff');
+    }
+    return requestApi<SyncDiffEntry[]>('/api/skills/sync/diff');
+  },
+
   // ==================== DSH 插件中心 ====================
 
   async scanDshPlugins(): Promise<DshPluginScanResult> {
@@ -448,6 +456,13 @@ export const api = {
       return invokeTauri('set_dsh_plugins_sync_auto_pull', { enabled });
     }
     return requestApi<void>('/api/dsh/plugins/sync/auto-pull', 'POST', { enabled });
+  },
+
+  async getDshPluginsSyncDiff(): Promise<SyncDiffEntry[]> {
+    if (isTauri()) {
+      return invokeTauri<SyncDiffEntry[]>('get_dsh_plugins_sync_diff');
+    }
+    return requestApi<SyncDiffEntry[]>('/api/dsh/plugins/sync/diff');
   },
 
   async reconcileDshPlugins(): Promise<DshPluginDiff> {

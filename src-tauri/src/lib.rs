@@ -633,6 +633,7 @@ pub fn run() {
             skills_sync::set_skills_sync_auto_pull,
             skills_sync::test_skills_sync_connection,
             skills_sync::reset_skills_sync_to_remote,
+            skills_sync::get_skills_sync_diff,
             dsh_plugins::scan_dsh_plugins,
             dsh_plugins::diagnose_dsh_web,
             dsh_plugins::toggle_dsh_plugin,
@@ -653,6 +654,7 @@ pub fn run() {
             dsh_plugins_sync::set_dsh_plugins_sync_auto_pull,
             dsh_plugins_sync::reconcile_dsh_plugins,
             dsh_plugins_sync::align_dsh_plugins,
+            dsh_plugins_sync::get_dsh_plugins_sync_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

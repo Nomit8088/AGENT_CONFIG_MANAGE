@@ -27,6 +27,7 @@ import {
   setSkillsSyncAutoPull,
   testSkillsSyncConnection,
   resetSkillsSyncToRemote,
+  getSkillsSyncDiff,
   getSyncRepoConfig,
   validateSyncRepo,
   saveSyncRepo,
@@ -49,6 +50,7 @@ import {
   setDshPluginsSyncAutoPull,
   reconcileDshPlugins,
   alignDshPlugins,
+  getDshPluginsSyncDiff,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -605,6 +607,12 @@ function localApiPlugin(): Plugin {
               return res.end(JSON.stringify(resetSkillsSyncToRemote()));
             }
 
+            // GET /api/skills/sync/diff
+            if (pathname === '/api/skills/sync/diff' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSkillsSyncDiff()));
+            }
+
             // GET /api/sync/repo
             if (pathname === '/api/sync/repo' && req.method === 'GET') {
               res.setHeader('Content-Type', 'application/json');
@@ -770,6 +778,12 @@ function localApiPlugin(): Plugin {
               setDshPluginsSyncAutoPull(!!enabled);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/dsh/plugins/sync/diff
+            if (pathname === '/api/dsh/plugins/sync/diff' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getDshPluginsSyncDiff()));
             }
 
             // GET /api/dsh/plugins/reconcile

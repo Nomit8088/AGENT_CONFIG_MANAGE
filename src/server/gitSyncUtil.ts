@@ -1,4 +1,7 @@
 import { execFileSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import type { SyncDiffEntry } from '../types';
 
 const DEFAULT_GIT_TIMEOUT_MS = 120_000;
 
@@ -121,4 +124,90 @@ export function runGit(cwd: string, args: string[], timeoutMs: number = DEFAULT_
     const stdout = (e?.stdout?.toString() || '').trim();
     throw new Error(stderr || stdout || e?.message || 'git command failed');
   }
+}
+
+/** 非抛错的 runGit，失败返回空字符串（用于只读探测类命令）。 */
+export function runGitTry(cwd: string, args: string[], timeoutMs?: number): string {
+  try {
+    return runGit(cwd, args, timeoutMs);
+  } catch {
+    return '';
+  }
+}
+
+function statusOfCode(code: string): SyncDiffEntry['status'] {
+  const c = (code[0] || 'M').toUpperCase();
+  if (c === 'A') return 'added';
+  if (c === 'D') return 'deleted';
+  return 'modified';
+}
+
+/** 解析 `git diff --name-status` 输出（`M\tpath` / `A\tpath` / `D\tpath` / `R100\told\tnew`）。 */
+function collectNameStatus(out: string, side: SyncDiffEntry['side'], acc: Map<string, SyncDiffEntry>): void {
+  for (const raw of out.split(/\r?\n/)) {
+    if (!raw) continue;
+    let code = raw;
+    let p = '';
+    const tab = raw.indexOf('\t');
+    if (tab >= 0) {
+      code = raw.slice(0, tab);
+      p = raw.slice(tab + 1);
+    }
+    if (code.startsWith('R')) {
+      // 重命名：取最后一个 token 作为新路径
+      const parts = p.split('\t');
+      p = parts[parts.length - 1] || p;
+    }
+    p = p.trim();
+    if (!p) continue;
+    const status = statusOfCode(code);
+    const prev = acc.get(p);
+    if (prev && prev.side !== side) {
+      acc.set(p, { path: p, status: 'modified', side: 'both' });
+    } else {
+      acc.set(p, { path: p, status, side });
+    }
+  }
+}
+
+/** 解析 `git status --porcelain` 输出（`XY path` / `XY "quoted path"`），作为本地未提交修改。 */
+function collectPorcelain(out: string, acc: Map<string, SyncDiffEntry>): void {
+  for (const raw of out.split(/\r?\n/)) {
+    if (raw.length < 3) continue;
+    const code = raw.slice(0, 2);
+    let p = raw.slice(3).trim();
+    if (!p) continue;
+    if (p.length >= 2 && p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1);
+    const status: SyncDiffEntry['status'] =
+      code === '??' || code[0] === 'A' ? 'added' : code[0] === 'D' ? 'deleted' : 'modified';
+    const prev = acc.get(p);
+    if (prev && prev.side !== 'local') {
+      acc.set(p, { path: p, status: 'modified', side: 'both' });
+    } else {
+      acc.set(p, { path: p, status, side: 'local' });
+    }
+  }
+}
+
+/**
+ * 计算某个功能范围（`skills/` 或 `dsh/`）内，本地工作区/提交与「已知远端 origin/<branch>」的
+ * 文件级差异（不做网络 fetch，使用最近一次 fetch/pull/push 后的远端引用）。
+ */
+export function computeGitSyncDiff(cwd: string, scope: string, branch: string): SyncDiffEntry[] {
+  const acc = new Map<string, SyncDiffEntry>();
+  if (!fs.existsSync(path.join(cwd, '.git'))) return [];
+
+  const remoteRef = `origin/${branch}`;
+  const hasRemote = runGitTry(cwd, ['rev-parse', '--verify', remoteRef]).trim().length > 0;
+  if (hasRemote) {
+    const ahead = runGitTry(cwd, ['diff', '--name-status', `${remoteRef}...HEAD`, '--', scope]);
+    collectNameStatus(ahead, 'local', acc);
+    const behind = runGitTry(cwd, ['diff', '--name-status', `HEAD...${remoteRef}`, '--', scope]);
+    collectNameStatus(behind, 'remote', acc);
+  }
+
+  const dirty = runGitTry(cwd, ['status', '--porcelain', '--', scope]);
+  collectPorcelain(dirty, acc);
+
+  return [...acc.values()];
 }

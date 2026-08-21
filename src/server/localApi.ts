@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
 import jsyaml from 'js-yaml';
-import { runGit } from './gitSyncUtil';
+import { runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 
 export function expandTilde(p: string): string {
@@ -655,6 +655,15 @@ export function getSkillsSyncStatus(): SkillsSyncStatus {
   }
 
   return status;
+}
+
+/** 技能范围的「本地 vs 远端」文件级差异（复用共享仓库 origin/<branch>）。 */
+export function getSkillsSyncDiff() {
+  const root = getAppDataDir();
+  if (!fs.existsSync(path.join(root, '.git'))) return [];
+  const syncCfg = readSkillsSyncConfig();
+  const branch = effectiveSkillsBranch(syncCfg);
+  return computeGitSyncDiff(root, 'skills', branch);
 }
 
 export function initSkillsSync(remoteUrl: string, branch?: string): SkillsSyncStatus {
