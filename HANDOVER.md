@@ -256,8 +256,8 @@ flowchart TD
 │       ├── AgentBrandIcon.vue          # 真实 Agent 官方高精度矢量 SVG 图标体系 (16 Agents)
 │       ├── AgentCard.vue               # Agent 大厅卡片 (已启用/未启用双模；待纳管/忽略/已挂载为只读状态标签+悬浮提示，统一「技能管理」入口弹窗)
 │       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分段页签切换 + 关键词检索 + 卡片网格)
-│       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (仅中央技能库：搜索/筛选/排序/新建/编辑/删除 + 紧凑分发计数)
-│       ├── SyncView.vue                # 面板: 同步中心 (主视觉仓库卡 + 蓝色技能卡 + 紫色DSH卡；未配置时展示仓库格式指引)
+│       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (蓝色品牌容器 + 来源/分发语义色徽章；搜索/筛选/排序/新建/编辑/删除)
+│       ├── SyncView.vue                # 面板: 同步中心 (主视觉仓库卡 + 技能/DSH 对称功能卡 + 本地↔远端文件差异面板；未配置时展示仓库格式指引)
 │       ├── UnmanagedGroupSection.vue   # [已弃用] 存量检测按 Agent 归类卡片区 (功能已合并进 AgentCard 卡片徽章 + AgentDetailModal)
 │       ├── AgentDetailModal.vue        # Agent 技能管理弹窗 (待纳管/已忽略/中央技能分发 Tabs + 弹窗内搜索)
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
@@ -268,11 +268,11 @@ flowchart TD
 │       ├── AddAgentModal.vue           # 自定义 Agent 注册弹窗
 │       ├── AddProjectModal.vue         # 纳管新项目弹窗
 │       ├── DiffModal.vue               # 面板 4: Diff 语法高亮冲突决策弹窗
-│       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（插件面板 / 诊断修复 / 同步与对账 三分段 Tab）
-│       ├── DshPluginList.vue           # DSH 本地插件可视化扫描面板（profile 选择 + 搜索/状态/类型筛选 + 启停开关 + 可移植性标签）
-│       ├── DshPluginRow.vue            # DSH 插件可展开行（默认仅名称/徽章/开关，点击展开 spec/installed/required 与操作）
-│       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（崩溃堆栈解析 + 一键关闭并重试）
-│       ├── DshPluginSync.vue           # DSH 插件配置同步 + 对账面板（推送/拉取/一键对齐；可隐藏仓库状态卡以嵌入同步页）
+│       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（紫色品牌头部 + 插件面板 / 诊断修复 两分段 Tab）
+│       ├── DshPluginList.vue           # DSH 插件面板 V3：sticky 操作栏 + 健康胶囊 + 彩色分区头部图标瓦片 + 分组卡片顶部语义色强调线（按来源/按状态 + 列表/卡片 + 分页）
+│       ├── DshPluginRow.vue            # DSH 插件统一条目（列表行/卡片双形态：状态点/按 kind 上色的图标瓦片/名称/单一徽章/内联 spec·installed·required/启停/操作）
+│       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（紫色品牌控件卡 + 崩溃堆栈解析 + 一键关闭并重试）
+│       ├── DshPluginSync.vue           # DSH 插件配置对账卡片（本地 ~/.dsh ↔ 同步镜像 dsh/；对账/一键对齐/差异详情）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
 │       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器)
 │       └── ToastContainer.vue          # 全局浮动操作提示
@@ -823,5 +823,91 @@ npm run tauri build
     - 状态语义色保持绿色/橙色/红色，品牌标识色（蓝/紫）只用于功能区分，不干扰状态判断。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
 
+- **2026-08-20 (Session 36)**:
+  - **DSH 插件面板展示逻辑重构（消除多轴重叠与工具栏堆叠）**:
+    - **根因**：原面板同时铺开「来源（kind/portability）」与「健康（status）」两套正交分类轴——「孤儿」「不可移植」既是分区、又是筛选选项、又是健康摘要格，观感混乱；且内容前堆叠 4 条工具栏（profile / 安装 / 筛选 / 摘要）。
+    - **单条 sticky 操作栏**：合并 profile 下拉 + 搜索 + 视图切换 + 安装下拉 + 终端开关为一条 sticky 操作栏，首屏内容区立即露出。
+    - **双视图单一主轴**：新增 `[ 按来源 | 按状态 ]` 分段切换。按来源 = 官方内置 / 用户·可移植 / 用户·本地开发 / Patch 行 / 孤儿；按状态 = 正常 / 待装 / 版本冲突 / 失败 / 孤儿。同一时刻只让一个轴当分区主角，另一轴退化为行内「单一徽章」。
+    - **健康胶囊行**：以「全部/正常/待装/版本冲突/失败/孤儿」可点击胶囊替代原 6 格摘要条，点击即按状态筛选；移除「不可移植」独立格（已由分区承载）。
+    - **统一行组件**：`DshPluginRow.vue` 固定列（状态点 / 图标 / 名称+单一徽章 / 内联 spec·installed·required / 启停 / 操作），默认平铺版本列、移除点击展开机制；内置只读、孤儿提供「纳入配置/移除」、patch 行提供「删除」，操作图标常驻。
+    - 移除 `kindFilter` 下拉（来源靠分组与徽章表达），搜索与状态筛选保留。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建，6.3s）零错误零警告。
+
+- **2026-08-21 (Session 37)**:
+  - **DSH 插件同步/安装链路加固（修复本机增量安装失败与 186 孤儿）**:
+    - **根因**：一次「一键对齐」安装失败后，回滚仅还原 `package.json`/`cordis.patch.yml`，未清理失败安装写入的 `node_modules`，且 `.modules.yaml` 陈旧，导致对账把 10 个插件及其传递依赖全部误判为孤儿（186 个）；同时本机直连 GitHub 的 tarball/git spec 被 reset，增量安装报 `missing-entry` 失败。
+    - **镜像 lock 清洗**：Node `snapshotLocalToMirror` 与 Rust `snapshot_local_to_mirror` 在复制 `pnpm-lock.yaml` 前先做文本级清洗（`sanitizeLockForMirror` / `sanitize_lock_for_mirror`），剔除 `link:`/`file:`/`workspace:`/`portal:`/`catalog:`/`git+ssh:`/`ssh:`/`git@` 等不可移植条目引用，杜绝本机路径/死链漏进同步镜像。
+    - **pnpm 注入系统代理**：Node `runPnpmStream` 与 Rust `run_pnpm_streaming` 统一把 `detectSystemProxy()` / `git_sync::system_proxy()` 探测到的代理注入 `HTTP_PROXY`/`HTTPS_PROXY`，与 git 命令对齐，修复本机直连 GitHub 被 reset 的问题。
+    - **失败回滚后重对账 node_modules**：Node `installDshPluginsV2`/`updateDshPlugin`/`alignDshPlugins` 与 Rust `install_inner`/`update_one_inner`/`align_dsh_plugins` 在回滚配置后 best-effort 重跑 `pnpm install` 剪枝（`reconcileNodeModules` / `reconcile_node_modules`），避免残留包被误判为孤儿。
+    - **本机运维修复**：`~/.dsh/profiles/web` 恢复远程 10 插件 + 保留 `dsh-super-injector`（改 `ghproxy.net` 反代 tarball）+ 内置 bundle；清空 `node_modules` 干净重装（+195 包，原生构建全过）；`dsh_install_state.json` 清空；孤儿 186→0；镜像 lock 清掉死链并 push（commit `f1c4188`）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-21 (Session 38)**:
+  - **DSH 插件面板补充「列表/卡片」视图切换与「官方插件/用户插件」区分显示**:
+    - **列表/卡片切换**：参照技能页签，在 sticky 操作栏新增 `[列表|卡片]` 图标分段切换（`List`/`LayoutGrid`），`viewMode` 持久化至 `localStorage('dsh_plugins_view_mode')`（默认列表）。
+    - **卡片形态**：`DshPluginRow.vue` 新增 `layout: 'list' | 'card'` 属性，卡片以网格呈现（`sm:2 / xl:3` 列），顶部状态点/图标/名称+徽章+启停、中部内联 spec·installed·required、底部操作图标，复用同一套 badge/dot/action 判定逻辑。
+    - **官方插件/用户插件区分**：「按来源」视图按官方/用户维度分组——「官方插件」（`@deepseek-ai/dsh-*`，蓝色标识 + 只读）与「用户插件 · 可移植 / 用户插件 · 本地开发」；inbox 行徽章由「内置」改为「官方」，与「官方插件/用户插件」术语对齐（「按状态」视图中官方/用户同样靠徽章区分）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建，2.1s）零错误零警告。
+
+- **2026-08-21 (Session 39)**:
+  - **DSH 插件面板：展示顺序调整 + 用户插件卡片分页**:
+    - **展示顺序**：「按来源」视图将「官方插件」移到「用户插件 · 可移植 / 本地开发」之下，顺序为 用户插件(可移植) → 用户插件(本地开发) → 官方插件 → Patch 配置行 → 孤儿安装。
+    - **用户插件分页**：用户插件分区（可移植/本地开发）在列表与卡片视图下均启用分页，默认每页 10 个（`pageSize`），底部渲染「« ‹ 页码 › » + 每页条数选择器 [5/10/20/50/100]」分页条；页码可点选、当前页绿色高亮，超过 7 页自动收缩为「1 … 当前±2 … N」；官方插件/ Patch/ 孤儿分区不分页。切换 profile / 搜索 / 状态筛选 / 每页条数时自动重置到第 1 页，并对越界页做钳制。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建，2.1s）零错误零警告。
+
+- **2026-08-21 (Session 40)**:
+  - **同步页签卡片对称化 + 本地↔远端文件差异面板 + DSH 配置对账归属明确化**:
+    - **卡片对称化**：`SyncView.vue` 将「DSH 插件同步」从右上角小字（`未提交 N · 时间`）升级为与「技能同步」完全同构的紫色卡片——顶部紫色标识头（Puzzle 图标 + 标题 + `dsh/` 路径标签 + 状态徽章）+「未提交修改 / 最后同步」双状态框 + 拉取/推送 + 启动自动拉取分段开关 + 错误横幅；两个功能卡在 `xl` 双列下并排、小窗单列。
+    - **本地 ↔ 远端 文件差异面板**：两张功能卡各新增「本地 ↔ 远端 文件差异」面板，按 `skills/` 或 `dsh/` 范围计算本地工作区/提交与已知远端 `origin/<branch>` 的文件级差异（`git diff origin/<branch>...HEAD` + `HEAD...origin/<branch>` + `status --porcelain`），逐条展示「状态点（绿=新增/琥珀=修改/红=删除）+ 方向箭头（↑本地 / ↓远端 / ⇅双向）+ 路径」，空态提示「与远端无文件差异」。不做网络 fetch，复用最近一次 pull/push/fetch 后的远端引用。
+    - **DSH 配置对账归属明确化**：`DshPluginSync.vue` 从「同步操作 + 对账」复合卡重构为单一的「DSH 插件配置对账」卡——紫色顶部标识 + `GitCompare` 图标 + 标题「DSH 插件配置对账」+ 副标题「本地 `~/.dsh` ↔ 同步镜像 `dsh/`」+ `dsh/` 标签，明确其对账对象是 DSH 插件配置而非技能；拉取/推送/自动拉取上收至 SyncView 的 DSH 同步卡。
+    - **双端对齐**：新增 `SyncDiffEntry` 数据模型（TS + Rust `models.rs`）；Node `gitSyncUtil.computeGitSyncDiff` 与 Rust `git_sync::sync_diff` 共用同一套差异计算逻辑；新增 `GET /api/skills/sync/diff`、`GET /api/dsh/plugins/sync/diff` Web 路由与 `get_skills_sync_diff`、`get_dsh_plugins_sync_diff` Tauri Command；`api.ts` / `useAppStore` 增加 `skillsSyncDiff` / `dshPluginsSyncDiff` 状态与 `loadSkillsSyncDiff` / `loadDshPluginsSyncDiff`（拉取/推送/重置后自动刷新）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-21 (Session 41)**:
+  - **DSH 插件页视觉细节丰富（在 macOS Vibrancy 规范内增补品牌色与分区强调）**:
+    - **头部品牌化**：`PluginsView.vue` 顶部新增紫色（`#bf5af2`，DSH 品牌色）图标容器（Puzzle 图标 + `/10` 底 + `/20` 边框）+ 标题旁的「N profile」紫色胶囊徽章，替代原先纯文本标题，呼应同步页 DSH 紫色标识体系。
+    - **分区头部彩色图标瓦片**：`DshPluginList.vue` 每个分组（按来源 / 按状态）标题前新增 24px 彩色图标瓦片（`w-6 h-6 rounded-md`，语义色 `/10` 底 + `/20` 边框 + 语义色图标），并配以彩色副标题——可移植（绿 `Globe`）、本地开发（琥珀 `Wrench`）、官方插件（蓝 `Shield`）、Patch 配置行（紫 `ListTree`）、孤儿（红 `Unlink`）；按状态视图：正常（绿 `CheckCircle2`）、待装（琥珀 `Clock`）、版本冲突/失败（红 `AlertTriangle`/`XCircle`）、孤儿（红 `Unlink`）。
+    - **分区卡片顶部强调线**：列表视图分组卡片从「全边框着色」改为「1px 发丝线 + 顶部 1px 语义色强调线」（`border border-black/8 dark:border-white/8 border-t-[语义色]/60`），与同步页功能卡顶部标识线保持一致，避免大面积边框着色、贴合规范「语义色仅用于强调」。
+    - 严格遵守规范红线：无渐变、无粗边框、无大圆角、无悬停位移、双主题 `dark:` 全覆盖、标题 `font-serif`。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-21 (Session 42)**:
+  - **DSH 插件分页条风格与定位对齐 macOS Vibrancy 规范**:
+    - 分页条从「左页签 + 右每页选择」的 `justify-between` 拆分改为整体右对齐（`justify-end`），统一置于用户插件分区（可移植/本地开发）卡片右下角。
+    - 当前页高亮由高饱和 `bg-[#30d158] text-white` 改为规范内的分段滑块式选中态（`bg-black/5 dark:bg-[#3a3a3c]` + 1px 发丝线边框），非当前页使用 `border-transparent` 透明边框保持尺寸稳定，仅 `hover` 时轻微着色，杜绝大面积高饱和色块。
+    - 「每页」选择器统一为 `font-mono` 等宽 + `pr-5` 下拉留白，与 profile 选择器风格一致；页码按钮保持 `rounded-md`、`transition-colors duration-200`、双主题 `dark:` 全覆盖。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-21 (Session 43)**:
+  - **诊断修复控件卡品牌化 + 插件行图标瓦片按 kind 上色**:
+    - **诊断控件卡**：`DshDiagnose.vue`「启动失败诊断」控件卡新增紫色顶部强调线（`border-t-[#bf5af2]/60`），Stethoscope 图标瓦片由中性灰改为紫色品牌容器（`bg-[#bf5af2]/10 border-[#bf5af2]/20 text-[#bf5af2]`），与插件页头部 / 同步页 DSH 紫色标识统一。
+    - **插件行图标瓦片按 kind 上色**：`DshPluginRow.vue` 列表/卡片两种形态的 28px 图标瓦片由统一中性灰改为按 kind 语义上色——官方 `inbox`=蓝（`#0a84ff`，`Layers`）、用户 `bundle`=绿（`#30d158`，`Package`）、依赖 `plain`（含孤儿）=琥珀（`#ff9f0a`，`CircleDot`）、`row`=紫（`#bf5af2`，`ListTree`）；新增 `iconTileClass` 计算属性，与状态点/徽章/分区语义色一致。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-21 (Session 44)**:
+  - **DSH 插件页配色增润（在 macOS Vibrancy 规范内提升语义色存在感，解决页面偏素）**:
+    - **健康胶囊按语义色着色**：`DshPluginList.vue` 健康胶囊选中态由统一中性灰改为按状态语义色着色——正常=绿（`bg-[#30d158]/10 + text/border-[#30d158]`）、待装/孤儿=琥珀（`#ff9f0a`）、版本冲突/失败=红（`#ff453a`）、全部=中性灰；未选中保持白底灰字 + hover 提亮，双主题 `dark:` 全覆盖。
+    - **安装按钮品牌化**：sticky 操作栏「安装」下拉按钮由中性灰改为 DSH 紫色主操作（`bg-[#bf5af2]/10 hover:bg-[#bf5af2]/15 text/border-[#bf5af2]`），作为全页唯一主 CTA 突出。
+    - **分区计数徽章着色**：`sectionTint(id)` 按分区语义色给计数徽章上色（可移植/正常=绿、本地开发/待装/孤儿=琥珀、官方=蓝、Patch=紫、版本冲突/失败=红），替代原先统一灰色。
+    - **状态点光环**：`DshPluginRow.vue` 插件行/卡片状态点由纯色小方块升级为「2px 语义色 ring（20% 透明）」光环（`rounded-sm ring-2 ring-[语义色]/20`），提升层次但无大投影。
+    - **卡片顶部语义强调线**：卡片视图每个插件卡新增顶部语义色强调线（`cardAccentClass`，`border-t-[语义色]/60`），与列表视图分区卡 / 同步页功能卡顶部标识线一致。
+    - 严守规范红线：无 `bg-gradient`、无 `rounded-full`、无 `shadow-xl/2xl`、无粗边框、无位移动效、双主题 `dark:` 全覆盖。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-21 (Session 45)**:
+  - **技能页（中央技能库）配色方案落地（蓝色品牌 + 来源/分发语义色）**:
+    - **容器品牌化**：`SkillsMatrix.vue` 中央技能库容器新增蓝色顶部强调线（`border-t-[#0a84ff]/60`），标题区 Layers 图标瓦片由中性灰改为蓝色品牌容器（`bg-[#0a84ff]/10 border-[#0a84ff]/20 text-[#0a84ff]`），与同步页「技能同步」蓝卡呼应。
+    - **来源语义色**：技能来源徽章 / 图标瓦片（FileCode）按 `source` 上色——内置（`agenthub-sync`）=蓝 `#0a84ff`、中央自建 `central`=绿 `#30d158`、NPX 捕获 `npx`=琥珀 `#ff9f0a`、存量纳管 `imported`=紫 `#bf5af2`、其他=灰；新增 `SOURCE_TILE` / `SOURCE_BADGE` / `SOURCE_TEXT` 三套色板与 `sourceMeta(skill)` 映射，并把表格来源徽章从原始英文 `skill.source` 改为友好中文标签（内置/中央自建/NPX 捕获/存量纳管），移除名称旁冗余的「内置」标签（改由来源列蓝色徽章承载）。
+    - **分发状态着色**：表格「已分发 N 个 Agent」与卡片 footer 的挂载计数按分发程度着色——全部分发=绿、部分分发=琥珀、未分发=灰（`mountCountClass(skill)`）。
+    - 严守规范红线：无渐变、无粗边框、无大圆角、无位移动效、双主题 `dark:` 全覆盖、标题 `font-serif`。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-21 (Session 46)**:
+  - **技能页重新开放「按 Agent 精确分发」多选器**:
+    - 表格视图「全局分发状态」列与卡片视图 footer 各新增 `AgentPillPicker`（Teleported 多选分发器），点「分发至 Agent... N/M」弹出浮层勾选/取消具体 Agent，支持「⚡ 全选活跃 / 清空 / 搜索」，与原有 `[启用|停用]` 全局分段开关并存——全局开关 = 一键全量分发/解绑，多选器 = 精确勾选目标 Agent。
+    - 复用此前 Session 30 起闲置的 `AgentPillPicker.vue`（文件仍在、未删除），走 `store.toggleSkillForAgent` / `mountSkillToAllActive` / `unmountSkillFromAll`，毫秒级乐观更新 + 挂载计数实时回显；卡片 footer 保留「已分发 N 个 Agent」着色计数。
+    - 恢复后技能页同时具备「全局分发」与「按 Agent 分发」两种粒度，按 Agent 维度的分发仍保留在大厅「中央技能分发」页签。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
 ---
-*文档更新时间：2026-08-20 | AgentHub Core Team*
+*文档更新时间：2026-08-21 | AgentHub Core Team*

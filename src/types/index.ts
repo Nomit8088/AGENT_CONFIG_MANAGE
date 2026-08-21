@@ -102,6 +102,13 @@ export interface SkillsSyncStatus {
   lastError?: string;
 }
 
+/** 本地 vs 远端 文件级差异（按功能范围 skills/ 或 dsh/ 隔离）。 */
+export interface SyncDiffEntry {
+  path: string;                                 // 相对同步仓库根的路径
+  status: 'added' | 'modified' | 'deleted';     // 相对远端的变更类型
+  side: 'local' | 'remote' | 'both';            // local=本地领先/未提交；remote=远端领先；both=双方都改过
+}
+
 // ==================== DSH 插件中心 ====================
 
 export type DshPluginKind = 'inbox' | 'bundle' | 'plain' | 'row';

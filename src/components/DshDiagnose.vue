@@ -1,9 +1,9 @@
 <template>
   <div class="space-y-4">
     <!-- Diagnose controls -->
-    <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-4 space-y-3 transition-colors duration-200">
+    <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 border-t-[#bf5af2]/60 p-4 space-y-3 transition-colors duration-200">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80">
+        <div class="w-7 h-7 rounded-lg bg-[#bf5af2]/10 border border-[#bf5af2]/20 flex items-center justify-center text-[#bf5af2]">
           <Stethoscope class="w-3.5 h-3.5" />
         </div>
         <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">启动失败诊断</h3>

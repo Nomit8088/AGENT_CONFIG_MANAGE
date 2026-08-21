@@ -1,11 +1,11 @@
 <template>
   <div class="h-full overflow-y-auto p-4 space-y-4 pb-24">
     <!-- Central Skills Library (技能页签只保留中央技能库) -->
-    <div class="bg-white dark:bg-[#2c2c2e] rounded-xl border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none overflow-hidden space-y-0 transition-colors duration-200">
+    <div class="bg-white dark:bg-[#2c2c2e] rounded-xl border border-black/8 dark:border-white/8 border-t-[#0a84ff]/60 shadow-sm dark:shadow-none overflow-hidden space-y-0 transition-colors duration-200">
       <!-- Top Title & View Switcher Bar -->
       <div class="p-4 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1c1e]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-800 dark:text-white/90">
+          <div class="w-8 h-8 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20 flex items-center justify-center text-[#0a84ff]">
             <Layers class="w-4 h-4" />
           </div>
           <div>
@@ -176,15 +176,12 @@
               <!-- Name & Desc -->
               <td class="py-2.5 px-3">
                 <div class="flex items-start gap-2.5">
-                  <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80 flex-shrink-0 mt-0.5">
+                  <div class="w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 mt-0.5" :class="SOURCE_TILE[sourceMeta(skill).tone]">
                     <FileCode class="w-3.5 h-3.5" />
                   </div>
                   <div>
                     <div class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95 flex items-center gap-1.5">
                       <span>{{ skill.name }}</span>
-                      <span v-if="skill.id === 'agenthub-sync'" class="text-[9px] px-1 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8 font-mono">
-                        内置
-                      </span>
                     </div>
                     <p class="text-[11px] text-slate-500 dark:text-white/50 line-clamp-1 mt-0.5" :title="skill.description">
                       {{ skill.description }}
@@ -197,8 +194,8 @@
               <td class="py-2.5 px-2 text-center" @click.stop>
                 <div class="inline-flex flex-col items-center">
                   <span class="font-mono text-[11px] text-slate-800 dark:text-white/90 font-medium">v{{ skill.version }}</span>
-                  <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 mt-0.5 font-mono">
-                    {{ skill.source }}
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-md border mt-0.5 font-mono" :class="SOURCE_BADGE[sourceMeta(skill).tone]">
+                    {{ sourceMeta(skill).label }}
                   </span>
                 </div>
               </td>
@@ -234,8 +231,11 @@
                     <span>停用</span>
                   </button>
                 </div>
-                <div class="mt-1 text-[10px] font-mono text-slate-400 dark:text-white/40">
+                <div class="mt-1 text-[10px] font-mono" :class="mountCountClass(skill)">
                   已分发 {{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }} 个 Agent
+                </div>
+                <div class="mt-1.5 flex justify-center">
+                  <AgentPillPicker :skill="skill" />
                 </div>
               </td>
 
@@ -284,12 +284,12 @@
           <div>
             <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
+                <div class="w-8 h-8 rounded-lg border flex items-center justify-center" :class="SOURCE_TILE[sourceMeta(skill).tone]">
                   <FileCode class="w-4 h-4" />
                 </div>
                 <div>
                   <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">{{ skill.name }}</h4>
-                  <span class="text-[10px] text-slate-400 dark:text-white/50 font-mono">v{{ skill.version }} · {{ skill.source }}</span>
+                  <span class="text-[10px] text-slate-400 dark:text-white/50 font-mono">v{{ skill.version }} · <span :class="SOURCE_TEXT[sourceMeta(skill).tone]">{{ sourceMeta(skill).label }}</span></span>
                 </div>
               </div>
 
@@ -330,10 +330,12 @@
             </p>
           </div>
 
-          <!-- Compact mount count footer (分 Agent 管理已合入大厅) -->
-          <div class="pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between text-[10px]" @click.stop>
-            <span class="text-slate-400 dark:text-white/40">已分发 Agent</span>
-            <span class="font-mono text-slate-700 dark:text-white/80 font-medium">{{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }} 个</span>
+          <!-- 分 Agent 管理入口（重新开放 Agent 多选分发器） -->
+          <div class="pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between gap-2" @click.stop>
+            <span class="text-[10px] text-slate-400 dark:text-white/40 shrink-0">
+              已分发 <span class="font-mono font-medium" :class="mountCountClass(skill)">{{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }}</span> 个 Agent
+            </span>
+            <AgentPillPicker :skill="skill" />
           </div>
         </div>
 
@@ -391,6 +393,7 @@ import { ref, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import { SkillItem } from '../types';
 import SkillDrawer from './SkillDrawer.vue';
+import AgentPillPicker from './AgentPillPicker.vue';
 import {
   Layers,
   Plus,
@@ -406,6 +409,49 @@ import {
 } from 'lucide-vue-next';
 
 const store = useAppStore();
+
+// 来源语义色：内置=蓝 / 中央自建=绿 / NPX 捕获=琥珀 / 存量纳管=紫 / 其他=灰
+const SOURCE_TILE: Record<string, string> = {
+  blue: 'bg-[#0a84ff]/10 border-[#0a84ff]/20 text-[#0a84ff]',
+  green: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
+  amber: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
+  purple: 'bg-[#bf5af2]/10 border-[#bf5af2]/20 text-[#bf5af2]',
+  gray: 'bg-black/5 dark:bg-[#1c1c1e] border-black/10 dark:border-white/10 text-slate-700 dark:text-white/80',
+};
+const SOURCE_BADGE: Record<string, string> = {
+  blue: 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30',
+  green: 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30',
+  amber: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30',
+  purple: 'bg-[#bf5af2]/10 text-[#bf5af2] border-[#bf5af2]/30',
+  gray: 'bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border-black/8 dark:border-white/8',
+};
+const SOURCE_TEXT: Record<string, string> = {
+  blue: 'text-[#0a84ff]',
+  green: 'text-[#30d158]',
+  amber: 'text-[#ff9f0a]',
+  purple: 'text-[#bf5af2]',
+  gray: 'text-slate-400 dark:text-white/50',
+};
+
+function sourceMeta(skill: SkillItem): { tone: string; label: string } {
+  if (skill.id === 'agenthub-sync') return { tone: 'blue', label: '内置' };
+  switch (skill.source) {
+    case 'central': return { tone: 'green', label: '中央自建' };
+    case 'npx': return { tone: 'amber', label: 'NPX 捕获' };
+    case 'imported': return { tone: 'purple', label: '存量纳管' };
+    default: return { tone: 'gray', label: skill.source || '手动' };
+  }
+}
+
+// 分发状态着色：全部分发=绿 / 部分分发=琥珀 / 未分发=灰
+function mountCountClass(skill: SkillItem): string {
+  const count = skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length;
+  const active = store.agents.filter(a => a.detected && a.enabled).length;
+  if (active > 0 && count === active) return 'text-[#30d158]';
+  if (count > 0) return 'text-[#ff9f0a]';
+  return 'text-slate-400 dark:text-white/40';
+}
+
 const viewMode = ref<'table' | 'card'>(
   (typeof localStorage !== 'undefined' && (localStorage.getItem('skills_view_mode') as 'table' | 'card')) || 'card'
 );

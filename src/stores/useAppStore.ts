@@ -14,6 +14,7 @@ import {
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncDiffEntry,
   SyncRepoConfig,
   SyncRepoValidation,
   ToastMessage,
@@ -99,6 +100,7 @@ export const useAppStore = defineStore('app', {
       lastError: undefined,
     } as SkillsSyncStatus,
     skillsSyncLoading: false,
+    skillsSyncDiff: [] as SyncDiffEntry[],
 
     // 全局同步仓库配置（技能与 DSH 插件共用）
     syncRepo: null as SyncRepoConfig | null,
@@ -123,6 +125,7 @@ export const useAppStore = defineStore('app', {
       lastError: undefined,
     } as SkillsSyncStatus,
     dshPluginsSyncLoading: false,
+    dshPluginsSyncDiff: [] as SyncDiffEntry[],
     dshPluginDiff: null as DshPluginDiff | null,
     dshPluginsScanLoading: false,
     dshPluginDiffModal: {
@@ -395,6 +398,10 @@ export const useAppStore = defineStore('app', {
       this.skillsSyncStatus = await api.getSkillsSyncStatus();
     },
 
+    async loadSkillsSyncDiff() {
+      this.skillsSyncDiff = await api.getSkillsSyncDiff();
+    },
+
     async loadSyncRepo() {
       this.syncRepo = await api.getSyncRepoConfig();
       return this.syncRepo;
@@ -492,6 +499,7 @@ export const useAppStore = defineStore('app', {
       try {
         this.skillsSyncStatus = await api.pullSkillsSync();
         await this.loadSkills();
+        this.loadSkillsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
             title: '拉取完成',
@@ -519,6 +527,7 @@ export const useAppStore = defineStore('app', {
       try {
         this.skillsSyncStatus = await api.pushSkillsSync(message);
         await this.loadSkills();
+        this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
           title: '推送完成',
           message: '中央技能库已提交并推送到远端',
@@ -578,6 +587,7 @@ export const useAppStore = defineStore('app', {
       try {
         this.skillsSyncStatus = await api.resetSkillsSyncToRemote();
         await this.loadSkills();
+        this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
           title: '已重置为远端',
           message: '本地中央技能库已与远端完全一致',
@@ -806,6 +816,10 @@ export const useAppStore = defineStore('app', {
       this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus();
     },
 
+    async loadDshPluginsSyncDiff() {
+      this.dshPluginsSyncDiff = await api.getDshPluginsSyncDiff();
+    },
+
     async initDshPluginsSync(remoteUrl: string, branch?: string) {
       this.dshPluginsSyncLoading = true;
       try {
@@ -825,6 +839,7 @@ export const useAppStore = defineStore('app', {
       this.dshPluginsSyncLoading = true;
       try {
         this.dshPluginsSyncStatus = await api.pullDshPluginsSync();
+        this.loadDshPluginsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
             title: '拉取完成',
@@ -852,6 +867,7 @@ export const useAppStore = defineStore('app', {
       try {
         this.dshPluginsSyncStatus = await api.pushDshPluginsSync(message);
         await this.reconcileDshPlugins();
+        this.loadDshPluginsSyncDiff().catch(() => {});
         this.showToast({
           title: '推送完成',
           message: 'DSH 插件配置已镜像并推送到远端',
