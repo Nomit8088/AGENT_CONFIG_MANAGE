@@ -1592,8 +1592,29 @@ export async function removeDshPlugin(profile: string, key: string): Promise<voi
   throw new Error(`无法识别的插件 key: ${key}`);
 }
 
-/** 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies(link:) + bundles。
- *  仅接受链接目标位于 node_modules 之外的本地安装，避免把 pnpm 实体目录误纳管。 */
+/** 孤儿纳入配置时优先探测可移植 git spec：
+ *  源目录是 git 仓库且 origin 为 http(s) 时返回 git+http(s)://...；ssh / git@ 等不可移植远端返回 undefined。 */
+function portableGitSpec(target: string): string | undefined {
+  try {
+    const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: target,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10000,
+    });
+    const remote = out.split(/\r?\n/).map(s => s.trim()).find(Boolean);
+    if (!remote) return undefined;
+    if (remote.startsWith('git+https://') || remote.startsWith('git+http://')) return remote;
+    if (remote.startsWith('https://') || remote.startsWith('http://')) return `git+${remote}`;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies + bundles。
+ *  优先使用可移植的 git+http(s) spec（源目录为 git 仓库且 origin 为 http(s) 时），
+ *  否则回退为 link: 本地路径；仅接受链接目标位于 node_modules 之外的本地安装，避免把 pnpm 实体目录误纳管。 */
 export function adoptDshOrphan(profile: string, pkgName: string): void {
   const profileDir = ensureProfileDir(profile);
   const name = pkgName.trim();
@@ -1635,7 +1656,7 @@ export function adoptDshOrphan(profile: string, pkgName: string): void {
     throw new Error(`链接目标包名不匹配：期望 ${name}，实际 ${targetPkg?.name || '?'}`);
   }
 
-  const spec = `link:${targetReal.replace(/\\/g, '/')}`;
+  const spec = portableGitSpec(targetReal) || `link:${targetReal.replace(/\\/g, '/')}`;
   const pkg = readPkg(profileDir);
   if (!pkg) throw new Error('profile package.json 不存在');
 

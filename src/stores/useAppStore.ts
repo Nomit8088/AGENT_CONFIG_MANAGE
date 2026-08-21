@@ -605,7 +605,7 @@ export const useAppStore = defineStore('app', {
       await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: '已纳入配置',
-        message: `${pkgName} 已写入 profile [${profile}] 的 dependencies(link:) + bundles`,
+        message: `${pkgName} 已写入 profile [${profile}] 的 dependencies + bundles`,
         type: 'success',
       });
     },

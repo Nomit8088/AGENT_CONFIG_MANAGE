@@ -742,11 +742,12 @@ npm run tauri build
 
 - **2026-08-20 (Session 27)**:
   - **DSH 插件面板新增孤儿「纳入配置」**:
-    - 新增 `adopt_dsh_orphan`（Rust）/ `adoptDshOrphan`（Node）命令：把本机 link/junction 安装的孤儿包写回 profile `package.json`——`dependencies` 加 `link:<canonicalize/realpath 目标>`，`dsh.profile.bundles` 加包名。
+    - 新增 `adopt_dsh_orphan`（Rust）/ `adoptDshOrphan`（Node）命令：把本机 link/junction 安装的孤儿包写回 profile `package.json`——`dependencies` 写入 spec，`dsh.profile.bundles` 加包名。
+    - **可移植优先**：孤儿源目录为 git 仓库且 `origin` 为 http(s) 时，自动写入 `git+http(s)://...`（pnpm 会归一化为 `github:owner/repo`）；否则回退为 `link:<canonicalize/realpath 目标>`。
     - 安全边界：仅接受链接目标位于 `node_modules` 之外的本地安装（canonicalize/realpath 后比较），并校验目标 `package.json` 的 `name` 与包名一致；pnpm 实体目录 / 传递依赖不会误纳管。
     - Windows 兼容：Rust `local_link_spec` 去掉 `canonicalize` 产生的 `\\?\` 前缀并转正斜杠，`UNC` 前缀还原为 `//server/share`。
     - Web 路由新增 `POST /api/dsh/plugins/adopt-orphan`；`api.ts` / `useAppStore` / `DshPluginList.vue` 接入；孤儿行新增「纳入配置」按钮（蓝色语义，与红色移除并列）。
-    - 本机实操：`@dsh-external/dsh-better-input-box` 已通过 `dev_install_package` 写入 web profile（`link:D:\\dev\\toolPrograms\\dsh_plugin\\better_input_box` + bundles），不再是孤儿。
+    - 本机实操：`@dsh-external/dsh-better-input-box` 已改为可移植纳管（`github:Nomit8088/dsh-better-input-box` + bundles）；插件仓库补齐 `lib/` 构建产物并推送（commit `78dca5f`），`pnpm-lock.yaml` 已锁定该 commit，`node_modules` 由 pnpm 管理（含 `lib/index.js`）。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---

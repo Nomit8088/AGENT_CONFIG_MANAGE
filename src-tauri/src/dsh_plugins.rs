@@ -1474,8 +1474,33 @@ fn local_link_spec(target: &Path) -> String {
     format!("link:{}", stripped)
 }
 
-/// 写入 dependencies(link:) 并加入 bundles，返回 (依赖是否变更, bundles 是否变更)。
-fn add_link_dependency_and_bundle(
+/// 孤儿纳入配置时优先探测可移植 git spec：
+/// 源目录是 git 仓库且 origin 为 http(s) 时返回 git+http(s)://...；ssh / git@ 等不可移植远端返回 None。
+fn portable_git_spec(target: &Path) -> Option<String> {
+    let args = vec![
+        "remote".to_string(),
+        "get-url".to_string(),
+        "origin".to_string(),
+    ];
+    let run = run_with_timeout("git", &args, Some(target), 10000);
+    if run.exit_code != Some(0) {
+        return None;
+    }
+    let remote = run.output.lines().next()?.trim();
+    if remote.is_empty() {
+        return None;
+    }
+    if remote.starts_with("git+https://") || remote.starts_with("git+http://") {
+        Some(remote.to_string())
+    } else if remote.starts_with("https://") || remote.starts_with("http://") {
+        Some(format!("git+{}", remote))
+    } else {
+        None
+    }
+}
+
+/// 写入 dependencies(spec) 并加入 bundles，返回 (依赖是否变更, bundles 是否变更)。
+fn add_dependency_and_bundle(
     profile_dir: &Path,
     pkg_name: &str,
     spec: &str,
@@ -1932,8 +1957,10 @@ pub fn adopt_dsh_orphan(profile: String, pkg_name: String) -> Result<(), String>
         ));
     }
 
-    let spec = local_link_spec(&target_real);
-    add_link_dependency_and_bundle(&profile_dir, pkg_name, &spec)?;
+    // 优先写入可移植的 git+http(s) spec（源目录为 git 仓库且 origin 为 http(s) 时），
+    // 否则回退为 link: 本地路径。
+    let spec = portable_git_spec(&target_real).unwrap_or_else(|| local_link_spec(&target_real));
+    add_dependency_and_bundle(&profile_dir, pkg_name, &spec)?;
     Ok(())
 }
 

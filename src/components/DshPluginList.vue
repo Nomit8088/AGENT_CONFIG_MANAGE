@@ -672,7 +672,7 @@ async function toggle(entry: DshPluginInstallEntry, enabled: boolean) {
 
 async function adopt(entry: DshPluginInstallEntry) {
   const ok = window.confirm(
-    `确认将孤儿包「${entry.name}」纳入 profile [${entry.profileName}] 配置？\n\n将写入 dependencies（link: 指向本机源码目录）并加入 dsh.profile.bundles，仅支持本地 link/junction 安装。`
+    `确认将孤儿包「${entry.name}」纳入 profile [${entry.profileName}] 配置？\n\n将优先写入可移植的 git+http(s) spec（若源目录有 http(s) 远端），否则写入 link: 本地路径；并加入 dsh.profile.bundles。`
   );
   if (!ok) return;
   try {
