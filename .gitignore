@@ -31,3 +31,6 @@ src-tauri/gen/
 
 # OS metadata
 Thumbs.db
+
+# DSH vision toolkit artifacts
+.dsh-vision-toolkit/

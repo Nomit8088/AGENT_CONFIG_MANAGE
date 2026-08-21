@@ -104,6 +104,7 @@ export const useAppStore = defineStore('app', {
     syncRepo: null as SyncRepoConfig | null,
     syncRepoValidating: false,
     syncRepoValidation: null as SyncRepoValidation | null,
+    syncRepoValidatedKey: '',
 
     // DSH 插件中心
     dshPluginsScan: null as DshPluginScanResult | null,
@@ -317,6 +318,8 @@ export const useAppStore = defineStore('app', {
         ...this.config,
         ...newConfig,
         ignored_skills: newConfig.ignored_skills ?? this.config.ignored_skills ?? [],
+        // 全局同步仓库由 saveSyncRepo 专用入口维护，偏好设置保存时不得将其从 config.json 中抹掉。
+        sync_repo: this.syncRepo ?? this.config.sync_repo ?? newConfig.sync_repo,
       };
       this.applyTheme(this.config.theme);
       await api.updateConfig(this.config);
@@ -397,10 +400,13 @@ export const useAppStore = defineStore('app', {
     },
 
     async validateSyncRepo(remoteUrl: string, branch?: string) {
+      const key = `${remoteUrl.trim()}||${branch?.trim() || 'main'}`;
       this.syncRepoValidating = true;
       this.syncRepoValidation = null;
+      this.syncRepoValidatedKey = '';
       try {
         this.syncRepoValidation = await api.validateSyncRepo(remoteUrl, branch);
+        this.syncRepoValidatedKey = key;
         return this.syncRepoValidation;
       } finally {
         this.syncRepoValidating = false;
@@ -412,6 +418,10 @@ export const useAppStore = defineStore('app', {
       try {
         this.syncRepo = await api.saveSyncRepo(remoteUrl, branch);
         this.syncRepoValidation = null;
+        this.syncRepoValidatedKey = '';
+        if (this.syncRepo) {
+          this.config.sync_repo = this.syncRepo;
+        }
         await Promise.all([
           this.loadSkillsSyncStatus().catch(() => {}),
           this.loadDshPluginsSyncStatus().catch(() => {}),
