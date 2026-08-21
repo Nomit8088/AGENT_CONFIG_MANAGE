@@ -257,7 +257,7 @@ flowchart TD
 │       ├── AgentCard.vue               # Agent 大厅状态卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分组 + 关键词检索)
 │       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (中央技能库全维度搜索、来源/挂载过滤与排序)
-│       ├── SyncView.vue                # 面板: 同步中心 (中央技能库 Git 多端同步)
+│       ├── SyncView.vue                # 面板: 同步中心 (技能 + DSH 插件，同仓库按功能分开同步/拉取/推送)
 │       ├── UnmanagedGroupSection.vue   # 存量检测按 Agent 归类卡片区 (支持状态筛选、排序与一键纳管全部)
 │       ├── AgentDetailModal.vue        # 存量管理弹窗 (待纳管/已忽略 Tabs + 弹窗内技能搜索)
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
@@ -716,6 +716,28 @@ npm run tauri build
     - 根因：pnpm 11 对 `cpu-features` / `node-pty` / `ssh2` 等原生依赖默认拦截构建脚本，报 `ERR_PNPM_IGNORED_BUILDS` 并以非 0 退出；但包实际已安装（176 packages added）。旧流水线把全部声明包标为 `non-zero-exit` 失败。
     - 修复：Node `installDshPluginsV2` / Rust `install_inner` 改为以 L3 入口校验为最终判定——L3 通过即计入 `installed` 并清除旧失败状态；pnpm 非 0 退出仅作为 `warnings` 保留；新增 `parseIgnoredBuilds`（Node/Rust）解析 `Ignored build scripts:` 并提示在 `pnpm-workspace.yaml` 的 `allowBuilds` 中放行。
     - 本机 `~/.dsh/profiles/web/pnpm-workspace.yaml` 已把 `cpu-features` / `node-pty` / `ssh2` 加入 `allowBuilds`，`pnpm install` 重新执行成功；`dsh_install_state.json` 已清空，12 个对账条目全部 `ok`。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 25)**:
+  - **同步中心整合 DSH 插件同步，同仓库按功能分开同步/拉取/推送**:
+    - `SyncView.vue` 新增分段 Tab（技能同步 / DSH 插件同步），内嵌 `DshPluginSync.vue` 与 `DshPluginDiffModal.vue`；`PluginsView.vue` 移除「同步与对账」Tab，DSH 插件同步统一收口到同步中心。
+    - 按功能隔离提交：技能推送只 `git add -A -- skills .gitignore`，DSH 插件推送只 `git add -A -- dsh .gitignore`（Rust/Node 双端），不再出现 `git add -A` 把对方改动卷进同一 commit。
+    - 按功能隔离未提交修改统计：`get_skills_sync_status` 只统计 `skills/.gitignore`，`get_dsh_plugins_sync_status` 只统计 `dsh/.gitignore`；拉取前脏检查同样按范围隔离，技能拉取不再被 DSH 插件未提交改动阻塞（反之亦然）。
+    - 技能分叉恢复从 `git reset --hard` 改为 `git reset --mixed + git checkout -- skills .gitignore`，以远端为准时不再覆盖同一仓库内 `dsh/` 等其他功能的本地改动。
+    - 共享 `.gitignore` 统一：skills sync 的 `GITIGNORE_CONTENT` 补齐 `dsh_install_state.json`，且两端 `ensure_gitignore` 均幂等补齐缺失条目。
+    - `DshPluginSync.vue` 未配置远端时回退到技能同步的 remote/branch，避免同仓库维护出两套 origin。
+    - `useAppStore.init()` 补齐 DSH 插件启动自动拉取（`dsh_plugins.sync.autoPullOnStartup`）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 26)**:
+  - **同步仓库配置上收为全局配置 + 校验门禁**:
+    - `config.json` 新增顶层 `sync_repo`（`remoteUrl` / `branch` / `validatedAt` / `lastError`），技能同步与 DSH 插件同步不再各自维护 remote/branch；旧 `skills_sync` / `dsh_plugins.sync` 中的 remote/branch 字段保留但仅作回退。
+    - 新增 `src-tauri/src/sync_repo.rs`（Rust）与 `src/server/syncRepo.ts`（Node），提供 `get_sync_repo_config` / `validate_sync_repo` / `save_sync_repo`；Web 路由新增 `GET /api/sync/repo`、`POST /api/sync/repo/validate`、`POST /api/sync/repo`。
+    - 校验门禁：`validate_sync_repo` 执行 `git ls-remote --symref` 探测默认分支 → `git ls-remote refs/heads/<branch>` 校验连通性与仓库非空 → 浅克隆到临时目录校验根目录必须包含 `skills/` 与 `dsh/` 目录；连通性失败 / 分支不存在（未初始化）/ 格式不符均返回明确错误，只有校验通过才能保存并启用同步。
+    - `save_sync_repo` 校验通过后初始化/校正本地共享仓库（`%APPDATA%\AgentHub\.git` + origin + fetch 基线），并同步旧配置块中的 remote/branch。
+    - `Navigation.vue`：未配置全局仓库时「同步中心」Tab 置灰禁用，title 提示去全局设置配置；`SyncView.vue` 增加未配置守卫页（打开全局设置）。
+    - `SettingsModal.vue` 新增「同步仓库配置（全局）」区：仓库 URL + 分支 + 「连通性校验 / 初始化校验」按钮 + 「保存仓库配置」按钮；校验未通过或校验后修改过 URL/分支时保存按钮禁用。
+    - `SyncView.vue` / `DshPluginSync.vue` 移除各自的初始化表单，未初始化本地仓库时提示到全局设置重新保存。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---

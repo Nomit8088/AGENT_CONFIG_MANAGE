@@ -123,7 +123,9 @@ flowchart TD
 - **Private Ignore List**: Mark specific skills as ignored (`ignored_skills`) to suppress prompts.
 
 ### 5. Sync Center & Proxy Auto-Detection
+- **Global Repo Config + Validation Gate**: Remote URL and branch are maintained in Global Settings → Sync Repo; saving requires connectivity / initialization / format validation (root must contain `skills/` and `dsh/`), and the Sync Center cannot be opened without a configured repo;
 - **Central Git Sync**: Uses `%APPDATA%\AgentHub` as Git root to synchronize `skills/` and `dsh/` configurations with remote repositories (GitHub/Gitee/GitLab);
+- **Separate Skills / DSH Plugin Management**: The Sync Center is split into per-function sections, each with its own pull, push, and auto-pull toggle; pushes are path-scoped (skills commits only `skills/`, DSH plugins commit only `dsh/`) so neither function sweeps in the other's changes;
 - **WinINET Proxy Detection**: Automatically detects proxy settings (`127.0.0.1:7897`) and injects `-c http.proxy / -c https.proxy` into Git operations;
 - **Safe Pulling**: Fast-forward only pulls with connection pre-checks to protect local work.
 
@@ -271,7 +273,7 @@ npm run tauri build
 │       ├── AgentCard.vue             # Agent status card (Active / Inactive)
 │       ├── AgentsView.vue            # Agent Hub view
 │       ├── SkillsMatrix.vue          # Skills Matrix (Search / Filter / Card / Table)
-│       ├── SyncView.vue              # Sync Center (Git multi-end sync & proxy indicator)
+│       ├── SyncView.vue              # Sync Center (skills + DSH plugins, shared repo with per-function sync/pull/push)
 │       ├── UnmanagedGroupSection.vue # Unmanaged skills card section
 │       ├── AgentDetailModal.vue      # Unmanaged & ignored skills modal
 │       ├── AgentPillPicker.vue       # Teleported smart multi-agent picker
@@ -283,7 +285,7 @@ npm run tauri build
 │       ├── PluginsView.vue           # DSH Plugin Center container
 │       ├── DshPluginList.vue         # DSH local plugin scanner panel
 │       ├── DshDiagnose.vue           # DSH crash diagnosis & recovery panel
-│       ├── DshPluginSync.vue         # DSH plugin sync & reconciliation panel
+│       ├── DshPluginSync.vue         # DSH plugin sync & reconciliation panel (embedded in Sync Center)
 │       ├── DshPluginDiffModal.vue    # DSH plugin diff inspection modal
 │       ├── SettingsModal.vue         # Preferences modal
 │       └── ToastContainer.vue        # Floating toast notification container

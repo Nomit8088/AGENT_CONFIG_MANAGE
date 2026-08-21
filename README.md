@@ -130,7 +130,9 @@ flowchart TD
 - **私有忽略名单**：支持将特定私有技能标记为忽略（`ignored_skills`），杜绝提示噪音。
 
 ### 5. 同步中心 (Sync Center & 网络代理自愈)
-- **中央技能库 Git 同步**：以 `%APPDATA%\AgentHub` 为 Git 根，仅同步 `skills/` 与 `dsh/` 配置镜像，支持 GitHub / Gitee / GitLab 等远程仓库；
+- **全局仓库配置 + 校验门禁**：仓库地址与分支统一在「全局设置 → 同步仓库配置」维护；保存前必须通过连通性 / 初始化 / 格式校验（根目录包含 `skills/` 与 `dsh/`），未配置仓库时同步中心不可打开；
+- **中央技能库 Git 同步**：以 `%APPDATA%\AgentHub` 为 Git 根，同步 `skills/` 与 `dsh/` 配置镜像，支持 GitHub / Gitee / GitLab 等远程仓库；
+- **技能 / DSH 插件分开管理**：同步中心内按功能分段，各自拉取、推送、启动自动拉取；共用同一仓库但提交按路径隔离（技能只提交 `skills/`，插件只提交 `dsh/`），互不卷入对方改动；
 - **Windows 系统代理自愈**：自动探测 WinINET 注册表代理（如 `127.0.0.1:7897`），向 Git 命令自动注入 `-c http.proxy / -c https.proxy`，攻克 GitHub 直连 reset 痛点；
 - **安全快照与 Fast-forward**：内置 `ls-remote` 连通性测试与纯快进（fast-forward）安全拉取，冲突全流程预警。
 
@@ -278,7 +280,7 @@ npm run tauri build
 │       ├── AgentCard.vue             # Agent 状态卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue            # Agent Hub 视图 (分组展示与关键词检索)
 │       ├── SkillsMatrix.vue          # Skills Matrix (全维度检索/来源筛选/卡片画廊/表格视图)
-│       ├── SyncView.vue              # 同步中心 (Git 多端同步、系统代理探测、分支指示)
+│       ├── SyncView.vue              # 同步中心 (技能 + DSH 插件，同仓库按功能分开同步/拉取/推送)
 │       ├── UnmanagedGroupSection.vue # 存量技能归类卡片区 (支持批量纳管与私有忽略)
 │       ├── AgentDetailModal.vue      # 存量管理弹窗 (待纳管 / 已忽略双 Tab)
 │       ├── AgentPillPicker.vue       # Teleported 智能翻转多选分发器
@@ -290,7 +292,7 @@ npm run tauri build
 │       ├── PluginsView.vue           # DSH 插件中心容器 (插件面板 / 诊断修复 / 同步对账)
 │       ├── DshPluginList.vue         # DSH 本地插件可视化扫描面板
 │       ├── DshDiagnose.vue           # DSH 启动失败诊断修复面板 (崩溃堆栈一键自愈)
-│       ├── DshPluginSync.vue         # DSH 插件配置同步与对账面板
+│       ├── DshPluginSync.vue         # DSH 插件配置同步与对账面板（同步中心内嵌）
 │       ├── DshPluginDiffModal.vue    # DSH 插件对账差异详情弹窗
 │       ├── SettingsModal.vue         # 全局偏好设置 (深色/浅色/跟随系统三态切换)
 │       └── ToastContainer.vue        # 全局浮动操作通知
