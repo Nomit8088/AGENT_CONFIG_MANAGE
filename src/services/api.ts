@@ -2,12 +2,18 @@ import {
   AgentInfo,
   AppConfig,
   DshDiagnoseResult,
+  DshInstallMode,
+  DshInstallReport,
   DshPluginDiff,
+  DshPluginInstallEntry,
   DshPluginScanResult,
+  DshPluginUpdateCheck,
   DshRecoveryAction,
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncRepoConfig,
+  SyncRepoValidation,
   UnmanagedSkill,
   ValidationResult,
 } from '../types';
@@ -62,6 +68,34 @@ export const api = {
       return invokeTauri('update_config', { config });
     }
     return requestApi<void>('/api/config', 'POST', config);
+  },
+
+  async getSyncRepoConfig(): Promise<SyncRepoConfig> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoConfig>('get_sync_repo_config');
+    }
+    return requestApi<SyncRepoConfig>('/api/sync/repo');
+  },
+
+  async validateSyncRepo(remoteUrl: string, branch?: string): Promise<SyncRepoValidation> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoValidation>('validate_sync_repo', { remoteUrl, branch });
+    }
+    return requestApi<SyncRepoValidation>('/api/sync/repo/validate', 'POST', { remoteUrl, branch });
+  },
+
+  async saveSyncRepo(remoteUrl: string, branch?: string): Promise<SyncRepoConfig> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoConfig>('save_sync_repo', { remoteUrl, branch });
+    }
+    return requestApi<SyncRepoConfig>('/api/sync/repo', 'POST', { remoteUrl, branch });
+  },
+
+  async unbindSyncRepo(): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('unbind_sync_repo');
+    }
+    return requestApi<void>('/api/sync/repo/unbind', 'POST');
   },
 
   async getAgents(): Promise<AgentInfo[]> {
@@ -294,6 +328,13 @@ export const api = {
     return requestApi<void>('/api/dsh/plugins/remove', 'POST', { profile, key });
   },
 
+  async adoptDshOrphan(profile: string, pkgName: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('adopt_dsh_orphan', { profile, pkgName });
+    }
+    return requestApi<void>('/api/dsh/plugins/adopt-orphan', 'POST', { profile, pkgName });
+  },
+
   async applyDshRecovery(action: DshRecoveryAction): Promise<void> {
     if (isTauri()) {
       return invokeTauri('apply_dsh_recovery', { action });
@@ -301,12 +342,77 @@ export const api = {
     return requestApi<void>('/api/dsh/plugins/recover', 'POST', { action });
   },
 
-  async installDshPlugins(profile: string): Promise<string> {
+  async installDshPlugins(profile: string, mode: DshInstallMode = 'incremental'): Promise<DshInstallReport> {
     if (isTauri()) {
-      return invokeTauri<string>('install_dsh_plugins', { profile });
+      return invokeTauri<DshInstallReport>('install_dsh_plugins_v2', { profile, mode });
     }
-    const res = await requestApi<{ success: boolean; output?: string }>('/api/dsh/plugins/install', 'POST', { profile });
-    return res.output || '';
+    return requestApi<DshInstallReport>('/api/dsh/plugins/install', 'POST', { profile, mode });
+  },
+
+  async installDshPluginsStreamed(
+    profile: string,
+    mode: DshInstallMode,
+    onLine: (line: string) => void,
+  ): Promise<DshInstallReport> {
+    if (isTauri()) {
+      const { Channel } = await import('@tauri-apps/api/core');
+      const { invoke } = await import('@tauri-apps/api/core');
+      const onEvent = new Channel<string>();
+      onEvent.onmessage = (line: string) => {
+        onLine(line);
+      };
+      return invoke<DshInstallReport>('install_dsh_plugins_streamed', { profile, mode, onEvent });
+    }
+    return new Promise<DshInstallReport>((resolve, reject) => {
+      const params = new URLSearchParams({ profile, mode });
+      const es = new EventSource(`/api/dsh/plugins/install/stream?${params.toString()}`);
+      es.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'line' && typeof msg.line === 'string') {
+            onLine(msg.line);
+          } else if (msg.type === 'done') {
+            es.close();
+            resolve(msg.report as DshInstallReport);
+          }
+        } catch (e) {
+          es.close();
+          reject(e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error('安装终端连接中断（SSE 流不可用）'));
+      };
+    });
+  },
+
+  async scanDshInstallEntries(profile: string): Promise<DshPluginInstallEntry[]> {
+    if (isTauri()) {
+      return invokeTauri<DshPluginInstallEntry[]>('reconcile_dsh_install', { profile });
+    }
+    return requestApi<DshPluginInstallEntry[]>(`/api/dsh/plugins/install-entries?profile=${encodeURIComponent(profile)}`);
+  },
+
+  async clearDshInstallState(profile: string, pkg?: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('clear_dsh_install_state', { profile, pkg });
+    }
+    return requestApi<void>('/api/dsh/plugins/install-state/clear', 'POST', { profile, pkg });
+  },
+
+  async checkDshPluginUpdate(profile: string, key: string): Promise<DshPluginUpdateCheck> {
+    if (isTauri()) {
+      return invokeTauri<DshPluginUpdateCheck>('check_dsh_plugin_update', { profile, key });
+    }
+    return requestApi<DshPluginUpdateCheck>('/api/dsh/plugins/check-update', 'POST', { profile, key });
+  },
+
+  async updateDshPlugin(profile: string, key: string): Promise<DshInstallReport> {
+    if (isTauri()) {
+      return invokeTauri<DshInstallReport>('update_dsh_plugin', { profile, key });
+    }
+    return requestApi<DshInstallReport>('/api/dsh/plugins/update', 'POST', { profile, key });
   },
 
   async getDshPluginsSyncStatus(): Promise<SkillsSyncStatus> {

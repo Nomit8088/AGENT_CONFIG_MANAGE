@@ -3,14 +3,21 @@ import path from 'path';
 import os from 'os';
 import { spawn, spawnSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
-import { runGit } from './gitSyncUtil';
+import { gitProxyArgs, runGit } from './gitSyncUtil';
+import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import type {
   DshDiagnoseResult,
+  DshInstallFailure,
+  DshInstallMode,
+  DshInstallReport,
   DshPatchRow,
   DshPluginDiff,
   DshPluginDiffItem,
   DshPluginEntry,
+  DshPluginInstallEntry,
+  DshPluginKind,
   DshPluginScanResult,
+  DshPluginUpdateCheck,
   DshProfileScan,
   DshRecoveryAction,
   SkillsSyncStatus,
@@ -102,6 +109,902 @@ function readInstalledVersion(profileDir: string, pkgName: string): string | und
     if (typeof pkg.version === 'string') return pkg.version;
   } catch {}
   return undefined;
+}
+
+// ==================== 安装状态持久化 ====================
+
+interface DshInstallStateItem {
+  status: 'failed';
+  reason: string;
+  stack?: string;
+  lastAttemptAt: number;
+}
+
+type DshInstallState = Record<string, Record<string, DshInstallStateItem>>;
+
+function installStateFile(): string {
+  return path.join(appDataDir(), 'dsh_install_state.json');
+}
+
+function readInstallState(): DshInstallState {
+  const f = installStateFile();
+  if (fs.existsSync(f)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf-8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as DshInstallState;
+    } catch {}
+  }
+  return {};
+}
+
+function writeInstallState(state: DshInstallState): void {
+  fs.mkdirSync(appDataDir(), { recursive: true });
+  fs.writeFileSync(installStateFile(), JSON.stringify(state, null, 2) + '\n', 'utf-8');
+}
+
+export function clearDshInstallState(profile: string, pkg?: string): void {
+  const state = readInstallState();
+  if (!pkg) {
+    delete state[profile];
+  } else {
+    const profileState = state[profile];
+    if (profileState) {
+      delete profileState[pkg];
+      if (Object.keys(profileState).length === 0) delete state[profile];
+    }
+  }
+  writeInstallState(state);
+}
+
+// ==================== 对账（配置 ∪ 本机磁盘） ====================
+
+/** 语义化版本 spec 判定：`1.2.3` / `^1.0.0` / `~1.0.0` / `>=1 <2` 等参与版本对比。 */
+function isSemverSpec(spec?: string): boolean {
+  if (!spec) return false;
+  const tokens = spec.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+  const semverToken = /^(?:\^|~|>=|<=|>|<|=)?\s*v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?$/;
+  return tokens.every(t => semverToken.test(t));
+}
+
+/** 精确版本号 spec（无范围运算符，可用于 lock 缺失时的 requiredVersion）。 */
+function isExactSemverSpec(spec?: string): boolean {
+  if (!spec) return false;
+  return /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(spec.trim());
+}
+
+function readPkgFromDir(pkgDir: string): any | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
+  } catch {}
+  return null;
+}
+
+/** 只扫描 pnpm-lock.yaml 的 `packages:` 段，避免 importers 段的 URL/别名干扰。 */
+function readLockResolvedVersion(profileDir: string, pkgName: string): string | undefined {
+  const lockFile = path.join(profileDir, 'pnpm-lock.yaml');
+  const text = readTextSafe(lockFile);
+  if (!text) return undefined;
+
+  const lines = text.split(/\r?\n/);
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^packages:\s*$/.test(lines[i])) {
+      start = i + 1;
+      break;
+    }
+  }
+  if (start < 0) return undefined;
+
+  // packages: 段持续到下一个顶层（无缩进）key
+  let end = lines.length;
+  for (let i = start; i < lines.length; i += 1) {
+    if (lines[i].trim() !== '' && !/^\s/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+
+  const parseKeyName = (rawKey: string): string | undefined => {
+    const k = rawKey.trim().replace(/['"]/g, '').replace(/:$/, '').trim();
+    if (!k) return undefined;
+    if (k.startsWith('@')) {
+      const parts = k.split('/');
+      if (parts.length >= 2) return `${parts[0]}/${parts[1].split('@')[0]}`;
+      return undefined;
+    }
+    return k.split('@')[0];
+  };
+
+  for (let i = start; i < end; i += 1) {
+    const line = lines[i];
+    // 包名 key：恰好 2 空格缩进，且不是子字段
+    if (/^  [^ ].*:$/.test(line) && !/^  (version|resolution|dev|optional|dependencies|peerDependencies|engines|os|cpu|libc|hasBin|name):/.test(line.trim())) {
+      const name = parseKeyName(line);
+      if (name !== pkgName) continue;
+      // 读取后续子字段中的 version:
+      for (let j = i + 1; j < end; j += 1) {
+        const sub = lines[j];
+        if (/^  [^ ].*:$/.test(sub)) break; // 下一个包名 key
+        const vm = sub.match(/^\s{4}version:\s*['"]?([^'"]+)['"]?\s*$/);
+        if (vm) return vm[1].trim();
+      }
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/** 枚举 profile node_modules 顶层直接依赖（排除内置、.bin/.pnpm/隐藏目录）。 */
+function listInstalledTopLevelPkgs(profileDir: string): string[] {
+  const nm = path.join(profileDir, 'node_modules');
+  if (!fs.existsSync(nm)) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(nm, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const names: string[] = [];
+  for (const ent of entries) {
+    if (!ent.isDirectory() && !ent.isSymbolicLink()) continue;
+    const n = ent.name;
+    if (n === '.bin' || n === '.pnpm' || n.startsWith('.')) continue;
+    if (n.startsWith('@')) {
+      const scopeDir = path.join(nm, n);
+      let subEntries: fs.Dirent[];
+      try {
+        subEntries = fs.readdirSync(scopeDir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const sub of subEntries) {
+        if (!sub.isDirectory() && !sub.isSymbolicLink()) continue;
+        const sn = sub.name;
+        if (sn === '.bin' || sn.startsWith('.')) continue;
+        names.push(`${n}/${sn}`);
+      }
+    } else {
+      names.push(n);
+    }
+  }
+  return names;
+}
+
+/** 读取 pnpm 的 .modules.yaml 中 hoistedLocations，返回被 pnpm 主动提升到顶层 node_modules 的包名集合。
+ *  这些包是声明依赖的传递依赖（如 dsh-notification -> zod），不是孤儿，删除会破坏运行时。 */
+function readHoistedPkgNames(profileDir: string): Set<string> {
+  const hoisted = new Set<string>();
+  const modulesYaml = path.join(profileDir, 'node_modules', '.modules.yaml');
+  const text = readTextSafe(modulesYaml);
+  if (!text) return hoisted;
+  try {
+    const parsed = JSON.parse(text);
+    const locations = parsed?.hoistedLocations;
+    if (locations && typeof locations === 'object') {
+      for (const paths of Object.values(locations)) {
+        if (!Array.isArray(paths)) continue;
+        for (const p of paths) {
+          if (typeof p !== 'string') continue;
+          // 路径形如 `node_modules\zod` 或 `node_modules\@scope\pkg`
+          const normalized = p.replace(/^node_modules[\\/]/, '').replace(/\\/g, '/');
+          if (normalized) hoisted.add(normalized);
+        }
+      }
+    }
+  } catch {}
+  return hoisted;
+}
+
+function trimStack(stack: string, max = 4096): string {
+  if (stack.length <= max) return stack;
+  return stack.slice(-max);
+}
+
+/** L3：读 node_modules/<pkg>/package.json，优先 main / exports，其次 dsh.bundle.patch。 */
+function validateInstalledPkg(profileDir: string, pkgName: string): { ok: boolean; reason?: string } {
+  const parts = pkgName.split('/');
+  const pkgDir = path.join(profileDir, 'node_modules', ...parts);
+  const pkg = readPkgFromDir(pkgDir);
+  if (!pkg) {
+    return { ok: false, reason: 'node_modules 中缺少该包' };
+  }
+
+  const checkFile = (rel: string | undefined): boolean => {
+    if (!rel || typeof rel !== 'string') return false;
+    return fs.existsSync(path.resolve(pkgDir, rel));
+  };
+
+  if (typeof pkg.main === 'string' && checkFile(pkg.main)) return { ok: true };
+
+  const exportsVal = pkg.exports;
+  if (typeof exportsVal === 'string' && checkFile(exportsVal)) return { ok: true };
+  if (exportsVal && typeof exportsVal === 'object') {
+    for (const k of ['.', 'import', 'require', 'default']) {
+      const v = exportsVal[k];
+      if (typeof v === 'string' && checkFile(v)) return { ok: true };
+      if (v && typeof v === 'object') {
+        for (const kk of ['import', 'require', 'default']) {
+          if (typeof v[kk] === 'string' && checkFile(v[kk])) return { ok: true };
+        }
+      }
+    }
+  }
+
+  const dshPatch = pkg?.dsh?.bundle?.patch;
+  if (typeof dshPatch === 'string' && checkFile(dshPatch)) return { ok: true };
+
+  return { ok: false, reason: '入口文件缺失（main / exports / dsh.bundle.patch 均不存在）' };
+}
+
+export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
+  const profileName = (profile || '').trim() || 'web';
+  const profileDir = path.join(resolveDshHome(), 'profiles', profileName);
+  if (!fs.existsSync(profileDir)) return [];
+
+  const pkg = readPkg(profileDir) || {};
+  const bundles: string[] = Array.isArray(pkg?.dsh?.profile?.bundles) ? pkg.dsh.profile.bundles.filter((b: unknown): b is string => typeof b === 'string') : [];
+  const deps: Record<string, string> = {};
+  for (const [k, v] of Object.entries(pkg?.dependencies || {})) {
+    if (typeof v === 'string') deps[k] = v;
+  }
+
+  const patchFile = path.join(profileDir, 'cordis.patch.yml');
+  const patchRows = parsePatchRows(patchFile);
+  const patchDisabledIds = new Set<string>();
+  for (const row of patchRows) {
+    if (row.disabled) {
+      const id = row.id || row.name;
+      if (id) patchDisabledIds.add(id);
+    }
+  }
+
+  const state = readInstallState();
+  const profileState = state[profileName] || {};
+  const installedSet = new Set(listInstalledTopLevelPkgs(profileDir));
+
+  const entries: DshPluginInstallEntry[] = [];
+  const declaredPkgNames = new Set<string>();
+
+  const pushDeclaredPkg = (name: string, kind: DshPluginKind, spec: string | undefined, enabled: boolean, disabledBy: 'bundles' | 'patch' | undefined) => {
+    declaredPkgNames.add(name);
+    const isInbox = kind === 'inbox' || name.startsWith(BUILTIN_BUNDLE_PREFIX);
+    const installed = installedSet.has(name);
+    const installedVersion = installed ? readInstalledVersion(profileDir, name) : undefined;
+
+    let requiredVersion: string | undefined;
+    if (isSemverSpec(spec)) {
+      requiredVersion = readLockResolvedVersion(profileDir, name);
+      if (requiredVersion === undefined && isExactSemverSpec(spec)) {
+        requiredVersion = (spec as string).trim().replace(/^v/, '');
+      }
+    }
+
+    // 1) 内置 bundle 直接 ok（Harness 运行时解析，不在 profile node_modules 中）
+    if (isInbox) {
+      entries.push({
+        key: `bundle:${name}`,
+        profileName,
+        name,
+        kind: 'inbox',
+        spec,
+        declaredInConfig: true,
+        installed: false,
+        installedVersion: undefined,
+        requiredVersion: undefined,
+        status: 'ok',
+        portability: 'portable',
+        enabled,
+        disabledBy,
+      });
+      return;
+    }
+
+    // 2) 先按磁盘重算状态（陈旧 failed 自愈）
+    let diskStatus: DshPluginInstallEntry['status'];
+    if (!installed) {
+      diskStatus = 'pending';
+    } else if (requiredVersion !== undefined && installedVersion !== requiredVersion) {
+      diskStatus = 'version-mismatch';
+    } else {
+      diskStatus = 'ok';
+    }
+
+    // 3) 持久化失败仅在磁盘未自愈时展示
+    let status: DshPluginInstallEntry['status'] = diskStatus;
+    let installError: string | undefined;
+    const persisted = profileState[name];
+    if (persisted?.status === 'failed' && diskStatus !== 'ok') {
+      status = 'failed';
+      installError = [persisted.reason, persisted.stack].filter(Boolean).join('\n');
+    }
+    if (persisted?.status === 'failed' && diskStatus === 'ok') {
+      // 用户手动 pnpm install 修复后，清除陈旧 failed
+      delete profileState[name];
+    }
+
+    entries.push({
+      key: `${kind === 'plain' ? 'dep' : 'bundle'}:${name}`,
+      profileName,
+      name,
+      kind,
+      spec,
+      declaredInConfig: true,
+      installed,
+      installedVersion,
+      requiredVersion,
+      status,
+      installError,
+      portability: isPortableSpec(spec) ? 'portable' : 'unportable',
+      enabled,
+      disabledBy,
+    });
+  };
+
+  for (const b of bundles) {
+    const isInbox = b.startsWith(BUILTIN_BUNDLE_PREFIX);
+    pushDeclaredPkg(
+      b,
+      isInbox ? 'inbox' : 'bundle',
+      deps[b],
+      !patchDisabledIds.has(b),
+      patchDisabledIds.has(b) ? 'patch' : undefined,
+    );
+  }
+
+  const depNames = Object.keys(deps).sort();
+  for (const dep of depNames) {
+    if (bundles.includes(dep)) continue;
+    pushDeclaredPkg(dep, 'plain', deps[dep], false, undefined);
+  }
+
+  // patch rows：不可安装，视为 ok 配置行
+  let rowIdx = 0;
+  for (const row of patchRows) {
+    const rowName = row.id || row.name || `row-${rowIdx}`;
+    entries.push({
+      key: `row:${rowName}`,
+      profileName,
+      name: rowName,
+      kind: 'row',
+      spec: undefined,
+      declaredInConfig: true,
+      installed: false,
+      status: 'ok',
+      portability: 'portable',
+      enabled: !row.disabled,
+      disabledBy: row.disabled ? 'patch' : undefined,
+    });
+    rowIdx += 1;
+  }
+
+  // 孤儿：本机已装、配置未声明、非内置、非 pnpm 主动提升的传递依赖（hoisted）。
+  // 顶层 node_modules 中存在但不属于上述任何一类，才认为是真正多余的包，避免误删 zod 这类传递依赖。
+  const hoistedPkgNames = readHoistedPkgNames(profileDir);
+  const orphans = [...installedSet]
+    .filter(n => !declaredPkgNames.has(n) && !n.startsWith(BUILTIN_BUNDLE_PREFIX) && !hoistedPkgNames.has(n))
+    .sort();
+  for (const o of orphans) {
+    const installedVersion = readInstalledVersion(profileDir, o);
+    entries.push({
+      key: `orphan:${o}`,
+      profileName,
+      name: o,
+      kind: 'plain',
+      spec: undefined,
+      declaredInConfig: false,
+      installed: true,
+      installedVersion,
+      requiredVersion: undefined,
+      status: 'orphan',
+      portability: 'portable',
+      enabled: false,
+    });
+  }
+
+  // 若磁盘自愈清除了陈旧 failed，落盘
+  if (Object.keys(profileState).length !== Object.keys(state[profileName] || {}).length) {
+    if (Object.keys(profileState).length === 0) {
+      delete state[profileName];
+    } else {
+      state[profileName] = profileState;
+    }
+    writeInstallState(state);
+  }
+
+  return entries;
+}
+
+// ==================== 安装器 ====================
+
+const PNPM_INSTALL_ARGS: Record<DshInstallMode, string[]> = {
+  'incremental': ['install'],
+  'update': ['update'],
+  'reinstall-all': ['install', '--force'],
+  'reinstall-failed': ['install', '--force'],
+};
+
+interface RunPnpmStreamResult {
+  exitCode: number | null;
+  timedOut: boolean;
+  output: string;
+  lines: string[];
+}
+
+function runPnpmStream(
+  pnpmCmd: string,
+  args: string[],
+  cwd: string,
+  onLine: (line: string) => void,
+  timeoutMs = 600000,
+): Promise<RunPnpmStreamResult> {
+  return new Promise(resolve => {
+    let child;
+    try {
+      child = spawn(pnpmCmd, args, {
+        cwd,
+        shell: process.platform === 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env },
+      });
+    } catch (e: any) {
+      resolve({
+        exitCode: null,
+        timedOut: false,
+        output: `无法启动 pnpm: ${e?.message || String(e)}`,
+        lines: [],
+      });
+      return;
+    }
+
+    const lines: string[] = [];
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      killProcessTree(child.pid);
+      resolve({ exitCode: null, timedOut: true, output: lines.join('\n'), lines });
+    }, timeoutMs);
+
+    const consume = (stream: NodeJS.ReadableStream | null) => {
+      if (!stream) return;
+      stream.on('data', (d: Buffer) => {
+        const text = d.toString();
+        for (const line of text.split(/\r?\n/)) {
+          if (line.length === 0) continue;
+          lines.push(line);
+          onLine(line);
+        }
+      });
+    };
+    consume(child.stdout);
+    consume(child.stderr);
+
+    child.on('error', (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ exitCode: null, timedOut: false, output: `无法启动 pnpm: ${err.message}`, lines });
+    });
+
+    child.on('exit', (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ exitCode: code, timedOut: false, output: lines.join('\n'), lines });
+    });
+  });
+}
+
+// ==================== 单包更新检查 / 更新 ====================
+
+function gitUrlFromSpec(spec: string): string | null {
+  const s = spec.trim();
+  if (s.startsWith('git+https://') || s.startsWith('git+http://')) {
+    return s.slice('git+'.length);
+  }
+  if (s.startsWith('github:')) {
+    const repo = s.slice('github:'.length);
+    return `https://github.com/${repo}.git`;
+  }
+  return null;
+}
+
+function gitLsRemote(url: string): string {
+  // 先直连（gh-proxy 等代理域名直连通常可用）；失败再注入系统代理（GitHub 直连场景）
+  try {
+    return execFileSync('git', ['ls-remote', url, 'HEAD'], {
+      encoding: 'utf-8',
+      timeout: 20000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    const args = [...gitProxyArgs(), 'ls-remote', url, 'HEAD'];
+    return execFileSync('git', args, {
+      encoding: 'utf-8',
+      timeout: 20000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  }
+}
+
+function shortCommit(commit: string): string {
+  return commit.slice(0, 7);
+}
+
+/** 解析 lockfile `importers:` 段中某包的 `version:` 值（git 依赖形如 git+...#<commit>）。 */
+function readLockImporterVersion(profileDir: string, pkgName: string): string | undefined {
+  const lockFile = path.join(profileDir, 'pnpm-lock.yaml');
+  const text = readTextSafe(lockFile);
+  if (!text) return undefined;
+
+  const lines = text.split(/\r?\n/);
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^importers:\s*$/.test(lines[i])) {
+      start = i + 1;
+      break;
+    }
+  }
+  if (start < 0) return undefined;
+  for (let i = start; i < lines.length; i += 1) {
+    if (/^packages:\s*$/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+
+  // 在 importers 段内查找包名 key，然后读取紧随其后的 version:
+  const keyRe = new RegExp(`^\\s{6}['"]?${pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]?:\\s*$`);
+  for (let i = start; i < end; i += 1) {
+    if (keyRe.test(lines[i])) {
+      for (let j = i + 1; j < end; j += 1) {
+        const vm = lines[j].match(/^\s{8}version:\s*['"]?([^'"]+)['"]?\s*$/);
+        if (vm) return vm[1].trim();
+        // 遇到下一个 6 空格缩进的 key 停止
+        if (/^\s{6}\S/.test(lines[j])) break;
+      }
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function extractCommitHash(value?: string): string | undefined {
+  if (!value) return undefined;
+  const m = value.match(/#([0-9a-fA-F]{7,40})/);
+  return m ? m[1] : undefined;
+}
+
+export function checkDshPluginUpdate(profile: string, key: string): DshPluginUpdateCheck {
+  const profileName = (profile || '').trim() || 'web';
+  const profileDir = ensureProfileDir(profileName);
+  const prefix = key.startsWith('bundle:') || key.startsWith('dep:')
+    ? key.slice(0, key.indexOf(':'))
+    : null;
+  if (!prefix) {
+    return {
+      key,
+      name: key,
+      checkedAt: Date.now(),
+      updateAvailable: false,
+      hint: '仅支持 bundle / 依赖条目的更新检查',
+    };
+  }
+  const pkgName = key.slice(prefix.length + 1);
+  const pkg = readPkg(profileDir) || {};
+  const spec = pkg?.dependencies?.[pkgName];
+  if (!spec || typeof spec !== 'string') {
+    return {
+      key,
+      name: pkgName,
+      checkedAt: Date.now(),
+      updateAvailable: false,
+      hint: '配置中未找到该包的 spec',
+    };
+  }
+
+  const gitUrl = gitUrlFromSpec(spec);
+  if (!gitUrl) {
+    return {
+      key,
+      name: pkgName,
+      checkedAt: Date.now(),
+      updateAvailable: false,
+      hint: `当前 spec 类型不支持检查更新（仅 git+https / github: 可用）：${spec}`,
+    };
+  }
+
+  try {
+    const remoteHead = gitLsRemote(gitUrl).split(/\s+/)[0];
+    const current = extractCommitHash(readLockImporterVersion(profileDir, pkgName));
+    const latest = shortCommit(remoteHead);
+    const currentShort = current ? shortCommit(current) : undefined;
+    return {
+      key,
+      name: pkgName,
+      checkedAt: Date.now(),
+      updateAvailable: !current || current !== remoteHead,
+      current: currentShort,
+      latest,
+    };
+  } catch (e: any) {
+    return {
+      key,
+      name: pkgName,
+      checkedAt: Date.now(),
+      updateAvailable: false,
+      error: e?.message || '检查更新失败',
+    };
+  }
+}
+
+export async function updateDshPlugin(profile: string, key: string, onLine?: (line: string) => void): Promise<DshInstallReport> {
+  const profileName = (profile || '').trim() || 'web';
+  const profileDir = ensureProfileDir(profileName);
+  const prefix = key.startsWith('bundle:') || key.startsWith('dep:')
+    ? key.slice(0, key.indexOf(':'))
+    : null;
+  if (!prefix) {
+    throw new Error(`无法识别的插件 key: ${key}`);
+  }
+  const pkgName = key.slice(prefix.length + 1);
+
+  const cfg = readConfigFile();
+  const pnpmCmd = resolvePnpmCommand(cfg);
+  if (!pnpmCmd) {
+    throw new Error('未找到 pnpm 命令，请在「设置」中配置 pnpmCommand');
+  }
+
+  const pkgFile = path.join(profileDir, 'package.json');
+  const patchFile = path.join(profileDir, 'cordis.patch.yml');
+  const snapshots: Record<string, string | null> = {
+    'package.json': readTextSafe(pkgFile),
+    'cordis.patch.yml': readTextSafe(patchFile),
+  };
+
+  const before = readInstalledVersion(profileDir, pkgName);
+  const collect = onLine || (() => {});
+  const result = await runPnpmStream(pnpmCmd, ['update', pkgName], profileDir, collect);
+
+  const after = readInstalledVersion(profileDir, pkgName);
+  const l3 = validateInstalledPkg(profileDir, pkgName);
+  const ok = result.exitCode === 0 && !result.timedOut && l3.ok;
+
+  const state = readInstallState();
+  let profileState = { ...(state[profileName] || {}) };
+  const report: DshInstallReport = {
+    profile: profileName,
+    mode: 'update',
+    ok,
+    installed: [],
+    updated: [],
+    failed: [],
+    warnings: [],
+    output: result.output,
+  };
+
+  if (result.timedOut) {
+    report.warnings.push('pnpm update 执行超过 10 分钟，已强制终止（timeout）');
+  }
+
+  if (ok) {
+    if (before !== after) report.updated.push(pkgName);
+    report.installed.push(pkgName);
+    if (profileState[pkgName]) delete profileState[pkgName];
+  } else {
+    const reason = result.exitCode !== 0 || result.timedOut ? 'non-zero-exit' : 'missing-entry';
+    const stack = reason === 'non-zero-exit' ? result.output : (l3.reason || '入口校验失败');
+    report.failed.push({
+      name: pkgName,
+      reason,
+      stack: trimStack(stack),
+    });
+    profileState[pkgName] = {
+      status: 'failed',
+      reason,
+      stack: trimStack(stack),
+      lastAttemptAt: Date.now(),
+    };
+  }
+
+  if (Object.keys(profileState).length === 0) {
+    delete state[profileName];
+  } else {
+    state[profileName] = profileState;
+  }
+  writeInstallState(state);
+
+  // update 失败仅回滚两个配置文件
+  if (!ok) {
+    for (const [f, content] of Object.entries(snapshots)) {
+      const target = path.join(profileDir, f);
+      if (content === null) {
+        if (fs.existsSync(target)) {
+          try { fs.unlinkSync(target); } catch {}
+        }
+      } else {
+        try {
+          fs.writeFileSync(target, content, 'utf-8');
+        } catch {}
+      }
+    }
+  }
+
+  return report;
+}
+
+function declaredPkgEntries(profileDir: string): { name: string; kind: DshPluginKind; spec?: string }[] {
+  const pkg = readPkg(profileDir) || {};
+  const bundles: string[] = Array.isArray(pkg?.dsh?.profile?.bundles) ? pkg.dsh.profile.bundles.filter((b: unknown): b is string => typeof b === 'string') : [];
+  const deps: Record<string, string> = {};
+  for (const [k, v] of Object.entries(pkg?.dependencies || {})) {
+    if (typeof v === 'string') deps[k] = v;
+  }
+
+  const list: { name: string; kind: DshPluginKind; spec?: string }[] = [];
+  for (const b of bundles) {
+    if (b.startsWith(BUILTIN_BUNDLE_PREFIX)) continue; // 内置不参与安装校验
+    list.push({ name: b, kind: 'bundle', spec: deps[b] });
+  }
+  for (const dep of Object.keys(deps).sort()) {
+    if (bundles.includes(dep)) continue;
+    list.push({ name: dep, kind: 'plain', spec: deps[dep] });
+  }
+  return list;
+}
+
+/** 解析 pnpm 输出中的 `Ignored build scripts: pkg1, pkg2`（pnpm 10+ 构建脚本白名单拦截）。 */
+function parseIgnoredBuilds(output: string): string[] {
+  const m = output.match(/Ignored build scripts:\s*([^\n]+)/);
+  if (!m) return [];
+  return m[1]
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s && !s.toLowerCase().includes('run "pnpm approve-builds"'));
+}
+
+export async function installDshPluginsV2(profile: string, mode: DshInstallMode, onLine?: (line: string) => void): Promise<DshInstallReport> {
+  const profileName = (profile || '').trim() || 'web';
+  const cfg = readConfigFile();
+  const pnpmCmd = resolvePnpmCommand(cfg);
+  if (!pnpmCmd) {
+    throw new Error('未找到 pnpm 命令，请在「设置」中配置 pnpmCommand');
+  }
+  const profileDir = ensureProfileDir(profileName);
+  const safeMode: DshInstallMode = ['incremental', 'update', 'reinstall-all', 'reinstall-failed'].includes(mode) ? mode : 'incremental';
+
+  // 1. 快照备份：仅 package.json / cordis.patch.yml
+  const pkgFile = path.join(profileDir, 'package.json');
+  const patchFile = path.join(profileDir, 'cordis.patch.yml');
+  const snapshots: Record<string, string | null> = {
+    'package.json': readTextSafe(pkgFile),
+    'cordis.patch.yml': readTextSafe(patchFile),
+  };
+
+  const beforeVersions = new Map<string, string | undefined>();
+  for (const item of declaredPkgEntries(profileDir)) {
+    beforeVersions.set(item.name, readInstalledVersion(profileDir, item.name));
+  }
+
+  const collect = onLine || (() => {});
+  const result = await runPnpmStream(pnpmCmd, PNPM_INSTALL_ARGS[safeMode], profileDir, collect);
+
+  const declared = declaredPkgEntries(profileDir);
+  const installed: string[] = [];
+  const updated: string[] = [];
+  const failed: DshInstallFailure[] = [];
+  const warnings: string[] = [];
+
+  if (result.timedOut) {
+    warnings.push(`pnpm 执行超过 10 分钟，已强制终止（timeout）`);
+  }
+
+  const state = readInstallState();
+  let profileState = { ...(state[profileName] || {}) };
+
+  const persistFailure = (name: string, reason: DshInstallFailure['reason'], stack: string) => {
+    profileState[name] = {
+      status: 'failed',
+      reason,
+      stack: trimStack(stack),
+      lastAttemptAt: Date.now(),
+    };
+  };
+
+  const ignoredBuilds = parseIgnoredBuilds(result.output);
+  if (ignoredBuilds.length > 0) {
+    warnings.push(`pnpm 忽略了以下依赖的构建脚本：${ignoredBuilds.join(', ')}；如为原生模块，请在 pnpm-workspace.yaml 的 allowBuilds 中放行后重试`);
+  }
+
+  for (const item of declared) {
+    const before = beforeVersions.get(item.name);
+    const after = readInstalledVersion(profileDir, item.name);
+
+    const l3 = validateInstalledPkg(profileDir, item.name);
+    const versionChanged = before !== undefined && after !== undefined && before !== after;
+
+    // L3 是最终判定：磁盘上入口文件存在即视为该包安装成功。
+    // pnpm 可能因「忽略构建脚本」等非致命原因返回非 0 退出码，但包实际已安装，
+    // 此时不应把全部声明包都标记为失败。
+    if (l3.ok) {
+      installed.push(item.name);
+      if (versionChanged) updated.push(item.name);
+      if (profileState[item.name]) delete profileState[item.name];
+      continue;
+    }
+
+    if (result.timedOut || result.exitCode !== 0) {
+      failed.push({
+        name: item.name,
+        reason: 'non-zero-exit',
+        stack: trimStack(result.output || `pnpm exit ${result.exitCode ?? 'timeout'}`),
+      });
+      persistFailure(item.name, 'non-zero-exit', result.output || `pnpm exit ${result.exitCode ?? 'timeout'}`);
+    } else {
+      failed.push({
+        name: item.name,
+        reason: 'missing-entry',
+        stack: trimStack(l3.reason || '入口校验失败'),
+      });
+      persistFailure(item.name, 'missing-entry', l3.reason || '入口校验失败');
+    }
+  }
+
+  if (result.exitCode !== 0 && !result.timedOut) {
+    warnings.push(`pnpm 退出码为 ${result.exitCode}，但声明插件已按 L3 入口校验结果记录；请查看终端日志确认是否存在非致命错误`);
+  }
+
+  // 安装成功与否以 L3 校验结果为准；pnpm 非 0 退出但所有声明包入口校验通过时，
+  // 仍视为成功，同时用 warnings 保留 pnpm 的原始退出信息。
+  const ok = failed.length === 0 && !result.timedOut;
+
+  // 状态回写（成功清除 failed；失败保留失败项）
+  if (Object.keys(profileState).length === 0) {
+    delete state[profileName];
+  } else {
+    state[profileName] = profileState;
+  }
+  writeInstallState(state);
+
+  // 失败回滚：仅 incremental / update，且只回滚两个配置文件
+  if (!ok && (safeMode === 'incremental' || safeMode === 'update')) {
+    for (const [f, content] of Object.entries(snapshots)) {
+      const target = path.join(profileDir, f);
+      if (content === null) {
+        if (fs.existsSync(target)) {
+          try { fs.unlinkSync(target); } catch {}
+        }
+      } else {
+        try {
+          fs.writeFileSync(target, content, 'utf-8');
+        } catch {}
+      }
+    }
+  }
+
+  return {
+    profile: profileName,
+    mode: safeMode,
+    ok,
+    installed: [...new Set(installed)].sort(),
+    updated: [...new Set(updated)].sort(),
+    failed,
+    warnings,
+    output: result.output,
+  };
+}
+
+/** 兼容旧签名：增量安装并返回完整日志；失败抛错。 */
+export async function installDshPlugins(profile: string): Promise<string> {
+  const report = await installDshPluginsV2(profile, 'incremental');
+  if (!report.ok) {
+    const detail = report.failed.map(f => `${f.name}: ${f.reason}\n${f.stack}`).join('\n');
+    throw new Error(`pnpm install 未完全成功:\n${detail || report.output}`);
+  }
+  return report.output;
 }
 
 function readTextSafe(file: string): string | null {
@@ -655,7 +1558,7 @@ export function toggleDshPlugin(profile: string, key: string, enabled: boolean):
 }
 
 /** 卸载：从配置中彻底移除（bundle/dep 同时移出 dependencies + bundles，row 从 patch 删除），并尽力清理 node_modules。 */
-export function removeDshPlugin(profile: string, key: string): void {
+export async function removeDshPlugin(profile: string, key: string): Promise<void> {
   const profileDir = ensureProfileDir(profile);
 
   if (key.startsWith('bundle:') || key.startsWith('dep:')) {
@@ -663,7 +1566,7 @@ export function removeDshPlugin(profile: string, key: string): void {
     removeDependency(profileDir, pkgName);
     // 尽力清理 node_modules + 更新 lock（pnpm 不可用/失败不影响配置已移除）
     try {
-      installDshPlugins(profile);
+      await installDshPlugins(profile);
     } catch {
       /* best-effort prune */
     }
@@ -676,7 +1579,104 @@ export function removeDshPlugin(profile: string, key: string): void {
     return;
   }
 
+  if (key.startsWith('orphan:')) {
+    const pkgName = key.slice('orphan:'.length);
+    const parts = pkgName.split('/');
+    const target = path.join(profileDir, 'node_modules', ...parts);
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+    } catch {}
+    return;
+  }
+
   throw new Error(`无法识别的插件 key: ${key}`);
+}
+
+/** 孤儿纳入配置时优先探测可移植 git spec：
+ *  源目录是 git 仓库且 origin 为 http(s) 时返回 git+http(s)://...；ssh / git@ 等不可移植远端返回 undefined。 */
+function portableGitSpec(target: string): string | undefined {
+  try {
+    const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: target,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10000,
+    });
+    const remote = out.split(/\r?\n/).map(s => s.trim()).find(Boolean);
+    if (!remote) return undefined;
+    if (remote.startsWith('git+https://') || remote.startsWith('git+http://')) return remote;
+    if (remote.startsWith('https://') || remote.startsWith('http://')) return `git+${remote}`;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies + bundles。
+ *  优先使用可移植的 git+http(s) spec（源目录为 git 仓库且 origin 为 http(s) 时），
+ *  否则回退为 link: 本地路径；仅接受链接目标位于 node_modules 之外的本地安装，避免把 pnpm 实体目录误纳管。 */
+export function adoptDshOrphan(profile: string, pkgName: string): void {
+  const profileDir = ensureProfileDir(profile);
+  const name = pkgName.trim();
+  if (!name) throw new Error('包名不能为空');
+
+  const parts = name.split('/').filter(Boolean);
+  if (parts.length === 0 || parts.some(p => p === '.' || p === '..')) {
+    throw new Error(`非法包名: ${name}`);
+  }
+
+  const nmRoot = path.join(profileDir, 'node_modules');
+  const nmPkg = path.join(nmRoot, ...parts);
+  if (!fs.existsSync(nmPkg)) {
+    throw new Error(`本机未安装 ${name}，无法纳入配置`);
+  }
+
+  // 仅允许本地 link/junction 安装：realpath 后目标必须落在 node_modules 之外。
+  let nmRootReal: string;
+  let targetReal: string;
+  try {
+    nmRootReal = fs.realpathSync(nmRoot);
+    targetReal = fs.realpathSync(nmPkg);
+  } catch (e: any) {
+    throw new Error(`无法解析 ${name} 的链接目标: ${e?.message || e}`);
+  }
+  if (targetReal === nmRootReal || targetReal.startsWith(nmRootReal + path.sep)) {
+    throw new Error(`${name} 不是本地 link 安装（目标位于 node_modules 内），无法纳入配置`);
+  }
+
+  // 校验链接目标 package.json 的包名一致。
+  const targetPkgFile = path.join(targetReal, 'package.json');
+  let targetPkg: any;
+  try {
+    targetPkg = JSON.parse(fs.readFileSync(targetPkgFile, 'utf-8'));
+  } catch {
+    throw new Error(`链接目标缺少 package.json: ${targetReal}`);
+  }
+  if (targetPkg?.name !== name) {
+    throw new Error(`链接目标包名不匹配：期望 ${name}，实际 ${targetPkg?.name || '?'}`);
+  }
+
+  const spec = portableGitSpec(targetReal) || `link:${targetReal.replace(/\\/g, '/')}`;
+  const pkg = readPkg(profileDir);
+  if (!pkg) throw new Error('profile package.json 不存在');
+
+  let depChanged = false;
+  if (!pkg.dependencies) pkg.dependencies = {};
+  if (pkg.dependencies[name] !== spec) {
+    pkg.dependencies[name] = spec;
+    depChanged = true;
+  }
+
+  if (!pkg.dsh) pkg.dsh = {};
+  if (!pkg.dsh.profile) pkg.dsh.profile = {};
+  if (!Array.isArray(pkg.dsh.profile.bundles)) pkg.dsh.profile.bundles = [];
+  let bundleChanged = false;
+  if (!pkg.dsh.profile.bundles.includes(name)) {
+    pkg.dsh.profile.bundles.push(name);
+    bundleChanged = true;
+  }
+
+  if (depChanged || bundleChanged) writePkg(profileDir, pkg);
 }
 
 export function applyDshRecovery(action: DshRecoveryAction): void {
@@ -701,35 +1701,13 @@ export function applyDshRecovery(action: DshRecoveryAction): void {
   throw new Error(`未知的恢复动作: ${action.kind}`);
 }
 
-export function installDshPlugins(profile: string): string {
-  const cfg = readConfigFile();
-  const pnpmCmd = resolvePnpmCommand(cfg);
-  if (!pnpmCmd) {
-    throw new Error('未找到 pnpm 命令，请在「设置」中配置 pnpmCommand');
-  }
-  const profileDir = ensureProfileDir(profile);
-
-  const res = spawnSync(pnpmCmd, ['install'], {
-    cwd: profileDir,
-    shell: process.platform === 'win32',
-    encoding: 'utf-8',
-    timeout: 300000,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  const out = [res.stdout, res.stderr].filter(Boolean).join('\n');
-  if (res.status !== 0) {
-    throw new Error(`pnpm install 失败 (exit ${res.status ?? 'signal'}):\n${out}`);
-  }
-  return out;
-}
-
 // ==================== 同步 / 对账 ====================
 
 const SYNC_GITIGNORE_CONTENT = `# AgentHub sync repo local-only files
 config.json
 agents.json
 projects.json
+dsh_install_state.json
 backups/
 *.log
 .DS_Store
@@ -752,6 +1730,14 @@ function ensureSyncGitignore(root: string): void {
   const gitignore = path.join(root, '.gitignore');
   if (!fs.existsSync(gitignore)) {
     fs.writeFileSync(gitignore, SYNC_GITIGNORE_CONTENT, 'utf-8');
+    return;
+  }
+  // 已有 .gitignore 时补齐新增的私有文件条目（幂等）
+  const text = fs.readFileSync(gitignore, 'utf-8');
+  const missing = SYNC_GITIGNORE_CONTENT.split(/\r?\n/)
+    .filter(l => l.trim() && !text.includes(l.trim()));
+  if (missing.length > 0) {
+    fs.writeFileSync(gitignore, text.replace(/\s*$/, '') + '\n' + missing.join('\n') + '\n', 'utf-8');
   }
 }
 
@@ -775,6 +1761,31 @@ function saveDshSyncConfig(syncCfg: any): void {
   fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2), 'utf-8');
 }
 
+/** 与 skills sync 共用同一 .git：优先全局 sync_repo，本功能配置为空时，回退到共享仓库实际的 origin / 当前分支，再回退到另一功能的配置。 */
+function effectiveDshRemoteUrl(syncCfg: any): string {
+  const global = globalSyncRemoteUrl();
+  if (global) return global;
+  if (syncCfg.remoteUrl) return syncCfg.remoteUrl;
+  const root = syncRoot();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const url = gitTry(root, ['remote', 'get-url', 'origin']).trim();
+    if (url) return url;
+  }
+  return readConfigFile().skills_sync?.remoteUrl || '';
+}
+
+function effectiveDshBranch(syncCfg: any): string {
+  const global = globalSyncBranch();
+  if (global) return global;
+  if (syncCfg.branch) return syncCfg.branch;
+  const root = syncRoot();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const branch = gitTry(root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    if (branch && branch !== 'HEAD') return branch;
+  }
+  return readConfigFile().skills_sync?.branch || 'main';
+}
+
 function gitExec(cwd: string, args: string[]): string {
   return runGit(cwd, args);
 }
@@ -796,8 +1807,11 @@ function gitOk(cwd: string, args: string[]): boolean {
   }
 }
 
-function gitDirtyCount(cwd: string): number {
-  const out = gitTry(cwd, ['status', '--porcelain']);
+/** 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。 */
+function gitDirtyCountPaths(cwd: string, paths: string[]): number {
+  const existing = paths.filter(p => fs.existsSync(path.join(cwd, p)));
+  if (existing.length === 0) return 0;
+  const out = gitTry(cwd, ['status', '--porcelain', '--', ...existing]);
   return out ? out.split(/\r?\n/).filter(l => l.trim()).length : 0;
 }
 
@@ -824,7 +1838,7 @@ export function getDshPluginsSyncStatus(): SkillsSyncStatus {
 
   const status: SkillsSyncStatus = {
     initialized,
-    remoteUrl: syncCfg.remoteUrl || undefined,
+    remoteUrl: effectiveDshRemoteUrl(syncCfg) || undefined,
     branch: undefined,
     ahead: 0,
     behind: 0,
@@ -842,8 +1856,8 @@ export function getDshPluginsSyncStatus(): SkillsSyncStatus {
       const { ahead, behind } = parseAheadBehind(sb);
       status.ahead = ahead;
       status.behind = behind;
-      const lines = sb.split(/\r?\n/).filter(l => l.trim());
-      status.dirtyCount = sb.startsWith('## ') ? Math.max(0, lines.length - 1) : lines.length;
+      // 按功能隔离：只统计 DSH 插件范围内的未提交修改（与技能同步分开）
+      status.dirtyCount = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
     }
   }
 
@@ -909,18 +1923,18 @@ export function pullDshPluginsSync(): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveDshRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  const dirty = gitDirtyCount(root);
+  const dirty = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
   if (dirty > 0) {
-    const msg = `本地有 ${dirty} 个未提交修改，已跳过拉取；请先推送或手动处理`;
+    const msg = `DSH 插件同步：本地有 ${dirty} 个未提交修改（dsh/.gitignore），已跳过拉取；请先推送或手动处理`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveDshBranch(syncCfg);
   try {
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
     updateLastSync('success');
@@ -968,7 +1982,7 @@ export function snapshotLocalToMirror(): string[] {
 
     fs.writeFileSync(path.join(mirrorDir, 'package.json'), JSON.stringify(portPkg, null, 2) + '\n', 'utf-8');
 
-    for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml']) {
+    for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
       const src = path.join(localDir, f);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, path.join(mirrorDir, f));
@@ -986,7 +2000,7 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveDshRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
@@ -995,6 +2009,10 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
   if (fs.existsSync(dshMirrorDir())) {
     gitExec(root, ['add', '-A', '--', 'dsh']);
   }
+  // 共享的 .gitignore 有变更时也随插件同步提交，避免被遗漏
+  if (fs.existsSync(path.join(root, '.gitignore'))) {
+    gitExec(root, ['add', '-A', '--', '.gitignore']);
+  }
 
   const staged = gitTry(root, ['diff', '--cached', '--name-only']);
   if (staged && staged.trim()) {
@@ -1002,7 +2020,7 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
     gitExec(root, ['commit', '-m', msg]);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveDshBranch(syncCfg);
   try {
     gitExec(root, ['push', '-u', 'origin', branch]);
     updateLastSync('success');
@@ -1112,7 +2130,7 @@ export function reconcileDshPlugins(): DshPluginDiff {
   return { compatible: items.length === 0, items, warnings };
 }
 
-export function alignDshPlugins(profile?: string): void {
+export async function alignDshPlugins(profile?: string): Promise<void> {
   const profilesDir = path.join(resolveDshHome(), 'profiles');
   const mirrorRoot = path.join(dshMirrorDir(), 'profiles');
 
@@ -1127,6 +2145,13 @@ export function alignDshPlugins(profile?: string): void {
     if (!mirrorPkg) continue;
 
     fs.mkdirSync(localDir, { recursive: true });
+
+    // 对齐前快照：失败时回滚本地配置（package.json / cordis.patch.yml / pnpm-lock.yaml / pnpm-workspace.yaml）
+    const snapFiles = ['package.json', 'cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'];
+    const snapshots: Record<string, string | null> = {};
+    for (const f of snapFiles) {
+      snapshots[f] = readTextSafe(path.join(localDir, f));
+    }
 
     const localPkg = readPkg(localDir) || {};
 
@@ -1157,13 +2182,33 @@ export function alignDshPlugins(profile?: string): void {
 
     writePkg(localDir, mergedPkg);
 
-    for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml']) {
+    for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
       const src = path.join(mirrorDir, f);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, path.join(localDir, f));
       }
     }
 
-    installDshPlugins(name);
+    try {
+      const report = await installDshPluginsV2(name, 'incremental');
+      if (!report.ok) {
+        throw new Error(report.failed.map(f => `${f.name}: ${f.reason}`).join('\n'));
+      }
+    } catch (e) {
+      // 安装失败：回滚对齐写盘前的本地配置
+      for (const [f, content] of Object.entries(snapshots)) {
+        const target = path.join(localDir, f);
+        if (content === null) {
+          if (fs.existsSync(target)) {
+            try { fs.unlinkSync(target); } catch {}
+          }
+        } else {
+          try {
+            fs.writeFileSync(target, content, 'utf-8');
+          } catch {}
+        }
+      }
+      throw e;
+    }
   }
 }

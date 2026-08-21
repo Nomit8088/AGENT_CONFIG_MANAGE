@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col md:flex-row overflow-hidden transition-colors duration-200">
     <!-- Left Project List Sidebar -->
-    <div class="w-full md:w-80 border-r border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl flex flex-col flex-shrink-0">
+    <div class="w-full md:w-72 border-r border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl flex flex-col flex-shrink-0">
       <!-- List Header -->
-      <div class="p-4 border-b border-black/8 dark:border-white/8 flex items-center justify-between">
+      <div class="p-3 border-b border-black/8 dark:border-white/8 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <FolderGit2 class="w-4 h-4 text-slate-700 dark:text-white/80" />
           <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">纳管项目 ({{ filteredProjects.length }}/{{ store.projects.length }})</span>
@@ -44,7 +44,7 @@
           :key="p.id"
           @click="store.activeProjectId = p.id"
           :class="[
-            'p-3 rounded-lg cursor-pointer transition-colors duration-200 border text-xs group relative',
+            'p-2.5 rounded-lg cursor-pointer transition-colors duration-200 border text-xs group relative',
             store.activeProjectId === p.id
               ? 'bg-black/5 dark:bg-[#2c2c2e] border-black/10 dark:border-white/15'
               : 'bg-transparent border-transparent hover:bg-black/[0.03] dark:hover:bg-white/5 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/90'
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Right Main Workspace -->
-    <div class="flex-1 overflow-y-auto p-5 bg-[#f5f5f7] dark:bg-[#2c2c2e]">
+    <div class="flex-1 overflow-y-auto p-4 bg-[#f5f5f7] dark:bg-[#2c2c2e]">
       <ProjectEditor
         v-if="store.activeProject"
         :project="store.activeProject"

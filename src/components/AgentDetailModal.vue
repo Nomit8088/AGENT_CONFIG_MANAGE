@@ -17,7 +17,7 @@
                 {{ store.activeDetailAgent.skillsDir }}
               </span>
             </div>
-            <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5">本地存量实体 Skill 纳管与忽略状态管理</p>
+            <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5">Agent 技能管理：存量纳管、忽略与中央技能分发</p>
           </div>
         </div>
 
@@ -64,6 +64,22 @@
                 {{ rawIgnored.length }}
               </span>
             </button>
+
+            <button
+              @click="store.agentDetailModal.activeTab = 'skills'"
+              :class="[
+                'px-3 py-1.5 rounded-lg font-medium transition-colors duration-200 flex items-center gap-1.5',
+                store.agentDetailModal.activeTab === 'skills'
+                  ? 'bg-black/10 dark:bg-white/10 text-slate-900 dark:text-white/95 font-semibold'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+              ]"
+            >
+              <Layers class="w-3.5 h-3.5 text-[#0a84ff]" />
+              <span>中央技能分发</span>
+              <span class="px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/10 text-[10px] font-mono">
+                {{ mountedSkillsCount }}
+              </span>
+            </button>
           </div>
 
           <!-- Tab Batch Actions -->
@@ -90,6 +106,21 @@
                 class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
               >
                 全部恢复提示
+              </button>
+            </template>
+
+            <template v-if="store.agentDetailModal.activeTab === 'skills'">
+              <button
+                @click="mountAllSkills"
+                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
+              >
+                全部挂载
+              </button>
+              <button
+                @click="unmountAllSkills"
+                class="px-2.5 py-1 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 border border-black/10 dark:border-white/12 text-[11px] transition-colors duration-200"
+              >
+                全部卸载
               </button>
             </template>
           </div>
@@ -162,7 +193,7 @@
         </template>
 
         <!-- Ignored List -->
-        <template v-else>
+        <template v-else-if="store.agentDetailModal.activeTab === 'ignored'">
           <div
             v-for="item in filteredIgnored"
             :key="item.skillName"
@@ -190,12 +221,57 @@
             </p>
           </div>
         </template>
+
+        <!-- Central Skills Distribution List -->
+        <template v-else>
+          <div
+            v-for="skill in filteredSkills"
+            :key="skill.id"
+            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 flex items-center justify-between gap-3 transition-colors duration-200"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <input
+                type="checkbox"
+                :checked="isSkillMounted(skill.id)"
+                @change="toggleSkillMount(skill.id, $event)"
+                class="custom-checkbox"
+              />
+              <div class="truncate">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-slate-900 dark:text-white/90 font-bold text-xs">{{ skill.name }}</span>
+                  <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">v{{ skill.version }}</span>
+                </div>
+                <p class="text-[10px] text-slate-400 dark:text-white/40 truncate mt-0.5" :title="skill.description">
+                  {{ skill.description }}
+                </p>
+              </div>
+            </div>
+
+            <span
+              :class="[
+                'px-1.5 py-0.5 rounded-md font-mono text-[10px] border flex-shrink-0',
+                isSkillMounted(skill.id)
+                  ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
+                  : 'bg-black/5 dark:bg-white/10 text-slate-500 dark:text-white/50 border-black/8 dark:border-white/10'
+              ]"
+            >
+              {{ isSkillMounted(skill.id) ? '已挂载' : '未挂载' }}
+            </span>
+          </div>
+
+          <div v-if="filteredSkills.length === 0" class="py-12 text-center text-slate-400 dark:text-white/40">
+            <Layers v-if="!modalSearch" class="w-8 h-8 mx-auto text-slate-300 dark:text-white/30 mb-2" />
+            <p class="text-xs">
+              {{ modalSearch ? '未搜索到匹配的中央技能' : '中央技能库暂无技能，请先在技能页签新建' }}
+            </p>
+          </div>
+        </template>
       </div>
 
       <!-- Footer -->
       <div class="pt-3 border-t border-black/8 dark:border-white/8 flex items-center justify-between flex-shrink-0 text-xs">
         <span class="text-slate-400 dark:text-white/40">
-          纳管后原目录将瞬间替换为 Windows NTFS Junction 软链
+          {{ footerText }}
         </span>
         <button
           @click="store.closeAgentDetailModal()"
@@ -220,6 +296,7 @@ import {
   PackageCheck,
   CheckCircle2,
   Search,
+  Layers,
 } from 'lucide-vue-next';
 
 const store = useAppStore();
@@ -246,6 +323,61 @@ const filteredIgnored = computed(() => {
   if (!q) return rawIgnored.value;
   return rawIgnored.value.filter(i => i.skillName.toLowerCase().includes(q) || i.path.toLowerCase().includes(q));
 });
+
+const mountedSkillsCount = computed(() => {
+  if (!store.activeDetailAgent) return 0;
+  return store.skills.filter(s => s.mountedAgents.includes(store.activeDetailAgent!.id)).length;
+});
+
+const filteredSkills = computed(() => {
+  const q = modalSearch.value.trim().toLowerCase();
+  const list = [...store.skills];
+  if (!q) return list;
+  return list.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    (s.description && s.description.toLowerCase().includes(q))
+  );
+});
+
+const footerText = computed(() => {
+  if (!store.activeDetailAgent) return '';
+  if (store.agentDetailModal.activeTab === 'skills') {
+    return store.activeDetailAgent.id === 'antigravity'
+      ? '挂载后将在该 Agent 技能目录创建 NTFS Hardlink 文件级硬链接'
+      : '挂载后将在该 Agent 技能目录创建 Windows NTFS Junction 软链';
+  }
+  return '纳管后原目录将瞬间替换为 Windows NTFS Junction 软链';
+});
+
+function isSkillMounted(skillId: string): boolean {
+  if (!store.activeDetailAgent) return false;
+  const skill = store.skills.find(s => s.id === skillId);
+  return skill ? skill.mountedAgents.includes(store.activeDetailAgent.id) : false;
+}
+
+async function toggleSkillMount(skillId: string, e: Event) {
+  if (!store.activeDetailAgent) return;
+  const checked = (e.target as HTMLInputElement).checked;
+  await store.toggleSkillForAgent(skillId, store.activeDetailAgent.id, checked);
+}
+
+async function mountAllSkills() {
+  if (!store.activeDetailAgent) return;
+  for (const s of store.skills) {
+    if (!s.mountedAgents.includes(store.activeDetailAgent.id)) {
+      await store.toggleSkillForAgent(s.id, store.activeDetailAgent.id, true);
+    }
+  }
+}
+
+async function unmountAllSkills() {
+  if (!store.activeDetailAgent) return;
+  for (const s of store.skills) {
+    if (s.mountedAgents.includes(store.activeDetailAgent.id)) {
+      await store.toggleSkillForAgent(s.id, store.activeDetailAgent.id, false);
+    }
+  }
+}
 
 async function handleSingleTakeover(item: UnmanagedSkill) {
   if (item.hasConflict) {

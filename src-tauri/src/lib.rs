@@ -7,6 +7,7 @@ pub mod skills_sync;
 pub mod git_sync;
 pub mod dsh_plugins;
 pub mod dsh_plugins_sync;
+pub mod sync_repo;
 pub mod watcher;
 
 use std::collections::{HashMap, HashSet};
@@ -604,6 +605,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             update_config,
+            sync_repo::get_sync_repo_config,
+            sync_repo::validate_sync_repo,
+            sync_repo::save_sync_repo,
+            sync_repo::unbind_sync_repo,
             get_agents,
             scan_agents,
             save_agents_list,
@@ -632,8 +637,15 @@ pub fn run() {
             dsh_plugins::diagnose_dsh_web,
             dsh_plugins::toggle_dsh_plugin,
             dsh_plugins::remove_dsh_plugin,
+            dsh_plugins::adopt_dsh_orphan,
             dsh_plugins::apply_dsh_recovery,
             dsh_plugins::install_dsh_plugins,
+            dsh_plugins::reconcile_dsh_install,
+            dsh_plugins::install_dsh_plugins_v2,
+            dsh_plugins::install_dsh_plugins_streamed,
+            dsh_plugins::clear_dsh_install_state,
+            dsh_plugins::check_dsh_plugin_update,
+            dsh_plugins::update_dsh_plugin,
             dsh_plugins_sync::get_dsh_plugins_sync_status,
             dsh_plugins_sync::init_dsh_plugins_sync,
             dsh_plugins_sync::pull_dsh_plugins_sync,

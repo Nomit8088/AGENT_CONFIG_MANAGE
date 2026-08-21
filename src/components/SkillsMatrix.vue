@@ -1,9 +1,6 @@
 <template>
-  <div class="h-full overflow-y-auto p-6 space-y-6 pb-24">
-    <!-- Section 1: Agent-Grouped Unmanaged & Ignored Skills Detection -->
-    <UnmanagedGroupSection />
-
-    <!-- Section 2: Central Skills Library & Mounting Matrix -->
+  <div class="h-full overflow-y-auto p-4 space-y-4 pb-24">
+    <!-- Central Skills Library (技能页签只保留中央技能库) -->
     <div class="bg-white dark:bg-[#2c2c2e] rounded-xl border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none overflow-hidden space-y-0 transition-colors duration-200">
       <!-- Top Title & View Switcher Bar -->
       <div class="p-4 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1c1e]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -60,7 +57,7 @@
       </div>
 
       <!-- Filter & Search Toolbar -->
-      <div class="p-3.5 bg-black/[0.01] dark:bg-[#1c1c1e]/60 border-b border-black/8 dark:border-white/8 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="p-3 bg-black/[0.01] dark:bg-[#1c1c1e]/60 border-b border-black/8 dark:border-white/8 flex flex-wrap items-center justify-between gap-2.5 text-xs">
         <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
           <!-- Keyword Search -->
           <div class="relative flex-1 max-w-sm">
@@ -150,11 +147,10 @@
                   class="custom-checkbox"
                 />
               </th>
-              <th class="py-3 px-4 min-w-[220px]">Skill 技能名称 / 描述</th>
-              <th class="py-3 px-3 text-center min-w-[100px]">版本 / 来源</th>
-              <th class="py-3 px-3 text-center min-w-[120px]">全局分发状态</th>
-              <th class="py-3 px-4 min-w-[340px]">已挂载 Agent 目标 (NTFS 软链)</th>
-              <th class="py-3 px-4 text-right min-w-[100px]">操作</th>
+              <th class="py-2.5 px-3 min-w-[160px]">Skill 技能名称 / 描述</th>
+              <th class="py-2.5 px-2 text-center min-w-[72px]">版本 / 来源</th>
+              <th class="py-2.5 px-2 text-center min-w-[110px]">全局分发状态</th>
+              <th class="py-2.5 px-3 text-right min-w-[72px]">操作</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-black/6 dark:divide-white/6">
@@ -168,7 +164,7 @@
               @click="store.activeSkillId = skill.id"
             >
               <!-- Checkbox for batch -->
-              <td class="py-3.5 px-3 text-center" @click.stop>
+              <td class="py-2.5 px-3 text-center" @click.stop>
                 <input
                   type="checkbox"
                   :value="skill.id"
@@ -178,7 +174,7 @@
               </td>
 
               <!-- Name & Desc -->
-              <td class="py-3.5 px-4">
+              <td class="py-2.5 px-3">
                 <div class="flex items-start gap-2.5">
                   <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80 flex-shrink-0 mt-0.5">
                     <FileCode class="w-3.5 h-3.5" />
@@ -198,7 +194,7 @@
               </td>
 
               <!-- Version & Source -->
-              <td class="py-3 px-3 text-center" @click.stop>
+              <td class="py-2.5 px-2 text-center" @click.stop>
                 <div class="inline-flex flex-col items-center">
                   <span class="font-mono text-[11px] text-slate-800 dark:text-white/90 font-medium">v{{ skill.version }}</span>
                   <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 mt-0.5 font-mono">
@@ -208,7 +204,7 @@
               </td>
 
               <!-- Global Toggle Segmented Control -->
-              <td class="py-3 px-3 text-center" @click.stop>
+              <td class="py-2.5 px-2 text-center" @click.stop>
                 <div class="inline-flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
                   <button
                     type="button"
@@ -238,35 +234,13 @@
                     <span>停用</span>
                   </button>
                 </div>
-              </td>
-
-              <!-- Mounted Agents Tag Pills & Picker -->
-              <td class="py-3.5 px-4" @click.stop>
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <!-- Tag pills for mounted agents with brand icons -->
-                  <div
-                    v-for="agentId in skill.mountedAgents.filter(id => store.isAgentEnabled(id))"
-                    :key="agentId"
-                    class="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-800 dark:text-white/80 border border-black/10 dark:border-white/10 text-[11px] font-medium flex items-center gap-1.5 transition-colors duration-200"
-                  >
-                    <AgentBrandIcon :agentId="agentId" size="sm" />
-                    <span>{{ getAgentName(agentId) }}</span>
-                    <button
-                      @click="store.toggleSkillForAgent(skill.id, agentId, false)"
-                      title="从该 Agent 解绑软链"
-                      class="text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] transition-colors duration-200"
-                    >
-                      <X class="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  <!-- Agent Pill Picker Trigger -->
-                  <AgentPillPicker :skill="skill" />
+                <div class="mt-1 text-[10px] font-mono text-slate-400 dark:text-white/40">
+                  已分发 {{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }} 个 Agent
                 </div>
               </td>
 
               <!-- Actions -->
-              <td class="py-3 px-4 text-right" @click.stop>
+              <td class="py-2.5 px-3 text-right" @click.stop>
                 <div class="flex items-center justify-end gap-1">
                   <button
                     @click="openEditModal(skill)"
@@ -288,7 +262,7 @@
             </tr>
 
             <tr v-if="displaySkills.length === 0">
-              <td colspan="6" class="py-12 text-center text-slate-400 dark:text-white/40">
+              <td colspan="5" class="py-12 text-center text-slate-400 dark:text-white/40">
                 <div class="flex flex-col items-center justify-center gap-2">
                   <Layers class="w-8 h-8 text-slate-300 dark:text-white/30" />
                   <p class="text-xs">未搜索到符合筛选条件的 Skill，可重置筛选条件或点击右上角「新建 Skill」</p>
@@ -300,7 +274,7 @@
       </div>
 
       <!-- VIEW 2: CARD GALLERY VIEW -->
-      <div v-else class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-else class="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         <div
           v-for="skill in displaySkills"
           :key="skill.id"
@@ -356,25 +330,10 @@
             </p>
           </div>
 
-          <!-- Mounted Agents on Card -->
-          <div class="pt-2 border-t border-black/8 dark:border-white/8 space-y-1.5" @click.stop>
-            <div class="text-[10px] text-slate-400 dark:text-white/40 font-semibold uppercase font-mono">
-              已分发 Agent ({{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }})
-            </div>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <div
-                v-for="agentId in skill.mountedAgents.filter(id => store.isAgentEnabled(id))"
-                :key="agentId"
-                class="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-800 dark:text-white/80 border border-black/10 dark:border-white/10 text-[10px] font-medium flex items-center gap-1"
-              >
-                <AgentBrandIcon :agentId="agentId" size="sm" />
-                <span>{{ getAgentName(agentId) }}</span>
-                <button @click="store.toggleSkillForAgent(skill.id, agentId, false)" class="text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a]">
-                  <X class="w-2.5 h-2.5" />
-                </button>
-              </div>
-              <AgentPillPicker :skill="skill" />
-            </div>
+          <!-- Compact mount count footer (分 Agent 管理已合入大厅) -->
+          <div class="pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between text-[10px]" @click.stop>
+            <span class="text-slate-400 dark:text-white/40">已分发 Agent</span>
+            <span class="font-mono text-slate-700 dark:text-white/80 font-medium">{{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }} 个</span>
           </div>
         </div>
 
@@ -422,9 +381,8 @@
       </div>
     </transition>
 
-    <!-- Side-over Drawer & Modals -->
+    <!-- Side-over Drawer -->
     <SkillDrawer />
-    <AgentDetailModal />
   </div>
 </template>
 
@@ -432,11 +390,7 @@
 import { ref, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import { SkillItem } from '../types';
-import UnmanagedGroupSection from './UnmanagedGroupSection.vue';
 import SkillDrawer from './SkillDrawer.vue';
-import AgentDetailModal from './AgentDetailModal.vue';
-import AgentPillPicker from './AgentPillPicker.vue';
-import AgentBrandIcon from './AgentBrandIcon.vue';
 import {
   Layers,
   Plus,
@@ -553,11 +507,6 @@ function toggleSelectAll(e: Event) {
   } else {
     store.selectedSkillIds = [];
   }
-}
-
-function getAgentName(agentId: string): string {
-  const agent = store.agents.find(a => a.id === agentId);
-  return agent ? agent.name : agentId;
 }
 
 function handleGlobalToggle(skillName: string, enable: boolean) {
