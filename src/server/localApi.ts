@@ -4,6 +4,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 import jsyaml from 'js-yaml';
 import { runGit } from './gitSyncUtil';
+import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 
 export function expandTilde(p: string): string {
   if (p.startsWith('~/') || p.startsWith('~\\') || p === '~') {
@@ -496,6 +497,7 @@ const SYNC_GITIGNORE_CONTENT = `# AgentHub sync repo local-only files
 config.json
 agents.json
 projects.json
+dsh_install_state.json
 backups/
 *.log
 .DS_Store
@@ -506,6 +508,14 @@ function ensureSyncGitignore(root: string) {
   const gitignore = path.join(root, '.gitignore');
   if (!fs.existsSync(gitignore)) {
     fs.writeFileSync(gitignore, SYNC_GITIGNORE_CONTENT, 'utf-8');
+    return;
+  }
+  // 已有 .gitignore 时补齐新增的私有文件条目（幂等）
+  const text = fs.readFileSync(gitignore, 'utf-8');
+  const missing = SYNC_GITIGNORE_CONTENT.split(/\r?\n/)
+    .filter(l => l.trim() && !text.includes(l.trim()));
+  if (missing.length > 0) {
+    fs.writeFileSync(gitignore, text.replace(/\s*$/, '') + '\n' + missing.join('\n') + '\n', 'utf-8');
   }
 }
 
@@ -542,6 +552,31 @@ function saveSkillsSyncConfig(syncCfg: any) {
   writeConfigFile(cfg);
 }
 
+/** 与 DSH 插件同步共用同一 .git：优先全局 sync_repo，本功能配置为空时，回退到共享仓库实际的 origin / 当前分支，再回退到另一功能的配置。 */
+function effectiveSkillsRemoteUrl(syncCfg: any): string {
+  const global = globalSyncRemoteUrl();
+  if (global) return global;
+  if (syncCfg.remoteUrl) return syncCfg.remoteUrl;
+  const root = getAppDataDir();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const url = gitTry(root, ['remote', 'get-url', 'origin']).trim();
+    if (url) return url;
+  }
+  return readConfigFile().dsh_plugins?.sync?.remoteUrl || '';
+}
+
+function effectiveSkillsBranch(syncCfg: any): string {
+  const global = globalSyncBranch();
+  if (global) return global;
+  if (syncCfg.branch) return syncCfg.branch;
+  const root = getAppDataDir();
+  if (fs.existsSync(path.join(root, '.git'))) {
+    const branch = gitTry(root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    if (branch && branch !== 'HEAD') return branch;
+  }
+  return readConfigFile().dsh_plugins?.sync?.branch || 'main';
+}
+
 function gitExec(cwd: string, args: string[]): string {
   return runGit(cwd, args);
 }
@@ -563,8 +598,11 @@ function gitOk(cwd: string, args: string[]): boolean {
   }
 }
 
-function gitDirtyCount(cwd: string): number {
-  const out = gitTry(cwd, ['status', '--porcelain']);
+/** 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。 */
+function gitDirtyCountPaths(cwd: string, paths: string[]): number {
+  const existing = paths.filter(p => fs.existsSync(path.join(cwd, p)));
+  if (existing.length === 0) return 0;
+  const out = gitTry(cwd, ['status', '--porcelain', '--', ...existing]);
   return out ? out.split(/\r?\n/).filter(l => l.trim()).length : 0;
 }
 
@@ -592,7 +630,7 @@ export function getSkillsSyncStatus(): SkillsSyncStatus {
 
   const status: SkillsSyncStatus = {
     initialized,
-    remoteUrl: syncCfg.remoteUrl || undefined,
+    remoteUrl: effectiveSkillsRemoteUrl(syncCfg) || undefined,
     branch: undefined,
     ahead: 0,
     behind: 0,
@@ -611,8 +649,8 @@ export function getSkillsSyncStatus(): SkillsSyncStatus {
       const { ahead, behind } = parseAheadBehind(sb);
       status.ahead = ahead;
       status.behind = behind;
-      const lines = sb.split(/\r?\n/).filter(l => l.trim());
-      status.dirtyCount = sb.startsWith('## ') ? Math.max(0, lines.length - 1) : lines.length;
+      // 按功能隔离：只统计技能范围内的未提交修改（与 DSH 插件同步分开）
+      status.dirtyCount = gitDirtyCountPaths(root, ['skills', '.gitignore']);
     }
   }
 
@@ -673,18 +711,18 @@ export function pullSkillsSync(): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  const dirty = gitDirtyCount(root);
+  const dirty = gitDirtyCountPaths(root, ['skills', '.gitignore']);
   if (dirty > 0) {
-    const msg = `本地有 ${dirty} 个未提交修改，已跳过拉取；请先推送或手动处理`;
+    const msg = `技能同步：本地有 ${dirty} 个未提交修改（skills/.gitignore），已跳过拉取；请先推送或手动处理`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveSkillsBranch(syncCfg);
   try {
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
     updateLastSync('success');
@@ -703,11 +741,15 @@ export function pushSkillsSync(message?: string): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  gitExec(root, ['add', '-A']);
+  // 按功能隔离：只暂存技能相关路径（skills/ 与共享的 .gitignore），不把 dsh/ 等其他功能改动卷进技能提交
+  const stagePaths = ['skills', '.gitignore'].filter(p => fs.existsSync(path.join(root, p)));
+  if (stagePaths.length > 0) {
+    gitExec(root, ['add', '-A', '--', ...stagePaths]);
+  }
 
   const staged = gitTry(root, ['diff', '--cached', '--name-only']);
   if (staged && staged.trim()) {
@@ -715,7 +757,7 @@ export function pushSkillsSync(message?: string): SkillsSyncStatus {
     gitExec(root, ['commit', '-m', msg]);
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveSkillsBranch(syncCfg);
   try {
     gitExec(root, ['push', '-u', 'origin', branch]);
     updateLastSync('success');
@@ -740,11 +782,11 @@ export function testSkillsSyncConnection(): string {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveSkillsBranch(syncCfg);
   const out = gitExec(root, ['ls-remote', 'origin', `refs/heads/${branch}`]);
   if (!out.trim()) {
     throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
@@ -760,11 +802,11 @@ export function resetSkillsSyncToRemote(): SkillsSyncStatus {
   if (!fs.existsSync(path.join(root, '.git'))) {
     throw new Error('尚未初始化同步仓库，请先初始化');
   }
-  if (!syncCfg.remoteUrl) {
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  const branch = syncCfg.branch || 'main';
+  const branch = effectiveSkillsBranch(syncCfg);
   gitExec(root, ['fetch', 'origin', branch]);
 
   const remoteRef = `origin/${branch}`;
@@ -773,9 +815,21 @@ export function resetSkillsSyncToRemote(): SkillsSyncStatus {
     throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
   }
 
-  // 仅重置受管文件（skills/ 与 .gitignore）；config.json / agents.json / projects.json / backups/
-  // 均为未跟踪的本地私有文件，git reset --hard 不会触碰它们。
-  gitExec(root, ['reset', '--hard', remoteRef]);
+  // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
+  // 不碰 dsh/ 等同一仓库内其他功能的未提交修改（git reset --mixed 不动工作区）。
+  gitExec(root, ['reset', '--mixed', remoteRef]);
+
+  const checkoutPaths = ['skills', '.gitignore'].filter(p => {
+    if (fs.existsSync(path.join(root, p))) return true;
+    if (p === 'skills') {
+      const out = gitTry(root, ['ls-tree', '--name-only', remoteRef, 'skills']);
+      return !!out && out.trim().length > 0;
+    }
+    return false;
+  });
+  if (checkoutPaths.length > 0) {
+    gitTry(root, ['checkout', '--', ...checkoutPaths]);
+  }
   updateLastSync('success');
   return getSkillsSyncStatus();
 }
@@ -1032,6 +1086,7 @@ export function uninstallGitHooks(projectPath: string, backupDir?: string): void
 
 // DSH 插件中心（web 模式后端，与 src-tauri 侧行为对齐）
 export * from './dshPlugins';
+export * from './syncRepo';
 
 export function applyProjectRules(proj: any, allAgents: any[]): void {
   const pPath = proj.path;

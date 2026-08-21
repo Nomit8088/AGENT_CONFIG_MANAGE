@@ -9,8 +9,8 @@
     <!-- Main Dynamic Workspace -->
     <main class="flex-1 overflow-hidden relative bg-[#f5f5f7] dark:bg-[#1c1c1e]">
       <transition name="fade" mode="out-in">
-        <AgentsView v-if="store.currentTab === 'agents'" />
-        <SkillsMatrix v-else-if="store.currentTab === 'skills' || store.currentTab === 'unmanaged'" />
+        <AgentsView v-if="store.currentTab === 'agents' || store.currentTab === 'unmanaged'" />
+        <SkillsMatrix v-else-if="store.currentTab === 'skills'" />
         <SyncView v-else-if="store.currentTab === 'sync'" />
         <ProjectsView v-else-if="store.currentTab === 'projects'" />
         <PluginsView v-else-if="store.currentTab === 'plugins'" />

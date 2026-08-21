@@ -62,6 +62,43 @@ pub struct SkillsSyncStatus {
     pub last_error: Option<String>,
 }
 
+/// 全局同步仓库配置（技能与 DSH 插件共用同一 remote/branch）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncRepoConfig {
+    #[serde(rename = "remoteUrl", default)]
+    pub remote_url: String,
+    #[serde(default)]
+    pub branch: String,
+    #[serde(rename = "validatedAt", default)]
+    pub validated_at: u64,
+    #[serde(rename = "lastError", default, skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+impl Default for SyncRepoConfig {
+    fn default() -> Self {
+        Self {
+            remote_url: String::new(),
+            branch: "main".to_string(),
+            validated_at: 0,
+            last_error: None,
+        }
+    }
+}
+
+/// 全局同步仓库校验结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncRepoValidation {
+    pub ok: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub initialized: bool,
+    #[serde(rename = "formatOk", default)]
+    pub format_ok: bool,
+    #[serde(rename = "resolvedBranch", default, skip_serializing_if = "Option::is_none")]
+    pub resolved_branch: Option<String>,
+}
+
 // ==================== DSH 插件中心 ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +116,78 @@ pub struct DshPluginEntry {
     pub portability: String, // "portable" | "unportable"
     #[serde(rename = "disabledBy", default, skip_serializing_if = "Option::is_none")]
     pub disabled_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginInstallEntry {
+    pub key: String,
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub name: String,
+    pub kind: String, // "inbox" | "bundle" | "plain" | "row"
+    #[serde(rename = "spec", default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<String>,
+    #[serde(rename = "declaredInConfig")]
+    pub declared_in_config: bool,
+    pub installed: bool,
+    #[serde(rename = "installedVersion", default, skip_serializing_if = "Option::is_none")]
+    pub installed_version: Option<String>,
+    #[serde(rename = "requiredVersion", default, skip_serializing_if = "Option::is_none")]
+    pub required_version: Option<String>,
+    pub status: String, // "ok" | "pending" | "orphan" | "version-mismatch" | "failed"
+    #[serde(rename = "installError", default, skip_serializing_if = "Option::is_none")]
+    pub install_error: Option<String>,
+    pub portability: String,
+    pub enabled: bool,
+    #[serde(rename = "disabledBy", default, skip_serializing_if = "Option::is_none")]
+    pub disabled_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshInstallFailure {
+    pub name: String,
+    pub reason: String, // "non-zero-exit" | "missing-entry" | "resolve-error"
+    pub stack: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshInstallReport {
+    pub profile: String,
+    pub mode: String, // "incremental" | "update" | "reinstall-all" | "reinstall-failed"
+    pub ok: bool,
+    pub installed: Vec<String>,
+    pub updated: Vec<String>,
+    pub failed: Vec<DshInstallFailure>,
+    pub warnings: Vec<String>,
+    pub output: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshPluginUpdateCheck {
+    pub key: String,
+    pub name: String,
+    #[serde(rename = "checkedAt")]
+    pub checked_at: u64,
+    #[serde(rename = "updateAvailable")]
+    pub update_available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshInstallStateItem {
+    pub status: String,
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack: Option<String>,
+    #[serde(rename = "lastAttemptAt", default)]
+    pub last_attempt_at: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,6 +333,8 @@ pub struct AppConfig {
     pub skills_sync: Option<SkillsSyncConfig>,
     #[serde(default, rename = "dsh_plugins")]
     pub dsh_plugins: Option<DshPluginsConfig>,
+    #[serde(default, rename = "sync_repo")]
+    pub sync_repo: Option<SyncRepoConfig>,
 }
 
 impl Default for AppConfig {
@@ -238,6 +349,7 @@ impl Default for AppConfig {
             system_theme: Some("light".to_string()),
             skills_sync: None,
             dsh_plugins: None,
+            sync_repo: None,
         }
     }
 }

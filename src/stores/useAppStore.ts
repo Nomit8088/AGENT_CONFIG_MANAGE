@@ -3,13 +3,19 @@ import {
   AgentInfo,
   AppConfig,
   DshDiagnoseResult,
+  DshInstallMode,
+  DshInstallReport,
   DshPluginDiff,
+  DshPluginInstallEntry,
   DshPluginScanResult,
+  DshPluginUpdateCheck,
   DshRecoveryAction,
   IgnoredSkill,
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncRepoConfig,
+  SyncRepoValidation,
   ToastMessage,
   UnmanagedSkill,
 } from '../types';
@@ -94,6 +100,13 @@ export const useAppStore = defineStore('app', {
     } as SkillsSyncStatus,
     skillsSyncLoading: false,
 
+    // 全局同步仓库配置（技能与 DSH 插件共用）
+    syncRepo: null as SyncRepoConfig | null,
+    syncRepoValidating: false,
+    syncRepoValidation: null as SyncRepoValidation | null,
+    syncRepoValidatedKey: '',
+    syncRepoUnbinding: false,
+
     // DSH 插件中心
     dshPluginsScan: null as DshPluginScanResult | null,
     dshDiagnose: null as DshDiagnoseResult | null,
@@ -116,11 +129,23 @@ export const useAppStore = defineStore('app', {
       visible: false,
     },
 
+    // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
+    dshInstallEntries: [] as DshPluginInstallEntry[],
+    dshInstallEntriesLoading: false,
+    dshPluginUpdates: {} as Record<string, DshPluginUpdateCheck>,
+    dshInstallReport: null as DshInstallReport | null,
+    dshInstalling: false,
+    installTerminal: {
+      visible: false,
+      lines: [] as string[],
+      running: false,
+    },
+
     // Agent Unmanaged Details Modal/Drawer
     agentDetailModal: {
       visible: false,
       agentId: '',
-      activeTab: 'unmanaged' as 'unmanaged' | 'ignored',
+      activeTab: 'unmanaged' as 'unmanaged' | 'ignored' | 'skills',
     },
   }),
 
@@ -173,6 +198,9 @@ export const useAppStore = defineStore('app', {
     dshPluginDiffCount(state): number {
       return state.dshPluginDiff?.items.length ?? 0;
     },
+    syncRepoConfigured(state): boolean {
+      return !!state.syncRepo?.remoteUrl;
+    },
     dshProfileCount(state): number {
       return state.dshPluginsScan?.profiles.length ?? 0;
     },
@@ -206,14 +234,24 @@ export const useAppStore = defineStore('app', {
         }
 
         // Skills Sync: load status, and if enabled, try a silent fast-forward pull on startup
+        await this.loadSyncRepo().catch(() => {});
         this.loadSkillsSyncStatus().catch(() => {});
-        if (this.config.skills_sync?.autoPullOnStartup && this.config.skills_sync.remoteUrl) {
+        if (
+          this.config.skills_sync?.autoPullOnStartup &&
+          (this.syncRepo?.remoteUrl || this.config.skills_sync.remoteUrl)
+        ) {
           this.pullSkillsSync(false).catch(() => {});
         }
 
         // DSH 插件中心：静默加载扫描与同步状态（失败不阻塞主流程）
         this.loadDshPlugins().catch(() => {});
         this.loadDshPluginsSyncStatus().catch(() => {});
+        if (
+          this.config.dsh_plugins?.sync?.autoPullOnStartup &&
+          (this.syncRepo?.remoteUrl || this.config.dsh_plugins?.sync?.remoteUrl)
+        ) {
+          this.pullDshPluginsSync(false).catch(() => {});
+        }
 
         api.onExternalSkillCreated((path) => {
           this.showToast({
@@ -281,6 +319,8 @@ export const useAppStore = defineStore('app', {
         ...this.config,
         ...newConfig,
         ignored_skills: newConfig.ignored_skills ?? this.config.ignored_skills ?? [],
+        // 全局同步仓库由 saveSyncRepo 专用入口维护，偏好设置保存时不得将其从 config.json 中抹掉。
+        sync_repo: this.syncRepo ?? this.config.sync_repo ?? newConfig.sync_repo,
       };
       this.applyTheme(this.config.theme);
       await api.updateConfig(this.config);
@@ -353,6 +393,83 @@ export const useAppStore = defineStore('app', {
 
     async loadSkillsSyncStatus() {
       this.skillsSyncStatus = await api.getSkillsSyncStatus();
+    },
+
+    async loadSyncRepo() {
+      this.syncRepo = await api.getSyncRepoConfig();
+      return this.syncRepo;
+    },
+
+    async validateSyncRepo(remoteUrl: string, branch?: string) {
+      const key = `${remoteUrl.trim()}||${branch?.trim() || 'main'}`;
+      this.syncRepoValidating = true;
+      this.syncRepoValidation = null;
+      this.syncRepoValidatedKey = '';
+      try {
+        this.syncRepoValidation = await api.validateSyncRepo(remoteUrl, branch);
+        this.syncRepoValidatedKey = key;
+        return this.syncRepoValidation;
+      } finally {
+        this.syncRepoValidating = false;
+      }
+    },
+
+    async saveSyncRepo(remoteUrl: string, branch?: string) {
+      this.syncRepoValidating = true;
+      try {
+        this.syncRepo = await api.saveSyncRepo(remoteUrl, branch);
+        this.syncRepoValidation = null;
+        this.syncRepoValidatedKey = '';
+        if (this.syncRepo) {
+          this.config.sync_repo = this.syncRepo;
+        }
+        await Promise.all([
+          this.loadSkillsSyncStatus().catch(() => {}),
+          this.loadDshPluginsSyncStatus().catch(() => {}),
+        ]);
+        return this.syncRepo;
+      } finally {
+        this.syncRepoValidating = false;
+      }
+    },
+
+    async unbindSyncRepo() {
+      this.syncRepoUnbinding = true;
+      try {
+        await api.unbindSyncRepo();
+        this.syncRepo = null;
+        this.syncRepoValidation = null;
+        this.syncRepoValidatedKey = '';
+        if (this.config) {
+          this.config.sync_repo = undefined;
+          if (this.config.skills_sync) {
+            this.config.skills_sync.remoteUrl = '';
+            this.config.skills_sync.branch = 'main';
+          }
+          if (this.config.dsh_plugins?.sync) {
+            this.config.dsh_plugins.sync.remoteUrl = '';
+            this.config.dsh_plugins.sync.branch = 'main';
+          }
+        }
+        await Promise.all([
+          this.loadSkillsSyncStatus().catch(() => {}),
+          this.loadDshPluginsSyncStatus().catch(() => {}),
+        ]);
+        this.showToast({
+          title: '仓库已解绑',
+          message: '同步中心已锁定；本地数据与 Git 历史均已保留',
+          type: 'info',
+        });
+      } catch (e: any) {
+        this.showToast({
+          title: '解绑失败',
+          message: e?.message || '无法解绑仓库',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.syncRepoUnbinding = false;
+      }
     },
 
     async initSkillsSync(remoteUrl: string, branch?: string) {
@@ -513,6 +630,7 @@ export const useAppStore = defineStore('app', {
     async toggleDshPlugin(profile: string, key: string, enabled: boolean) {
       await api.toggleDshPlugin(profile, key, enabled);
       await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: enabled ? '插件已启用' : '插件已停用',
         message: `profile [${profile}] 的 ${key} 已${enabled ? '启用' : '停用'}`,
@@ -523,6 +641,7 @@ export const useAppStore = defineStore('app', {
     async removeDshPlugin(profile: string, key: string) {
       await api.removeDshPlugin(profile, key);
       await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: '插件已卸载',
         message: `profile [${profile}] 的 ${key} 已从配置中移除（并已尽力清理 node_modules）`,
@@ -530,14 +649,157 @@ export const useAppStore = defineStore('app', {
       });
     },
 
-    async installDshPlugins(profile: string) {
-      await api.installDshPlugins(profile);
+    async adoptDshOrphan(profile: string, pkgName: string) {
+      await api.adoptDshOrphan(profile, pkgName);
       await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: '依赖安装完成',
-        message: `profile [${profile}] 已执行 pnpm install`,
+        title: '已纳入配置',
+        message: `${pkgName} 已写入 profile [${profile}] 的 dependencies + bundles`,
         type: 'success',
       });
+    },
+
+    async loadDshInstallEntries(profile?: string) {
+      const target = (profile || '').trim() || this.dshPluginsScan?.profiles[0]?.name || 'web';
+      this.dshInstallEntriesLoading = true;
+      try {
+        this.dshInstallEntries = await api.scanDshInstallEntries(target);
+      } finally {
+        this.dshInstallEntriesLoading = false;
+      }
+    },
+
+    async installDshPlugins(profile: string, mode: DshInstallMode = 'incremental') {
+      this.dshInstalling = true;
+      try {
+        this.dshInstallReport = await api.installDshPlugins(profile, mode);
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        if (this.dshInstallReport.ok) {
+          this.showToast({
+            title: '安装完成',
+            message: `profile [${profile}] 已执行 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '安装未完全成功',
+            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            type: 'error',
+          });
+        }
+        return this.dshInstallReport;
+      } catch (e: any) {
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '安装失败',
+          message: e?.message || '无法执行 pnpm 安装',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
+    },
+
+    async installDshPluginsStreamed(profile: string, mode: DshInstallMode) {
+      this.dshInstalling = true;
+      this.installTerminal = { visible: true, lines: [], running: true };
+      try {
+        this.dshInstallReport = await api.installDshPluginsStreamed(profile, mode, line => {
+          this.installTerminal.lines.push(line);
+        });
+        this.installTerminal.running = false;
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        if (this.dshInstallReport.ok) {
+          this.showToast({
+            title: '安装完成',
+            message: `profile [${profile}] 已完成 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '安装未完全成功',
+            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            type: 'error',
+          });
+        }
+        return this.dshInstallReport;
+      } catch (e: any) {
+        this.installTerminal.running = false;
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '安装失败',
+          message: e?.message || '无法执行 pnpm 安装',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
+    },
+
+    toggleInstallTerminal(visible: boolean) {
+      this.installTerminal.visible = visible;
+      if (!visible) this.installTerminal.running = false;
+    },
+
+    async clearDshInstallState(profile: string, pkg?: string) {
+      await api.clearDshInstallState(profile, pkg);
+      await this.loadDshInstallEntries(profile);
+      this.showToast({
+        title: '安装状态已清除',
+        message: pkg ? `已清除 ${pkg} 的失败状态` : `已清除 profile [${profile}] 的全部安装状态`,
+        type: 'info',
+      });
+    },
+
+    async checkDshPluginUpdate(profile: string, key: string) {
+      const result = await api.checkDshPluginUpdate(profile, key);
+      this.dshPluginUpdates = {
+        ...this.dshPluginUpdates,
+        [key]: result,
+      };
+      return result;
+    },
+
+    async updateDshPlugin(profile: string, key: string) {
+      this.dshInstalling = true;
+      try {
+        const report = await api.updateDshPlugin(profile, key);
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        // 更新完成后清除该包的更新检查缓存
+        const updates = { ...this.dshPluginUpdates };
+        delete updates[key];
+        this.dshPluginUpdates = updates;
+        if (report.ok) {
+          this.showToast({
+            title: '插件更新完成',
+            message: `profile [${profile}] 的 ${key} 已更新到最新`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '插件更新失败',
+            message: report.failed.map(f => `${f.name}: ${f.reason}`).join('\n'),
+            type: 'error',
+          });
+        }
+        return report;
+      } catch (e: any) {
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '插件更新失败',
+          message: e?.message || '无法更新插件',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
     },
 
     async loadDshPluginsSyncStatus() {
@@ -627,6 +889,7 @@ export const useAppStore = defineStore('app', {
       await api.alignDshPlugins(profile);
       await this.loadDshPlugins();
       await this.reconcileDshPlugins();
+      if (profile) await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: '一键对齐完成',
         message: '本地插件配置已对齐镜像并执行 pnpm install',
@@ -838,7 +1101,7 @@ export const useAppStore = defineStore('app', {
       });
     },
 
-    openAgentDetailModal(agentId: string, tab: 'unmanaged' | 'ignored' = 'unmanaged') {
+    openAgentDetailModal(agentId: string, tab: 'unmanaged' | 'ignored' | 'skills' = 'unmanaged') {
       this.agentDetailModal = {
         visible: true,
         agentId,

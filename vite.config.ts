@@ -27,12 +27,21 @@ import {
   setSkillsSyncAutoPull,
   testSkillsSyncConnection,
   resetSkillsSyncToRemote,
+  getSyncRepoConfig,
+  validateSyncRepo,
+  saveSyncRepo,
+  unbindSyncRepo,
   scanDshPlugins,
   diagnoseDshWeb,
   toggleDshPlugin,
   removeDshPlugin,
+  adoptDshOrphan,
   applyDshRecovery,
-  installDshPlugins,
+  installDshPluginsV2,
+  reconcileDshInstall,
+  clearDshInstallState,
+  checkDshPluginUpdate,
+  updateDshPlugin,
   getDshPluginsSyncStatus,
   initDshPluginsSync,
   pullDshPluginsSync,
@@ -596,6 +605,36 @@ function localApiPlugin(): Plugin {
               return res.end(JSON.stringify(resetSkillsSyncToRemote()));
             }
 
+            // GET /api/sync/repo
+            if (pathname === '/api/sync/repo' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSyncRepoConfig()));
+            }
+
+            // POST /api/sync/repo/validate
+            if (pathname === '/api/sync/repo/validate' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(await validateSyncRepo(remoteUrl || '', branch || undefined)));
+            }
+
+            // POST /api/sync/repo
+            if (pathname === '/api/sync/repo' && req.method === 'POST') {
+              const { remoteUrl, branch } = jsonBody;
+              if (!remoteUrl) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'remoteUrl 不能为空' }));
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(await saveSyncRepo(remoteUrl, branch || undefined)));
+            }
+
+            // POST /api/sync/repo/unbind
+            if (pathname === '/api/sync/repo/unbind' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(unbindSyncRepo()));
+            }
+
             // GET /api/dsh/plugins/scan
             if (pathname === '/api/dsh/plugins/scan' && req.method === 'GET') {
               res.setHeader('Content-Type', 'application/json');
@@ -621,7 +660,15 @@ function localApiPlugin(): Plugin {
             // POST /api/dsh/plugins/remove
             if (pathname === '/api/dsh/plugins/remove' && req.method === 'POST') {
               const { profile, key } = jsonBody;
-              removeDshPlugin(profile, key);
+              await removeDshPlugin(profile, key);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/adopt-orphan
+            if (pathname === '/api/dsh/plugins/adopt-orphan' && req.method === 'POST') {
+              const { profile, pkgName } = jsonBody;
+              adoptDshOrphan(profile || 'web', pkgName);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }
@@ -636,10 +683,55 @@ function localApiPlugin(): Plugin {
 
             // POST /api/dsh/plugins/install
             if (pathname === '/api/dsh/plugins/install' && req.method === 'POST') {
-              const { profile } = jsonBody;
-              const output = installDshPlugins(profile);
+              const { profile, mode } = jsonBody;
+              const report = await installDshPluginsV2(profile || 'web', mode || 'incremental');
               res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify({ success: true, output }));
+              return res.end(JSON.stringify(report));
+            }
+
+            // GET /api/dsh/plugins/install-entries
+            if (pathname === '/api/dsh/plugins/install-entries' && req.method === 'GET') {
+              const profile = url.searchParams.get('profile') || 'web';
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(reconcileDshInstall(profile)));
+            }
+
+            // GET /api/dsh/plugins/install/stream (SSE)
+            if (pathname === '/api/dsh/plugins/install/stream' && req.method === 'GET') {
+              const profile = url.searchParams.get('profile') || 'web';
+              const mode = url.searchParams.get('mode') || 'incremental';
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+              res.write(`data: ${JSON.stringify({ type: 'start', profile, mode })}\n\n`);
+              const report = await installDshPluginsV2(profile, mode as any, line => {
+                res.write(`data: ${JSON.stringify({ type: 'line', line })}\n\n`);
+              });
+              res.write(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+              return res.end();
+            }
+
+            // POST /api/dsh/plugins/install-state/clear
+            if (pathname === '/api/dsh/plugins/install-state/clear' && req.method === 'POST') {
+              const { profile, pkg } = jsonBody;
+              clearDshInstallState(profile || 'web', pkg || undefined);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/check-update
+            if (pathname === '/api/dsh/plugins/check-update' && req.method === 'POST') {
+              const { profile, key } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(checkDshPluginUpdate(profile || 'web', key)));
+            }
+
+            // POST /api/dsh/plugins/update
+            if (pathname === '/api/dsh/plugins/update' && req.method === 'POST') {
+              const { profile, key } = jsonBody;
+              const report = await updateDshPlugin(profile || 'web', key);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(report));
             }
 
             // GET /api/dsh/plugins/sync/status
@@ -689,7 +781,7 @@ function localApiPlugin(): Plugin {
             // POST /api/dsh/plugins/align
             if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
               const { profile } = jsonBody;
-              alignDshPlugins(profile);
+              await alignDshPlugins(profile);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

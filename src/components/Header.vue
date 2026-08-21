@@ -1,21 +1,17 @@
 <template>
-  <header class="h-14 border-b border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl px-5 flex items-center justify-between z-20 flex-shrink-0 select-none transition-colors duration-200">
+  <header class="h-12 border-b border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl px-4 flex items-center justify-between z-20 flex-shrink-0 select-none transition-colors duration-200">
     <!-- Brand Logo & Status -->
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center">
-          <Layers class="w-4 h-4 text-slate-800 dark:text-white/90" />
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center">
+          <Layers class="w-3.5 h-3.5 text-slate-800 dark:text-white/90" />
         </div>
-        <div>
-          <div class="flex items-center gap-1.5">
-            <span class="font-serif font-semibold text-sm tracking-wide text-slate-900 dark:text-white/95">AgentHub</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 font-mono">v1.0</span>
-          </div>
-        </div>
+        <span class="font-serif font-semibold text-sm tracking-wide text-slate-900 dark:text-white/95">AgentHub</span>
+        <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 font-mono">v1.0</span>
       </div>
 
-      <!-- Quick Status Badges -->
-      <div class="hidden md:flex items-center gap-2 pl-4 border-l border-black/8 dark:border-white/8 text-xs">
+      <!-- Quick Status Badges (仅大窗展示，小窗自动隐藏避免拥挤) -->
+      <div class="hidden lg:flex items-center gap-2 pl-3 border-l border-black/8 dark:border-white/8 text-xs">
         <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 text-slate-600 dark:text-white/70">
           <span class="w-2 h-2 rounded-sm bg-[#30d158]"></span>
           <span>{{ store.detectedAgentsCount }} / {{ store.enabledAgents.length }} Agents 活跃</span>
@@ -32,16 +28,16 @@
     </div>
 
     <!-- Center / Right Actions -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1.5 flex-shrink-0">
       <!-- Quick Theme Switcher Button -->
       <button
         @click="cycleTheme"
         :title="themeTitle"
-        class="p-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-slate-700 dark:text-white/80 transition-colors duration-200 flex items-center gap-1 text-xs"
+        class="p-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-slate-700 dark:text-white/80 transition-colors duration-200 flex items-center gap-1 text-xs"
       >
-        <Moon v-if="store.config.theme === 'dark'" class="w-4 h-4 text-slate-800 dark:text-white/90" />
-        <Sun v-else-if="store.config.theme === 'light'" class="w-4 h-4 text-[#ff9f0a]" />
-        <Monitor v-else class="w-4 h-4 text-slate-600 dark:text-white/80" />
+        <Moon v-if="store.config.theme === 'dark'" class="w-3.5 h-3.5 text-slate-800 dark:text-white/90" />
+        <Sun v-else-if="store.config.theme === 'light'" class="w-3.5 h-3.5 text-[#ff9f0a]" />
+        <Monitor v-else class="w-3.5 h-3.5 text-slate-600 dark:text-white/80" />
       </button>
 
       <!-- Scan Agents Button -->
@@ -49,19 +45,19 @@
         @click="store.scanAgents()"
         :disabled="store.isLoading"
         title="重新扫描本机 Agent 环境"
-        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-xs font-medium text-slate-800 dark:text-white/90 flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
+        class="px-2.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-xs font-medium text-slate-800 dark:text-white/90 flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
       >
         <RefreshCw class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" :class="{ 'animate-spin': store.isLoading }" />
-        <span class="hidden sm:inline">扫描环境</span>
+        <span class="hidden md:inline">扫描</span>
       </button>
 
       <!-- Settings Button -->
       <button
         @click="store.settingsModal.visible = true"
         title="全局设置与偏好"
-        class="p-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white/95 transition-colors duration-200"
+        class="p-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 border border-black/8 dark:border-white/8 text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white/95 transition-colors duration-200"
       >
-        <Settings class="w-4 h-4" />
+        <Settings class="w-3.5 h-3.5" />
       </button>
     </div>
   </header>
