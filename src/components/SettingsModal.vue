@@ -183,6 +183,66 @@
             </button>
           </div>
         </div>
+
+        <!-- Sync Repo Config (Global) -->
+        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 space-y-3">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">同步仓库配置（全局）</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">
+              技能与 DSH 插件共用同一仓库；必须通过「连通性校验 / 初始化校验」后才能保存并启用同步
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-xs text-slate-500 dark:text-white/50">GitHub 仓库 URL</label>
+            <input
+              v-model="repoForm.remoteUrl"
+              type="text"
+              placeholder="https://github.com/you/agenthub-sync.git"
+              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="block text-xs text-slate-500 dark:text-white/50">分支</label>
+            <input
+              v-model="repoForm.branch"
+              type="text"
+              placeholder="main"
+              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
+            />
+          </div>
+
+          <div
+            v-if="repoValidationMessage"
+            :class="[
+              'px-2.5 py-1.5 rounded-lg text-[11px] font-mono border transition-colors duration-200',
+              repoValidationOk
+                ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
+                : 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30'
+            ]"
+          >
+            {{ repoValidationMessage }}
+          </div>
+
+          <div class="flex gap-2">
+            <button
+              @click="validateRepo"
+              :disabled="store.syncRepoValidating || !repoForm.remoteUrl.trim()"
+              class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ShieldCheck class="w-3.5 h-3.5" />
+              <span>{{ store.syncRepoValidating ? '校验中…' : '连通性校验 / 初始化校验' }}</span>
+            </button>
+            <button
+              @click="saveRepo"
+              :disabled="!canSaveRepo"
+              class="flex-1 px-3 py-2 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save class="w-3.5 h-3.5" />
+              <span>保存仓库配置</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Footer -->
@@ -206,9 +266,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Settings, X, Save, Moon, Sun, Monitor } from 'lucide-vue-next';
+import { Settings, X, Save, Moon, Sun, Monitor, ShieldCheck } from 'lucide-vue-next';
 
 const store = useAppStore();
 
@@ -220,6 +280,13 @@ const form = reactive({
   toast_notifications: store.config.toast_notifications,
 });
 
+const repoForm = reactive({
+  remoteUrl: store.syncRepo?.remoteUrl || '',
+  branch: store.syncRepo?.branch || 'main',
+});
+
+let validatedRepoKey = '';
+
 watch(
   () => store.config,
   (cfg) => {
@@ -230,6 +297,34 @@ watch(
     form.toast_notifications = cfg.toast_notifications;
   },
   { deep: true }
+);
+
+watch(
+  () => store.syncRepo,
+  (repo) => {
+    if (!repo?.remoteUrl) return;
+    repoForm.remoteUrl = repo.remoteUrl;
+    repoForm.branch = repo.branch || 'main';
+  },
+  { deep: true }
+);
+
+const repoValidationOk = computed(() => !!store.syncRepoValidation?.ok);
+const repoValidationMessage = computed(() => {
+  const v = store.syncRepoValidation;
+  if (!v) return '';
+  if (v.ok) {
+    return `校验通过：分支 ${v.resolvedBranch || repoForm.branch}，仓库已初始化且格式符合预期（skills/ + dsh/）`;
+  }
+  if (v.error) return v.error;
+  return '校验未通过';
+});
+const repoKey = computed(() => `${repoForm.remoteUrl.trim()}||${repoForm.branch.trim() || 'main'}`);
+const canSaveRepo = computed(() =>
+  !!repoForm.remoteUrl.trim() &&
+  !store.syncRepoValidating &&
+  repoValidationOk.value &&
+  validatedRepoKey === repoKey.value
 );
 
 function setTheme(theme: 'dark' | 'light' | 'system') {
@@ -253,6 +348,33 @@ async function save() {
     toast_notifications: form.toast_notifications,
   });
   close();
+}
+
+async function validateRepo() {
+  const remoteUrl = repoForm.remoteUrl.trim();
+  if (!remoteUrl) return;
+  validatedRepoKey = '';
+  try {
+    await store.validateSyncRepo(remoteUrl, repoForm.branch.trim() || 'main');
+    if (store.syncRepoValidation?.ok) {
+      validatedRepoKey = repoKey.value;
+    }
+  } catch (e: any) {
+    store.showToast({ title: '仓库校验失败', message: e?.message || '无法执行校验', type: 'error' });
+  }
+}
+
+async function saveRepo() {
+  if (!canSaveRepo.value) return;
+  try {
+    await store.saveSyncRepo(repoForm.remoteUrl.trim(), repoForm.branch.trim() || 'main');
+    validatedRepoKey = repoKey.value;
+    store.showToast({ title: '仓库配置已保存', message: '同步功能已启用，可在同步中心执行拉取/推送', type: 'success' });
+  } catch (e: any) {
+    store.syncRepoValidation = { ok: false, error: e?.message || '保存失败', initialized: false, formatOk: false };
+    validatedRepoKey = '';
+    store.showToast({ title: '保存仓库配置失败', message: e?.message || '请先通过校验', type: 'error' });
+  }
 }
 </script>
 

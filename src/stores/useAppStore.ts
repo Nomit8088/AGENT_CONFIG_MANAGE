@@ -14,6 +14,8 @@ import {
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncRepoConfig,
+  SyncRepoValidation,
   ToastMessage,
   UnmanagedSkill,
 } from '../types';
@@ -97,6 +99,11 @@ export const useAppStore = defineStore('app', {
       lastError: undefined,
     } as SkillsSyncStatus,
     skillsSyncLoading: false,
+
+    // 全局同步仓库配置（技能与 DSH 插件共用）
+    syncRepo: null as SyncRepoConfig | null,
+    syncRepoValidating: false,
+    syncRepoValidation: null as SyncRepoValidation | null,
 
     // DSH 插件中心
     dshPluginsScan: null as DshPluginScanResult | null,
@@ -189,6 +196,9 @@ export const useAppStore = defineStore('app', {
     dshPluginDiffCount(state): number {
       return state.dshPluginDiff?.items.length ?? 0;
     },
+    syncRepoConfigured(state): boolean {
+      return !!state.syncRepo?.remoteUrl;
+    },
     dshProfileCount(state): number {
       return state.dshPluginsScan?.profiles.length ?? 0;
     },
@@ -222,14 +232,24 @@ export const useAppStore = defineStore('app', {
         }
 
         // Skills Sync: load status, and if enabled, try a silent fast-forward pull on startup
+        await this.loadSyncRepo().catch(() => {});
         this.loadSkillsSyncStatus().catch(() => {});
-        if (this.config.skills_sync?.autoPullOnStartup && this.config.skills_sync.remoteUrl) {
+        if (
+          this.config.skills_sync?.autoPullOnStartup &&
+          (this.syncRepo?.remoteUrl || this.config.skills_sync.remoteUrl)
+        ) {
           this.pullSkillsSync(false).catch(() => {});
         }
 
         // DSH 插件中心：静默加载扫描与同步状态（失败不阻塞主流程）
         this.loadDshPlugins().catch(() => {});
         this.loadDshPluginsSyncStatus().catch(() => {});
+        if (
+          this.config.dsh_plugins?.sync?.autoPullOnStartup &&
+          (this.syncRepo?.remoteUrl || this.config.dsh_plugins?.sync?.remoteUrl)
+        ) {
+          this.pullDshPluginsSync(false).catch(() => {});
+        }
 
         api.onExternalSkillCreated((path) => {
           this.showToast({
@@ -369,6 +389,37 @@ export const useAppStore = defineStore('app', {
 
     async loadSkillsSyncStatus() {
       this.skillsSyncStatus = await api.getSkillsSyncStatus();
+    },
+
+    async loadSyncRepo() {
+      this.syncRepo = await api.getSyncRepoConfig();
+      return this.syncRepo;
+    },
+
+    async validateSyncRepo(remoteUrl: string, branch?: string) {
+      this.syncRepoValidating = true;
+      this.syncRepoValidation = null;
+      try {
+        this.syncRepoValidation = await api.validateSyncRepo(remoteUrl, branch);
+        return this.syncRepoValidation;
+      } finally {
+        this.syncRepoValidating = false;
+      }
+    },
+
+    async saveSyncRepo(remoteUrl: string, branch?: string) {
+      this.syncRepoValidating = true;
+      try {
+        this.syncRepo = await api.saveSyncRepo(remoteUrl, branch);
+        this.syncRepoValidation = null;
+        await Promise.all([
+          this.loadSkillsSyncStatus().catch(() => {}),
+          this.loadDshPluginsSyncStatus().catch(() => {}),
+        ]);
+        return this.syncRepo;
+      } finally {
+        this.syncRepoValidating = false;
+      }
     },
 
     async initSkillsSync(remoteUrl: string, branch?: string) {

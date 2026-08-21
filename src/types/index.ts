@@ -75,6 +75,21 @@ export interface SkillsSyncConfig {
   lastError?: string;
 }
 
+export interface SyncRepoConfig {
+  remoteUrl: string;
+  branch: string;
+  validatedAt: number;
+  lastError?: string;
+}
+
+export interface SyncRepoValidation {
+  ok: boolean;
+  error?: string;
+  initialized: boolean;
+  formatOk: boolean;
+  resolvedBranch?: string;
+}
+
 export interface SkillsSyncStatus {
   initialized: boolean;
   remoteUrl?: string;
@@ -237,6 +252,7 @@ export interface AppConfig {
   system_theme?: 'dark' | 'light';
   skills_sync?: SkillsSyncConfig;
   dsh_plugins?: DshPluginsConfig;
+  sync_repo?: SyncRepoConfig;
 }
 
 export interface ValidationResult {

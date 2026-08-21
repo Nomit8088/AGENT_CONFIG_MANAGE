@@ -5,12 +5,16 @@
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        @click="store.currentTab = tab.id as any"
+        @click="tab.disabled ? undefined : (store.currentTab = tab.id as any)"
+        :disabled="tab.disabled"
+        :title="tab.disabled ? tab.disabledReason : ''"
         :class="[
           'px-3 py-1.5 text-xs flex items-center gap-2 rounded-lg transition-colors duration-200',
-          store.currentTab === tab.id
-            ? 'bg-black/8 dark:bg-white/10 text-slate-900 dark:text-white/95 font-medium'
-            : 'text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 hover:bg-black/5 dark:hover:bg-white/5'
+          tab.disabled
+            ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-white/40'
+            : store.currentTab === tab.id
+              ? 'bg-black/8 dark:bg-white/10 text-slate-900 dark:text-white/95 font-medium'
+              : 'text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 hover:bg-black/5 dark:hover:bg-white/5'
         ]"
       >
         <component :is="tab.icon" class="w-3.5 h-3.5" />
@@ -69,13 +73,20 @@ import { Bot, Layers, FolderGit2, UploadCloud, AlertTriangle, Plus, Puzzle } fro
 const store = useAppStore();
 
 const tabs = computed(() => [
-  { id: 'agents', label: 'Agent Hub (大厅)', icon: Bot, badge: store.detectedAgentsCount },
-  { id: 'skills', label: 'Skills Matrix (技能矩阵)', icon: Layers, badge: store.skills.length },
-  { id: 'sync', label: '同步中心', icon: UploadCloud, badge: store.skillsSyncStatus.dirtyCount },
-  { id: 'plugins', label: 'DSH 插件中心', icon: Puzzle, badge: store.dshPluginDiffCount },
-  { id: 'projects', label: 'Project Rules (规则中心)', icon: FolderGit2, badge: store.projects.length },
+  { id: 'agents', label: 'Agent Hub (大厅)', icon: Bot, badge: store.detectedAgentsCount, disabled: false, disabledReason: '' },
+  { id: 'skills', label: 'Skills Matrix (技能矩阵)', icon: Layers, badge: store.skills.length, disabled: false, disabledReason: '' },
+  {
+    id: 'sync',
+    label: '同步中心',
+    icon: UploadCloud,
+    badge: store.skillsSyncStatus.dirtyCount,
+    disabled: !store.syncRepoConfigured,
+    disabledReason: '请先在全局设置中配置并校验同步仓库',
+  },
+  { id: 'plugins', label: 'DSH 插件中心', icon: Puzzle, badge: store.dshPluginDiffCount, disabled: false, disabledReason: '' },
+  { id: 'projects', label: 'Project Rules (规则中心)', icon: FolderGit2, badge: store.projects.length, disabled: false, disabledReason: '' },
   ...(store.totalUnmanagedCount > 0
-    ? [{ id: 'unmanaged', label: '待纳管存量', icon: AlertTriangle, badge: store.totalUnmanagedCount }]
+    ? [{ id: 'unmanaged', label: '待纳管存量', icon: AlertTriangle, badge: store.totalUnmanagedCount, disabled: false, disabledReason: '' }]
     : []),
 ]);
 

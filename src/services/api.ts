@@ -12,6 +12,8 @@ import {
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
+  SyncRepoConfig,
+  SyncRepoValidation,
   UnmanagedSkill,
   ValidationResult,
 } from '../types';
@@ -66,6 +68,27 @@ export const api = {
       return invokeTauri('update_config', { config });
     }
     return requestApi<void>('/api/config', 'POST', config);
+  },
+
+  async getSyncRepoConfig(): Promise<SyncRepoConfig> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoConfig>('get_sync_repo_config');
+    }
+    return requestApi<SyncRepoConfig>('/api/sync/repo');
+  },
+
+  async validateSyncRepo(remoteUrl: string, branch?: string): Promise<SyncRepoValidation> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoValidation>('validate_sync_repo', { remoteUrl, branch });
+    }
+    return requestApi<SyncRepoValidation>('/api/sync/repo/validate', 'POST', { remoteUrl, branch });
+  },
+
+  async saveSyncRepo(remoteUrl: string, branch?: string): Promise<SyncRepoConfig> {
+    if (isTauri()) {
+      return invokeTauri<SyncRepoConfig>('save_sync_repo', { remoteUrl, branch });
+    }
+    return requestApi<SyncRepoConfig>('/api/sync/repo', 'POST', { remoteUrl, branch });
   },
 
   async getAgents(): Promise<AgentInfo[]> {

@@ -5,7 +5,7 @@
       <div>
         <h2 class="font-serif font-semibold text-base text-slate-900 dark:text-white/95">DSH 插件中心</h2>
         <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5">
-          管理本地 <span class="font-mono">~/.dsh/profiles/*</span> 的插件：可视化扫描、启动失败诊断修复、配置同步与对账
+          管理本地 <span class="font-mono">~/.dsh/profiles/*</span> 的插件：可视化扫描、安装状态对账与启动失败诊断修复
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -41,29 +41,22 @@
     <!-- Panels -->
     <DshPluginList v-if="activeTab === 'panel'" />
     <DshDiagnose v-else-if="activeTab === 'diagnose'" />
-    <DshPluginSync v-else-if="activeTab === 'sync'" />
-
-    <!-- Diff Modal -->
-    <DshPluginDiffModal />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Puzzle, Stethoscope, UploadCloud, RefreshCw } from 'lucide-vue-next';
+import { Puzzle, Stethoscope, RefreshCw } from 'lucide-vue-next';
 import DshPluginList from './DshPluginList.vue';
 import DshDiagnose from './DshDiagnose.vue';
-import DshPluginSync from './DshPluginSync.vue';
-import DshPluginDiffModal from './DshPluginDiffModal.vue';
 
 const store = useAppStore();
-const activeTab = ref<'panel' | 'diagnose' | 'sync'>('panel');
+const activeTab = ref<'panel' | 'diagnose'>('panel');
 
 const tabs = [
   { id: 'panel' as const, label: '插件面板', icon: Puzzle },
   { id: 'diagnose' as const, label: '诊断修复', icon: Stethoscope },
-  { id: 'sync' as const, label: '同步与对账', icon: UploadCloud },
 ];
 
 onMounted(async () => {
