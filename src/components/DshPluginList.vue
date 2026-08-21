@@ -207,7 +207,7 @@
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">孤儿安装</h3>
             <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30">{{ orphanEntries.length }}</span>
           </div>
-          <span class="text-[11px] text-[#ff453a] truncate ml-3">本机已装但未在配置中声明 · 可一键移除</span>
+          <span class="text-[11px] text-[#ff453a] truncate ml-3">本机已装但未在配置中声明 · 可纳入配置或移除</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-[#ff453a]/30 dark:border-[#ff453a]/30 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
           <div
@@ -228,9 +228,18 @@
                 installed: {{ entry.installedVersion ? `v${entry.installedVersion}` : '?' }}
               </div>
             </div>
-            <IconButton @click="remove(entry)" title="从 node_modules 移除">
-              <Trash2 class="w-3.5 h-3.5" />
-            </IconButton>
+            <div class="flex items-center gap-2 shrink-0">
+              <IconButton
+                kind="primary"
+                :title="`纳入配置（写入 dependencies(link:) + bundles）`"
+                @click="adopt(entry)"
+              >
+                <Link2 class="w-3.5 h-3.5" />
+              </IconButton>
+              <IconButton @click="remove(entry)" title="从 node_modules 移除">
+                <Trash2 class="w-3.5 h-3.5" />
+              </IconButton>
+            </div>
           </div>
         </div>
       </section>
@@ -292,6 +301,7 @@ import {
   AlertTriangle,
   Terminal,
   X,
+  Link2,
 } from 'lucide-vue-next';
 import type { DshInstallMode, DshPluginInstallEntry, DshPluginInstallStatus, DshPluginKind, DshPluginUpdateCheck } from '../types';
 import DshInstallTerminal from './DshInstallTerminal.vue';
@@ -442,6 +452,7 @@ const SegmentedToggle = defineComponent({
 const IconButton = defineComponent({
   props: {
     title: { type: String, default: '' },
+    kind: { type: String as () => 'danger' | 'primary', default: 'danger' },
   },
   emits: ['click'],
   setup(props, { emit, slots }) {
@@ -450,7 +461,12 @@ const IconButton = defineComponent({
         type: 'button',
         title: props.title,
         onClick: () => emit('click'),
-        class: 'p-1.5 rounded-lg bg-transparent hover:bg-[#ff453a]/10 text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] border border-transparent hover:border-[#ff453a]/30 transition-colors duration-200',
+        class: [
+          'p-1.5 rounded-lg bg-transparent border border-transparent transition-colors duration-200',
+          props.kind === 'primary'
+            ? 'text-slate-400 hover:text-[#0a84ff] dark:text-white/40 dark:hover:text-[#0a84ff] hover:bg-[#0a84ff]/10 hover:border-[#0a84ff]/30'
+            : 'text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] hover:bg-[#ff453a]/10 hover:border-[#ff453a]/30',
+        ],
       }, slots.default ? slots.default() : []);
   },
 });
@@ -649,6 +665,22 @@ async function toggle(entry: DshPluginInstallEntry, enabled: boolean) {
     store.showToast({
       title: '切换失败',
       message: e?.message || '无法切换插件状态',
+      type: 'error',
+    });
+  }
+}
+
+async function adopt(entry: DshPluginInstallEntry) {
+  const ok = window.confirm(
+    `确认将孤儿包「${entry.name}」纳入 profile [${entry.profileName}] 配置？\n\n将写入 dependencies（link: 指向本机源码目录）并加入 dsh.profile.bundles，仅支持本地 link/junction 安装。`
+  );
+  if (!ok) return;
+  try {
+    await store.adoptDshOrphan(entry.profileName, entry.name);
+  } catch (e: any) {
+    store.showToast({
+      title: '纳入配置失败',
+      message: e?.message || '无法纳入配置',
       type: 'error',
     });
   }

@@ -1592,6 +1592,72 @@ export async function removeDshPlugin(profile: string, key: string): Promise<voi
   throw new Error(`无法识别的插件 key: ${key}`);
 }
 
+/** 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies(link:) + bundles。
+ *  仅接受链接目标位于 node_modules 之外的本地安装，避免把 pnpm 实体目录误纳管。 */
+export function adoptDshOrphan(profile: string, pkgName: string): void {
+  const profileDir = ensureProfileDir(profile);
+  const name = pkgName.trim();
+  if (!name) throw new Error('包名不能为空');
+
+  const parts = name.split('/').filter(Boolean);
+  if (parts.length === 0 || parts.some(p => p === '.' || p === '..')) {
+    throw new Error(`非法包名: ${name}`);
+  }
+
+  const nmRoot = path.join(profileDir, 'node_modules');
+  const nmPkg = path.join(nmRoot, ...parts);
+  if (!fs.existsSync(nmPkg)) {
+    throw new Error(`本机未安装 ${name}，无法纳入配置`);
+  }
+
+  // 仅允许本地 link/junction 安装：realpath 后目标必须落在 node_modules 之外。
+  let nmRootReal: string;
+  let targetReal: string;
+  try {
+    nmRootReal = fs.realpathSync(nmRoot);
+    targetReal = fs.realpathSync(nmPkg);
+  } catch (e: any) {
+    throw new Error(`无法解析 ${name} 的链接目标: ${e?.message || e}`);
+  }
+  if (targetReal === nmRootReal || targetReal.startsWith(nmRootReal + path.sep)) {
+    throw new Error(`${name} 不是本地 link 安装（目标位于 node_modules 内），无法纳入配置`);
+  }
+
+  // 校验链接目标 package.json 的包名一致。
+  const targetPkgFile = path.join(targetReal, 'package.json');
+  let targetPkg: any;
+  try {
+    targetPkg = JSON.parse(fs.readFileSync(targetPkgFile, 'utf-8'));
+  } catch {
+    throw new Error(`链接目标缺少 package.json: ${targetReal}`);
+  }
+  if (targetPkg?.name !== name) {
+    throw new Error(`链接目标包名不匹配：期望 ${name}，实际 ${targetPkg?.name || '?'}`);
+  }
+
+  const spec = `link:${targetReal.replace(/\\/g, '/')}`;
+  const pkg = readPkg(profileDir);
+  if (!pkg) throw new Error('profile package.json 不存在');
+
+  let depChanged = false;
+  if (!pkg.dependencies) pkg.dependencies = {};
+  if (pkg.dependencies[name] !== spec) {
+    pkg.dependencies[name] = spec;
+    depChanged = true;
+  }
+
+  if (!pkg.dsh) pkg.dsh = {};
+  if (!pkg.dsh.profile) pkg.dsh.profile = {};
+  if (!Array.isArray(pkg.dsh.profile.bundles)) pkg.dsh.profile.bundles = [];
+  let bundleChanged = false;
+  if (!pkg.dsh.profile.bundles.includes(name)) {
+    pkg.dsh.profile.bundles.push(name);
+    bundleChanged = true;
+  }
+
+  if (depChanged || bundleChanged) writePkg(profileDir, pkg);
+}
+
 export function applyDshRecovery(action: DshRecoveryAction): void {
   const profileDir = ensureProfileDir(action.profileName);
 

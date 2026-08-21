@@ -599,6 +599,17 @@ export const useAppStore = defineStore('app', {
       });
     },
 
+    async adoptDshOrphan(profile: string, pkgName: string) {
+      await api.adoptDshOrphan(profile, pkgName);
+      await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
+      this.showToast({
+        title: '已纳入配置',
+        message: `${pkgName} 已写入 profile [${profile}] 的 dependencies(link:) + bundles`,
+        type: 'success',
+      });
+    },
+
     async loadDshInstallEntries(profile?: string) {
       const target = (profile || '').trim() || this.dshPluginsScan?.profiles[0]?.name || 'web';
       this.dshInstallEntriesLoading = true;

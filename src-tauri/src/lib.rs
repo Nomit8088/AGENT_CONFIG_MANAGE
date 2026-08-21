@@ -636,6 +636,7 @@ pub fn run() {
             dsh_plugins::diagnose_dsh_web,
             dsh_plugins::toggle_dsh_plugin,
             dsh_plugins::remove_dsh_plugin,
+            dsh_plugins::adopt_dsh_orphan,
             dsh_plugins::apply_dsh_recovery,
             dsh_plugins::install_dsh_plugins,
             dsh_plugins::reconcile_dsh_install,

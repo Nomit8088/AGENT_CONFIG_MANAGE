@@ -1463,6 +1463,66 @@ fn remove_dependency(profile_dir: &Path, pkg_name: &str) -> bool {
     changed
 }
 
+/// 把本地 link 目标路径转成 package.json 的 link: spec（Windows 下去掉 canonicalize 产生的 \\?\ 前缀）。
+fn local_link_spec(target: &Path) -> String {
+    let raw = target.to_string_lossy().replace('\\', "/");
+    let stripped = raw.strip_prefix("//?/").unwrap_or(&raw);
+    let stripped = match stripped.strip_prefix("UNC/") {
+        Some(unc) => format!("//{}", unc),
+        None => stripped.to_string(),
+    };
+    format!("link:{}", stripped)
+}
+
+/// 写入 dependencies(link:) 并加入 bundles，返回 (依赖是否变更, bundles 是否变更)。
+fn add_link_dependency_and_bundle(
+    profile_dir: &Path,
+    pkg_name: &str,
+    spec: &str,
+) -> Result<(bool, bool), String> {
+    let mut pkg = read_pkg(profile_dir).ok_or_else(|| "profile package.json 不存在".to_string())?;
+
+    let mut dep_changed = false;
+    if pkg.get("dependencies").is_none() {
+        pkg["dependencies"] = JsonValue::Object(serde_json::Map::new());
+    }
+    if let Some(deps) = pkg["dependencies"].as_object_mut() {
+        match deps.get(pkg_name).and_then(|v| v.as_str()) {
+            Some(existing) if existing == spec => {}
+            _ => {
+                deps.insert(pkg_name.to_string(), JsonValue::String(spec.to_string()));
+                dep_changed = true;
+            }
+        }
+    }
+
+    if pkg.get("dsh").is_none() {
+        pkg["dsh"] = JsonValue::Object(serde_json::Map::new());
+    }
+    if pkg["dsh"].get("profile").is_none() {
+        pkg["dsh"]["profile"] = JsonValue::Object(serde_json::Map::new());
+    }
+    let profile = pkg["dsh"]["profile"]
+        .as_object_mut()
+        .ok_or_else(|| "dsh.profile 不是 object".to_string())?;
+    let bundles = profile
+        .entry("bundles")
+        .or_insert_with(|| JsonValue::Array(Vec::new()));
+    let arr = bundles
+        .as_array_mut()
+        .ok_or_else(|| "bundles 不是数组".to_string())?;
+    let mut bundle_changed = false;
+    if !arr.iter().any(|b| b.as_str() == Some(pkg_name)) {
+        arr.push(JsonValue::String(pkg_name.to_string()));
+        bundle_changed = true;
+    }
+
+    if dep_changed || bundle_changed {
+        write_pkg(profile_dir, &pkg);
+    }
+    Ok((dep_changed, bundle_changed))
+}
+
 // ==================== 诊断 ====================
 
 fn kill_tree(pid: u32) {
@@ -1821,6 +1881,60 @@ pub fn remove_dsh_plugin(profile: String, key: String) -> Result<(), String> {
     }
 
     Err(format!("无法识别的插件 key: {}", key))
+}
+
+/// 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies(link:) + bundles。
+/// 仅接受链接目标位于 node_modules 之外的本地安装，避免把 pnpm 实体目录误纳管。
+#[tauri::command]
+pub fn adopt_dsh_orphan(profile: String, pkg_name: String) -> Result<(), String> {
+    let profile_dir = ensure_profile_dir(&profile)?;
+    let pkg_name = pkg_name.trim();
+    if pkg_name.is_empty() {
+        return Err("包名不能为空".to_string());
+    }
+
+    let nm_root = profile_dir.join("node_modules");
+    let mut nm_pkg = nm_root.clone();
+    for part in pkg_name.split('/') {
+        if part.is_empty() || part == "." || part == ".." {
+            return Err(format!("非法包名: {}", pkg_name));
+        }
+        nm_pkg = nm_pkg.join(part);
+    }
+    if !nm_pkg.exists() {
+        return Err(format!("本机未安装 {}，无法纳入配置", pkg_name));
+    }
+
+    // 仅允许本地 link/junction 安装：canonicalize 后目标必须落在 node_modules 之外。
+    let nm_root_real = fs::canonicalize(&nm_root)
+        .map_err(|e| format!("无法解析 node_modules: {}", e))?;
+    let target_real = fs::canonicalize(&nm_pkg)
+        .map_err(|e| format!("无法解析 {} 的链接目标: {}", pkg_name, e))?;
+    if target_real.starts_with(&nm_root_real) {
+        return Err(format!(
+            "{} 不是本地 link 安装（目标位于 node_modules 内），无法纳入配置",
+            pkg_name
+        ));
+    }
+
+    // 校验链接目标 package.json 的包名一致。
+    let target_pkg_file = target_real.join("package.json");
+    let target_text = read_to_string_opt(&target_pkg_file)
+        .ok_or_else(|| format!("链接目标缺少 package.json: {}", target_real.to_string_lossy()))?;
+    let target_json: JsonValue = serde_json::from_str(&target_text)
+        .map_err(|e| format!("链接目标 package.json 解析失败: {}", e))?;
+    let target_name = target_json.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if target_name != pkg_name {
+        return Err(format!(
+            "链接目标包名不匹配：期望 {}，实际 {}",
+            pkg_name,
+            if target_name.is_empty() { "?" } else { target_name }
+        ));
+    }
+
+    let spec = local_link_spec(&target_real);
+    add_link_dependency_and_bundle(&profile_dir, pkg_name, &spec)?;
+    Ok(())
 }
 
 #[tauri::command]

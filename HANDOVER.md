@@ -443,7 +443,7 @@ npm run tauri build
 - 内置 bundle（`@deepseek-ai/dsh-*`，`kind='inbox'`）整体豁免：不判 pending / orphan / version-mismatch，直接 `ok` 且只读。
 - 仅语义化版本 spec（`1.2.3` / `^1.0.0` / `~1.0.0` / `>=1 <2` 等）参与版本对比；`requiredVersion` 优先取 `pnpm-lock.yaml` **`packages:` 段**解析版本，lock 缺失且 spec 为精确号时用 spec。
 - 非语义化 spec（tarball / `git+` / `github:` / `link:` / `file:` 等）`requiredVersion = undefined`，永不判 `version-mismatch`。
-- 孤儿只扫 profile `node_modules` 顶层直接依赖，排除内置、`.bin` / `.pnpm` / 隐藏目录。
+- 孤儿只扫 profile `node_modules` 顶层直接依赖，排除内置、`.bin` / `.pnpm` / 隐藏目录；孤儿行可「纳入配置」（写入 `link:` 本地路径 + bundles）或移除。
 - 版本对比不引入 semver 依赖：lock 解析版本字符串等值对比。
 
 ### 安装流水线
@@ -686,7 +686,7 @@ npm run tauri build
     - P2 分模式安装：`install_dsh_plugins_v2`（Rust）/ `installDshPluginsV2`（Node）支持 `incremental / update / reinstall-all / reinstall-failed`，异步执行 pnpm（Rust `spawn_blocking`；Node 异步 `spawn`，600s 超时）。
     - P3 失败回写：新增 `%APPDATA%\AgentHub\dsh_install_state.json` 持久化（独立文件，不塞 config.json），L3 入口校验（main/exports/dsh.bundle.patch）+ 失败堆栈截断 4KB；磁盘自愈自动清除陈旧 failed；`incremental/update` 失败回滚 package.json / cordis.patch.yml。
     - P4 实时终端：`install_dsh_plugins_streamed`（Tauri `Channel<String>`）+ `GET /api/dsh/plugins/install/stream`（Web SSE），新增 `DshInstallTerminal.vue`（`font-mono` 日志 + 自动滚动 + 状态行）。
-    - `DshPluginList.vue` 改造：状态徽章（绿/琥珀/红语义色）、spec/installed/required 三列对比、四个安装按钮 + 终端开关、失败堆栈弹窗、孤儿移除。
+    - `DshPluginList.vue` 改造：状态徽章（绿/琥珀/红语义色）、spec/installed/required 三列对比、四个安装按钮 + 终端开关、失败堆栈弹窗、孤儿移除 / 纳入配置。
     - `align_dsh_plugins`（Rust/Node）内部改为调用 incremental 安装并拿报告，失败回滚对齐前本地配置。
     - 同步安全：`dsh_install_state.json` 加入共享 `.gitignore`（Rust/Node 双端；已有 `.gitignore` 幂等补齐），避免被 skills sync `git add -A` 推送到远端。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
@@ -738,6 +738,15 @@ npm run tauri build
     - `Navigation.vue`：未配置全局仓库时「同步中心」Tab 置灰禁用，title 提示去全局设置配置；`SyncView.vue` 增加未配置守卫页（打开全局设置）。
     - `SettingsModal.vue` 新增「同步仓库配置（全局）」区：仓库 URL + 分支 + 「连通性校验 / 初始化校验」按钮 + 「保存仓库配置」按钮；校验未通过或校验后修改过 URL/分支时保存按钮禁用。
     - `SyncView.vue` / `DshPluginSync.vue` 移除各自的初始化表单，未初始化本地仓库时提示到全局设置重新保存。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 27)**:
+  - **DSH 插件面板新增孤儿「纳入配置」**:
+    - 新增 `adopt_dsh_orphan`（Rust）/ `adoptDshOrphan`（Node）命令：把本机 link/junction 安装的孤儿包写回 profile `package.json`——`dependencies` 加 `link:<canonicalize/realpath 目标>`，`dsh.profile.bundles` 加包名。
+    - 安全边界：仅接受链接目标位于 `node_modules` 之外的本地安装（canonicalize/realpath 后比较），并校验目标 `package.json` 的 `name` 与包名一致；pnpm 实体目录 / 传递依赖不会误纳管。
+    - Windows 兼容：Rust `local_link_spec` 去掉 `canonicalize` 产生的 `\\?\` 前缀并转正斜杠，`UNC` 前缀还原为 `//server/share`。
+    - Web 路由新增 `POST /api/dsh/plugins/adopt-orphan`；`api.ts` / `useAppStore` / `DshPluginList.vue` 接入；孤儿行新增「纳入配置」按钮（蓝色语义，与红色移除并列）。
+    - 本机实操：`@dsh-external/dsh-better-input-box` 已通过 `dev_install_package` 写入 web profile（`link:D:\\dev\\toolPrograms\\dsh_plugin\\better_input_box` + bundles），不再是孤儿。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---

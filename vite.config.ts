@@ -34,6 +34,7 @@ import {
   diagnoseDshWeb,
   toggleDshPlugin,
   removeDshPlugin,
+  adoptDshOrphan,
   applyDshRecovery,
   installDshPluginsV2,
   reconcileDshInstall,
@@ -653,6 +654,14 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/dsh/plugins/remove' && req.method === 'POST') {
               const { profile, key } = jsonBody;
               await removeDshPlugin(profile, key);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/adopt-orphan
+            if (pathname === '/api/dsh/plugins/adopt-orphan' && req.method === 'POST') {
+              const { profile, pkgName } = jsonBody;
+              adoptDshOrphan(profile || 'web', pkgName);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

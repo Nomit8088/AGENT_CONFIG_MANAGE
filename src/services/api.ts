@@ -321,6 +321,13 @@ export const api = {
     return requestApi<void>('/api/dsh/plugins/remove', 'POST', { profile, key });
   },
 
+  async adoptDshOrphan(profile: string, pkgName: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('adopt_dsh_orphan', { profile, pkgName });
+    }
+    return requestApi<void>('/api/dsh/plugins/adopt-orphan', 'POST', { profile, pkgName });
+  },
+
   async applyDshRecovery(action: DshRecoveryAction): Promise<void> {
     if (isTauri()) {
       return invokeTauri('apply_dsh_recovery', { action });
