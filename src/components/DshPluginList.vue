@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="space-y-3">
     <!-- Empty state -->
     <div
       v-if="!store.dshPluginsScan || store.dshPluginsScan.profiles.length === 0"
@@ -15,70 +15,24 @@
     </div>
 
     <template v-else>
-      <!-- Profile selector + install toolbar -->
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs text-slate-500 dark:text-white/50">Profile：</span>
-        <button
-          v-for="p in store.dshPluginsScan.profiles"
-          :key="p.name"
-          @click="selectProfile(p.name)"
-          :class="[
-            'px-3 py-1.5 rounded-lg text-xs font-mono border transition-colors duration-200',
-            selectedProfile === p.name
-              ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20 font-medium'
-              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
-          ]"
+      <!-- 单条 sticky 操作栏：profile + 搜索 + 视图切换 + 安装 + 终端 -->
+      <div
+        class="sticky top-0 z-10 rounded-xl bg-[#f5f5f7]/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl border border-black/8 dark:border-white/8 px-3 py-2 flex flex-wrap items-center gap-2"
+      >
+        <select
+          v-model="selectedProfile"
+          class="bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-6 py-1.5 text-xs font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
-          {{ p.name }}
-        </button>
-      </div>
+          <option v-for="p in store.dshPluginsScan.profiles" :key="p.name" :value="p.name">{{ p.name }}</option>
+        </select>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="flex items-center gap-1.5">
-          <button
-            v-for="btn in installButtons"
-            :key="btn.mode"
-            type="button"
-            :disabled="store.dshInstalling"
-            @click="runInstall(btn.mode)"
-            :class="[
-              'px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50',
-              btn.mode === 'reinstall-all'
-                ? 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30 hover:bg-[#ff453a]/20'
-                : 'bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border-black/8 dark:border-white/8'
-            ]"
-          >
-            <Download v-if="btn.mode === 'incremental'" class="w-3.5 h-3.5" />
-            <RefreshCw v-else-if="btn.mode === 'update'" class="w-3.5 h-3.5" />
-            <RotateCcw v-else-if="btn.mode === 'reinstall-all'" class="w-3.5 h-3.5" />
-            <AlertTriangle v-else class="w-3.5 h-3.5" />
-            <span>{{ btn.label }}</span>
-          </button>
-        </div>
-        <button
-          type="button"
-          @click="store.toggleInstallTerminal(!store.installTerminal.visible)"
-          :class="[
-            'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors duration-200 flex items-center gap-1.5',
-            store.installTerminal.visible
-              ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
-              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
-          ]"
-        >
-          <Terminal class="w-3.5 h-3.5" />
-          <span>终端</span>
-        </button>
-      </div>
-
-      <!-- Filter toolbar -->
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="relative flex-1 min-w-[200px] max-w-xs">
+        <div class="relative flex-1 min-w-[140px]">
           <Search class="w-3.5 h-3.5 text-slate-400 dark:text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索插件名 / spec / key..."
-            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            placeholder="搜索插件名 / spec..."
+            class="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
@@ -89,228 +43,264 @@
           </button>
         </div>
 
-        <div class="flex items-center gap-1">
-          <span class="text-[11px] text-slate-400 dark:text-white/40">状态:</span>
-          <select
-            v-model="statusFilter"
-            class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
-          >
-            <option value="all">全部状态</option>
-            <option value="ok">正常</option>
-            <option value="pending">待装</option>
-            <option value="version-mismatch">版本冲突</option>
-            <option value="failed">失败</option>
-            <option value="orphan">孤儿</option>
-          </select>
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs shrink-0">
+          <button
+            @click="view = 'source'"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
+              view === 'source'
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >按来源</button>
+          <button
+            @click="view = 'status'"
+            :class="[
+              'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
+              view === 'status'
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >按状态</button>
         </div>
 
-        <div class="flex items-center gap-1">
-          <span class="text-[11px] text-slate-400 dark:text-white/40">类型:</span>
-          <select
-            v-model="kindFilter"
-            class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs shrink-0">
+          <button
+            @click="setViewMode('list')"
+            :title="'列表视图'"
+            :class="[
+              'px-2 py-1 rounded-md transition-colors duration-200 flex items-center justify-center',
+              viewMode === 'list'
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
           >
-            <option value="all">全部类型</option>
-            <option value="inbox">内置</option>
-            <option value="bundle">bundle</option>
-            <option value="plain">依赖</option>
-            <option value="row">patch 行</option>
-          </select>
+            <List class="w-3.5 h-3.5" />
+          </button>
+          <button
+            @click="setViewMode('card')"
+            :title="'卡片视图'"
+            :class="[
+              'px-2 py-1 rounded-md transition-colors duration-200 flex items-center justify-center',
+              viewMode === 'card'
+                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 shadow-xs'
+                : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+            ]"
+          >
+            <LayoutGrid class="w-3.5 h-3.5" />
+          </button>
         </div>
+
+        <div class="relative shrink-0">
+          <button
+            @click="installMenuOpen = !installMenuOpen"
+            :disabled="store.dshInstalling"
+            class="px-2.5 py-1.5 rounded-lg bg-[#bf5af2]/10 hover:bg-[#bf5af2]/15 text-[#bf5af2] border border-[#bf5af2]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
+          >
+            <Download class="w-3.5 h-3.5" />
+            <span>安装</span>
+            <ChevronDown class="w-3 h-3 transition-transform duration-200" :class="{ 'rotate-180': installMenuOpen }" />
+          </button>
+          <div
+            v-if="installMenuOpen"
+            class="fixed inset-0 z-20"
+            @click="installMenuOpen = false"
+          ></div>
+          <div
+            v-if="installMenuOpen"
+            class="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 shadow-md dark:shadow-none p-1"
+          >
+            <button
+              v-for="btn in installButtons"
+              :key="btn.mode"
+              type="button"
+              :disabled="store.dshInstalling"
+              @click="runInstall(btn.mode); installMenuOpen = false"
+              class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/8 transition-colors duration-200 disabled:opacity-50"
+            >
+              <component :is="btn.icon" class="w-3.5 h-3.5 text-slate-400 dark:text-white/40" />
+              <span>{{ btn.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          :title="store.installTerminal.visible ? '收起终端' : '展开安装终端'"
+          @click="store.toggleInstallTerminal(!store.installTerminal.visible)"
+          :class="[
+            'p-1.5 rounded-lg border transition-colors duration-200 flex items-center gap-1.5 shrink-0',
+            store.installTerminal.visible
+              ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
+              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
+          ]"
+        >
+          <Terminal class="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <!-- 健康胶囊行（点击即按状态筛选） -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          v-for="c in capsules"
+          :key="c.value"
+          @click="statusFilter = c.value"
+          :class="[
+            'px-2.5 py-1 rounded-lg text-[11px] font-medium border flex items-center gap-1.5 transition-colors duration-200',
+            statusFilter === c.value
+              ? c.activeCls
+              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
+          ]"
+        >
+          <span v-if="c.dot" class="w-1.5 h-1.5 rounded-sm shrink-0" :class="c.dot"></span>
+          <span>{{ c.label }}</span>
+          <span class="font-mono">{{ c.count }}</span>
+        </button>
 
         <button
           v-if="hasActiveFilters"
           @click="resetFilters"
-          class="px-2 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 border border-black/10 dark:border-white/12 text-xs transition-colors duration-200 flex items-center gap-1"
+          class="px-2 py-1 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 border border-black/10 dark:border-white/12 text-[11px] transition-colors duration-200 flex items-center gap-1"
         >
           <RotateCcw class="w-3 h-3" />
           <span>重置</span>
         </button>
       </div>
 
-      <!-- Install terminal -->
+      <!-- 安装终端 -->
       <DshInstallTerminal v-if="store.installTerminal.visible" />
 
-      <!-- Health summary strip -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
-        <div
-          v-for="stat in summaryStats"
-          :key="stat.label"
-          class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 px-3 py-2.5 flex items-center gap-2.5 transition-colors duration-200"
-        >
-          <span class="w-2 h-2 rounded-sm shrink-0" :class="stat.dotClass"></span>
-          <div class="min-w-0">
-            <div class="font-mono text-sm text-slate-900 dark:text-white/95 leading-none">{{ stat.value }}</div>
-            <div class="text-[10px] text-slate-500 dark:text-white/50 mt-1 truncate">{{ stat.label }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Official built-in group -->
-      <section v-if="filteredOfficialEntries.length" class="space-y-2">
-        <div class="flex items-baseline justify-between px-1">
-          <div class="flex items-baseline gap-2 min-w-0">
-            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">官方内置插件</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredOfficialEntries.length }}<template v-if="hasActiveFilters">/{{ officialEntries.length }}</template></span>
-          </div>
-          <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">@deepseek-ai/dsh-* · Harness 运行时解析 · 只读</span>
-        </div>
-        <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-3">
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="entry in filteredOfficialEntries"
-              :key="entry.key"
-              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
-            >
-              <span class="w-1.5 h-1.5 rounded-sm bg-[#0a84ff]"></span>
-              <span class="font-mono text-slate-900 dark:text-white/90">{{ entry.name }}</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-[#0a84ff]/10 text-[#0a84ff] border border-[#0a84ff]/30">内置</span>
+      <!-- 分组列表（按来源 / 按状态） -->
+      <template v-for="sec in activeSections" :key="sec.id">
+        <section v-if="sec.entries.length" class="space-y-2">
+        <div class="flex items-center justify-between px-1 gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <div :class="['w-6 h-6 rounded-md border flex items-center justify-center shrink-0', sec.iconClass]">
+              <component :is="sec.icon" class="w-3 h-3" />
+            </div>
+            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95 shrink-0">{{ sec.title }}</h3>
+            <span :class="['text-[10px] px-1.5 py-0.5 rounded-md font-mono border', sectionTint(sec.id)]">
+              {{ sec.entries.length }}<template v-if="hasActiveFilters">/{{ sec.total }}</template>
             </span>
           </div>
+          <span class="text-[11px] truncate ml-3" :class="sec.subtitleClass">{{ sec.subtitle }}</span>
         </div>
-      </section>
-
-      <!-- Portable user plugins -->
-      <section v-if="filteredPortableEntries.length" class="space-y-2">
-        <div class="flex items-baseline justify-between px-1">
-          <div class="flex items-baseline gap-2 min-w-0">
-            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">用户插件 · 可移植</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredPortableEntries.length }}<template v-if="hasActiveFilters">/{{ portableEntries.length }}</template></span>
-          </div>
-          <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">可跨机复现安装 · 参与配置同步</span>
-        </div>
-        <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
+        <div
+          v-if="viewMode === 'list'"
+          class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200"
+          :class="sec.accentClass"
+        >
           <DshPluginRow
-            v-for="entry in filteredPortableEntries"
+            v-for="entry in pagedEntries(sec)"
             :key="entry.key"
             :entry="entry"
+            :view="view"
+            :layout="'list'"
             :update-check="store.dshPluginUpdates[entry.key]"
             @toggle="toggle"
             @remove="remove"
+            @adopt="adopt"
             @show-error="showError = $event"
             @check-update="checkUpdate"
             @update="updatePlugin"
           />
         </div>
-      </section>
-
-      <!-- Local dev (unportable) user plugins -->
-      <section v-if="filteredUnportableEntries.length" class="space-y-2">
-        <div class="flex items-baseline justify-between px-1">
-          <div class="flex items-baseline gap-2 min-w-0">
-            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">用户插件 · 本地开发</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30">{{ filteredUnportableEntries.length }}<template v-if="hasActiveFilters">/{{ unportableEntries.length }}</template></span>
-          </div>
-          <span class="text-[11px] text-[#ff9f0a] truncate ml-3">link: / file: 等本机路径 · 不参与同步，推送时自动剔除</span>
-        </div>
-        <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-[#ff9f0a]/30 dark:border-[#ff9f0a]/30 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
           <DshPluginRow
-            v-for="entry in filteredUnportableEntries"
+            v-for="entry in pagedEntries(sec)"
             :key="entry.key"
             :entry="entry"
+            :view="view"
+            :layout="'card'"
+            :update-check="store.dshPluginUpdates[entry.key]"
             @toggle="toggle"
             @remove="remove"
+            @adopt="adopt"
             @show-error="showError = $event"
+            @check-update="checkUpdate"
+            @update="updatePlugin"
           />
         </div>
-      </section>
 
-      <!-- Patch rows -->
-      <section v-if="filteredPatchEntries.length" class="space-y-2">
-        <div class="flex items-baseline justify-between px-1">
-          <div class="flex items-baseline gap-2 min-w-0">
-            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">Patch 配置行</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredPatchEntries.length }}<template v-if="hasActiveFilters">/{{ patchEntries.length }}</template></span>
+        <!-- 分页条（用户插件分区，列表/卡片共用，右下角对齐） -->
+        <div v-if="sec.paginated" class="flex items-center justify-end gap-3 pt-2 flex-wrap">
+          <div v-if="totalPagesOf(sec) > 1" class="flex items-center gap-1">
+            <button
+              type="button"
+              :disabled="pageOf(sec) <= 1"
+              :title="'第一页'"
+              @click="setPage(sec.id, 1)"
+              class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
+            >
+              <ChevronsLeft class="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              :disabled="pageOf(sec) <= 1"
+              :title="'上一页'"
+              @click="setPage(sec.id, pageOf(sec) - 1)"
+              class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
+            >
+              <ChevronLeft class="w-3.5 h-3.5" />
+            </button>
+            <template v-for="n in pageNumbers(sec)" :key="n">
+              <span v-if="n === '...'" class="px-1 text-[11px] text-slate-400 dark:text-white/40">…</span>
+              <button
+                v-else
+                type="button"
+                @click="setPage(sec.id, n)"
+                :class="[
+                  'min-w-[1.75rem] h-7 px-1.5 rounded-md text-[11px] font-medium border transition-colors duration-200',
+                  n === pageOf(sec)
+                    ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20 font-semibold'
+                    : 'border-transparent text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-900 dark:hover:text-white/95'
+                ]"
+              >{{ n }}</button>
+            </template>
+            <button
+              type="button"
+              :disabled="pageOf(sec) >= totalPagesOf(sec)"
+              :title="'下一页'"
+              @click="setPage(sec.id, pageOf(sec) + 1)"
+              class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
+            >
+              <ChevronRight class="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              :disabled="pageOf(sec) >= totalPagesOf(sec)"
+              :title="'最后一页'"
+              @click="setPage(sec.id, totalPagesOf(sec))"
+              class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
+            >
+              <ChevronsRight class="w-3.5 h-3.5" />
+            </button>
           </div>
-          <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">cordis.patch.yml 顶层条目 · 非 npm 包，只做启停</span>
-        </div>
-        <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
-          <div
-            v-for="entry in filteredPatchEntries"
-            :key="entry.key"
-            class="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-          >
-            <span class="w-2 h-2 rounded-sm shrink-0" :class="entry.enabled ? 'bg-[#30d158]' : 'bg-[#ff9f0a]'"></span>
-            <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80 shrink-0">
-              <ListTree class="w-3.5 h-3.5" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-mono text-xs text-slate-900 dark:text-white/90 break-all">{{ entry.name }}</span>
-                <span
-                  class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border"
-                  :class="entry.enabled
-                    ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
-                    : 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30'"
-                >
-                  {{ entry.enabled ? '生效中' : '已停用' }}
-                </span>
-              </div>
-              <div class="mt-0.5 text-[11px] font-mono text-slate-400 dark:text-white/40">cordis.patch.yml</div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <SegmentedToggle :enabled="entry.enabled" @toggle="toggle(entry, $event)" />
-              <IconButton @click="remove(entry)" title="删除此 patch 行">
-                <Trash2 class="w-3.5 h-3.5" />
-              </IconButton>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <!-- Orphans -->
-      <section v-if="filteredOrphanEntries.length" class="space-y-2">
-        <div class="flex items-baseline justify-between px-1">
-          <div class="flex items-baseline gap-2 min-w-0">
-            <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">孤儿安装</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30">{{ filteredOrphanEntries.length }}<template v-if="hasActiveFilters">/{{ orphanEntries.length }}</template></span>
-          </div>
-          <span class="text-[11px] text-[#ff453a] truncate ml-3">本机已装但未在配置中声明 · 可纳入配置或移除</span>
-        </div>
-        <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-[#ff453a]/30 dark:border-[#ff453a]/30 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
-          <div
-            v-for="entry in filteredOrphanEntries"
-            :key="entry.key"
-            class="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-          >
-            <span class="w-2 h-2 rounded-sm bg-[#ff9f0a] shrink-0"></span>
-            <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80 shrink-0">
-              <CircleDot class="w-3.5 h-3.5" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-mono text-xs text-slate-900 dark:text-white/90 break-all">{{ entry.name }}</span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-[#ff9f0a]/10 text-[#ff9f0a] border border-[#ff9f0a]/30">孤儿</span>
-              </div>
-              <div class="mt-0.5 text-[11px] font-mono text-slate-500 dark:text-white/50">
-                installed: {{ entry.installedVersion ? `v${entry.installedVersion}` : '?' }}
-              </div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <IconButton
-                kind="primary"
-                :title="`纳入配置（写入 dependencies(link:) + bundles）`"
-                @click="adopt(entry)"
-              >
-                <Link2 class="w-3.5 h-3.5" />
-              </IconButton>
-              <IconButton @click="remove(entry)" title="从 node_modules 移除">
-                <Trash2 class="w-3.5 h-3.5" />
-              </IconButton>
-            </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-slate-400 dark:text-white/40">每页</span>
+            <select
+              v-model.number="pageSize"
+              class="bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-5 py-1 text-[11px] font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            >
+              <option :value="5">5</option>
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
           </div>
         </div>
-      </section>
+        </section>
+      </template>
 
-      <!-- No match under active filters -->
+      <!-- 无匹配 / 空态 -->
       <div
-        v-if="entries.length > 0 && hasActiveFilters && filteredTotalCount === 0 && !store.dshInstallEntriesLoading"
+        v-if="entries.length > 0 && hasActiveFilters && filtered.length === 0 && !store.dshInstallEntriesLoading"
         class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
       >
         无匹配当前筛选条件的插件，可点击「重置」清空筛选
       </div>
-
-      <!-- All clean / empty user entries -->
       <div
         v-if="entries.length === 0 && !store.dshInstallEntriesLoading"
         class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
@@ -329,7 +319,7 @@
       </div>
     </template>
 
-    <!-- Failed stack modal -->
+    <!-- 失败堆栈弹窗 -->
     <div
       v-if="showError"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-colors duration-200"
@@ -353,99 +343,119 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import {
-  CircleDot,
-  ListTree,
   Puzzle,
-  Trash2,
   Download,
   RefreshCw,
   RotateCcw,
   AlertTriangle,
   Terminal,
   X,
-  Link2,
   Search,
+  ChevronDown,
+  List,
+  LayoutGrid,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  Globe,
+  Wrench,
+  Shield,
+  Unlink,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  ListTree,
 } from 'lucide-vue-next';
 import type { DshInstallMode, DshPluginInstallEntry, DshPluginInstallStatus } from '../types';
 import DshInstallTerminal from './DshInstallTerminal.vue';
 import DshPluginRow from './DshPluginRow.vue';
 
-// ---- 轻量本地子组件（本文件内部使用） ----
-
-const SegmentedToggle = defineComponent({
-  props: {
-    enabled: { type: Boolean, required: true },
-  },
-  emits: ['toggle'],
-  setup(props, { emit }) {
-    return () =>
-      h('div', { class: 'flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs' }, [
-        h('button', {
-          type: 'button',
-          onClick: () => emit('toggle', true),
-          class: [
-            'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
-            props.enabled
-              ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
-              : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80',
-          ],
-        }, [
-          props.enabled ? h('span', { class: 'w-1.5 h-1.5 rounded-sm bg-[#30d158]' }) : null,
-          h('span', '启用'),
-        ]),
-        h('button', {
-          type: 'button',
-          onClick: () => emit('toggle', false),
-          class: [
-            'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
-            !props.enabled
-              ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
-              : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80',
-          ],
-        }, [h('span', '停用')]),
-      ]);
-  },
-});
-
-const IconButton = defineComponent({
-  props: {
-    title: { type: String, default: '' },
-    kind: { type: String as () => 'danger' | 'primary', default: 'danger' },
-  },
-  emits: ['click'],
-  setup(props, { emit, slots }) {
-    return () =>
-      h('button', {
-        type: 'button',
-        title: props.title,
-        onClick: () => emit('click'),
-        class: [
-          'p-1.5 rounded-lg bg-transparent border border-transparent transition-colors duration-200',
-          props.kind === 'primary'
-            ? 'text-slate-400 hover:text-[#0a84ff] dark:text-white/40 dark:hover:text-[#0a84ff] hover:bg-[#0a84ff]/10 hover:border-[#0a84ff]/30'
-            : 'text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] hover:bg-[#ff453a]/10 hover:border-[#ff453a]/30',
-        ],
-      }, slots.default ? slots.default() : []);
-  },
-});
-
-// ---- 筛选状态 ----
-
-const searchQuery = ref('');
-const statusFilter = ref<'all' | DshPluginInstallStatus>('all');
-const kindFilter = ref<'all' | 'inbox' | 'bundle' | 'plain' | 'row'>('all');
-
-// ---- 状态与分组 ----
+interface SectionDef {
+  id: string;
+  title: string;
+  subtitle: string;
+  subtitleClass: string;
+  icon: any;
+  iconClass: string;
+  accentClass: string;
+  entries: DshPluginInstallEntry[];
+  total: number;
+  paginated?: boolean;
+}
 
 const store = useAppStore();
 const selectedProfile = ref('');
 const showError = ref('');
+const view = ref<'source' | 'status'>('source');
+const installMenuOpen = ref(false);
+const viewMode = ref<'list' | 'card'>(
+  (typeof localStorage !== 'undefined' && (localStorage.getItem('dsh_plugins_view_mode') as 'list' | 'card')) || 'list'
+);
 
-// 先注册 selectedProfile 监听（immediate），再注册 profiles 监听（immediate），
-// 避免 profiles 已存在时在 setup 期间赋值 selectedProfile 但监听器尚未建立，导致对账数据不加载。
+function setViewMode(mode: 'list' | 'card') {
+  viewMode.value = mode;
+  try {
+    localStorage.setItem('dsh_plugins_view_mode', mode);
+  } catch (e) {}
+}
+
+// 分页：用户插件分区（可移植/本地开发）在列表与卡片视图下均启用，默认每页 10 个
+const pageSize = ref(10);
+const currentPage = reactive<Record<string, number>>({});
+
+function totalPagesOf(sec: SectionDef): number {
+  return Math.max(1, Math.ceil(sec.entries.length / pageSize.value));
+}
+
+function pageOf(sec: SectionDef): number {
+  if (!sec.paginated) return 1;
+  return Math.min(Math.max(1, currentPage[sec.id] || 1), totalPagesOf(sec));
+}
+
+function pagedEntries(sec: SectionDef): DshPluginInstallEntry[] {
+  if (!sec.paginated) return sec.entries;
+  const page = pageOf(sec);
+  const start = (page - 1) * pageSize.value;
+  return sec.entries.slice(start, start + pageSize.value);
+}
+
+function pageNumbers(sec: SectionDef): (number | '...')[] {
+  const total = totalPagesOf(sec);
+  const current = pageOf(sec);
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const set = new Set<number>([1, total]);
+  for (let n = current - 2; n <= current + 2; n += 1) {
+    if (n > 1 && n < total) set.add(n);
+  }
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: (number | '...')[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) out.push('...');
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
+function setPage(secId: string, page: number) {
+  currentPage[secId] = page;
+}
+
+// 筛选状态：仅保留搜索 + 状态（状态经健康胶囊驱动；来源靠分组/徽章表达）
+const searchQuery = ref('');
+const statusFilter = ref<'all' | DshPluginInstallStatus>('all');
+
+// 切换 profile / 搜索 / 状态筛选 / 每页条数时重置分页，避免停留在越界页
+watch([selectedProfile, searchQuery, statusFilter, pageSize], () => {
+  for (const k of Object.keys(currentPage)) delete currentPage[k];
+});
+
+// 先注册 selectedProfile 监听（immediate），再注册 profiles 监听（immediate），避免竞态。
 watch(selectedProfile, (profile) => {
   if (profile) {
     store.loadDshInstallEntries(profile).catch(() => {});
@@ -466,98 +476,213 @@ const entries = computed(() =>
   store.dshInstallEntries.filter(e => e.profileName === selectedProfile.value)
 );
 
-const officialEntries = computed(() => entries.value.filter(e => e.kind === 'inbox'));
-const patchEntries = computed(() => entries.value.filter(e => e.kind === 'row'));
-const orphanEntries = computed(() => entries.value.filter(e => e.status === 'orphan'));
-
-const userPackageEntries = computed(() =>
-  entries.value.filter(e => e.kind !== 'inbox' && e.kind !== 'row' && e.status !== 'orphan')
-);
-
-const portableEntries = computed(() => userPackageEntries.value.filter(e => e.portability === 'portable'));
-const unportableEntries = computed(() => userPackageEntries.value.filter(e => e.portability === 'unportable'));
-
 const hasActiveFilters = computed(
-  () =>
-    searchQuery.value.trim() !== '' ||
-    statusFilter.value !== 'all' ||
-    kindFilter.value !== 'all'
+  () => searchQuery.value.trim() !== '' || statusFilter.value !== 'all'
 );
 
 function matchesFilters(entry: DshPluginInstallEntry): boolean {
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
-    const haystack = [
-      entry.name,
-      entry.spec || '',
-      entry.key,
-      entry.kind,
-      entry.status,
-    ].join(' ').toLowerCase();
+    const haystack = [entry.name, entry.spec || '', entry.key].join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
   if (statusFilter.value !== 'all' && entry.status !== statusFilter.value) return false;
-  if (kindFilter.value !== 'all' && entry.kind !== kindFilter.value) return false;
   return true;
 }
 
-const filteredOfficialEntries = computed(() => officialEntries.value.filter(matchesFilters));
-const filteredPatchEntries = computed(() => patchEntries.value.filter(matchesFilters));
-const filteredOrphanEntries = computed(() => orphanEntries.value.filter(matchesFilters));
-const filteredPortableEntries = computed(() => portableEntries.value.filter(matchesFilters));
-const filteredUnportableEntries = computed(() => unportableEntries.value.filter(matchesFilters));
+const filtered = computed(() => entries.value.filter(matchesFilters));
 
-const filteredTotalCount = computed(
-  () =>
-    filteredOfficialEntries.value.length +
-    filteredPatchEntries.value.length +
-    filteredOrphanEntries.value.length +
-    filteredPortableEntries.value.length +
-    filteredUnportableEntries.value.length
-);
+function groupEntries(list: DshPluginInstallEntry[]) {
+  return {
+    inbox: list.filter(e => e.kind === 'inbox'),
+    portable: list.filter(
+      e => e.kind !== 'inbox' && e.kind !== 'row' && e.status !== 'orphan' && e.portability === 'portable'
+    ),
+    unportable: list.filter(
+      e => e.kind !== 'inbox' && e.kind !== 'row' && e.status !== 'orphan' && e.portability === 'unportable'
+    ),
+    row: list.filter(e => e.kind === 'row'),
+    orphan: list.filter(e => e.status === 'orphan'),
+    ok: list.filter(e => e.status === 'ok'),
+    pending: list.filter(e => e.status === 'pending'),
+    mismatch: list.filter(e => e.status === 'version-mismatch'),
+    failed: list.filter(e => e.status === 'failed'),
+  };
+}
+
+const groups = computed(() => groupEntries(filtered.value));
+const totals = computed(() => groupEntries(entries.value));
+
+const activeSections = computed<SectionDef[]>(() => {
+  if (view.value === 'source') {
+    return [
+      {
+        id: 'portable',
+        title: '用户插件 · 可移植',
+        subtitle: '可跨机复现安装 · 参与配置同步',
+        subtitleClass: 'text-[#30d158]',
+        icon: Globe,
+        iconClass: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
+        accentClass: 'border-t-[#30d158]/60',
+        entries: groups.value.portable,
+        total: totals.value.portable.length,
+        paginated: true,
+      },
+      {
+        id: 'unportable',
+        title: '用户插件 · 本地开发',
+        subtitle: 'link:/file: 本机路径 · 不参与同步',
+        subtitleClass: 'text-[#ff9f0a]',
+        icon: Wrench,
+        iconClass: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
+        accentClass: 'border-t-[#ff9f0a]/60',
+        entries: groups.value.unportable,
+        total: totals.value.unportable.length,
+        paginated: true,
+      },
+      {
+        id: 'inbox',
+        title: '官方插件',
+        subtitle: '@deepseek-ai/dsh-* · Harness 运行时解析 · 只读',
+        subtitleClass: 'text-[#0a84ff]',
+        icon: Shield,
+        iconClass: 'bg-[#0a84ff]/10 border-[#0a84ff]/20 text-[#0a84ff]',
+        accentClass: 'border-t-[#0a84ff]/60',
+        entries: groups.value.inbox,
+        total: totals.value.inbox.length,
+      },
+      {
+        id: 'row',
+        title: 'Patch 配置行',
+        subtitle: 'cordis.patch.yml 顶层条目 · 非 npm 包',
+        subtitleClass: 'text-[#bf5af2]',
+        icon: ListTree,
+        iconClass: 'bg-[#bf5af2]/10 border-[#bf5af2]/20 text-[#bf5af2]',
+        accentClass: 'border-t-[#bf5af2]/60',
+        entries: groups.value.row,
+        total: totals.value.row.length,
+      },
+      {
+        id: 'orphan',
+        title: '孤儿安装',
+        subtitle: '本机已装但未声明 · 可纳入配置或移除',
+        subtitleClass: 'text-[#ff453a]',
+        icon: Unlink,
+        iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
+        accentClass: 'border-t-[#ff453a]/60',
+        entries: groups.value.orphan,
+        total: totals.value.orphan.length,
+      },
+    ];
+  }
+  return [
+    {
+      id: 'ok',
+      title: '正常',
+      subtitle: '配置声明与磁盘安装一致',
+      subtitleClass: 'text-[#30d158]',
+      icon: CheckCircle2,
+      iconClass: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
+      accentClass: 'border-t-[#30d158]/60',
+      entries: groups.value.ok,
+      total: totals.value.ok.length,
+    },
+    {
+      id: 'pending',
+      title: '待装',
+      subtitle: '配置已声明 · 本机未安装',
+      subtitleClass: 'text-[#ff9f0a]',
+      icon: Clock,
+      iconClass: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
+      accentClass: 'border-t-[#ff9f0a]/60',
+      entries: groups.value.pending,
+      total: totals.value.pending.length,
+    },
+    {
+      id: 'mismatch',
+      title: '版本冲突',
+      subtitle: '本机版本与配置 / lock 不一致',
+      subtitleClass: 'text-[#ff453a]',
+      icon: AlertTriangle,
+      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
+      accentClass: 'border-t-[#ff453a]/60',
+      entries: groups.value.mismatch,
+      total: totals.value.mismatch.length,
+    },
+    {
+      id: 'failed',
+      title: '失败',
+      subtitle: '上次安装失败',
+      subtitleClass: 'text-[#ff453a]',
+      icon: XCircle,
+      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
+      accentClass: 'border-t-[#ff453a]/60',
+      entries: groups.value.failed,
+      total: totals.value.failed.length,
+    },
+    {
+      id: 'orphan',
+      title: '孤儿安装',
+      subtitle: '本机已装但未声明 · 可纳入配置或移除',
+      subtitleClass: 'text-[#ff453a]',
+      icon: Unlink,
+      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
+      accentClass: 'border-t-[#ff453a]/60',
+      entries: groups.value.orphan,
+      total: totals.value.orphan.length,
+    },
+  ];
+});
+
+function sectionTint(id: string): string {
+  switch (id) {
+    case 'portable':
+    case 'ok':
+      return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
+    case 'unportable':
+    case 'pending':
+    case 'orphan':
+      return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
+    case 'inbox':
+      return 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30';
+    case 'row':
+      return 'bg-[#bf5af2]/10 text-[#bf5af2] border-[#bf5af2]/30';
+    case 'mismatch':
+    case 'failed':
+      return 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30';
+    default:
+      return 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10';
+  }
+}
+
+const capsules = computed(() => [
+  { value: 'all' as const, label: '全部', count: entries.value.length, dot: '', activeCls: 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20' },
+  { value: 'ok' as const, label: '正常', count: totals.value.ok.length, dot: 'bg-[#30d158]', activeCls: 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30' },
+  { value: 'pending' as const, label: '待装', count: totals.value.pending.length, dot: 'bg-[#ff9f0a]', activeCls: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30' },
+  { value: 'version-mismatch' as const, label: '版本冲突', count: totals.value.mismatch.length, dot: 'bg-[#ff453a]', activeCls: 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30' },
+  { value: 'failed' as const, label: '失败', count: totals.value.failed.length, dot: 'bg-[#ff453a]', activeCls: 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30' },
+  { value: 'orphan' as const, label: '孤儿', count: totals.value.orphan.length, dot: 'bg-[#ff9f0a]', activeCls: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30' },
+]);
+
+const hasFailedState = computed(() => entries.value.some(e => e.status === 'failed'));
+
+const installButtons: { mode: DshInstallMode; label: string; icon: any }[] = [
+  { mode: 'incremental', label: '增量安装', icon: Download },
+  { mode: 'update', label: '更新', icon: RefreshCw },
+  { mode: 'reinstall-failed', label: '仅失败重装', icon: AlertTriangle },
+  { mode: 'reinstall-all', label: '全部重新安装', icon: RotateCcw },
+];
 
 function resetFilters() {
   searchQuery.value = '';
   statusFilter.value = 'all';
-  kindFilter.value = 'all';
-}
-
-const summaryStats = computed(() => {
-  const users = userPackageEntries.value;
-  const count = (status: DshPluginInstallStatus) => users.filter(e => e.status === status).length;
-  return [
-    { label: '正常', value: count('ok'), dotClass: 'bg-[#30d158]' },
-    { label: '待装', value: count('pending'), dotClass: 'bg-[#ff9f0a]' },
-    { label: '版本冲突', value: count('version-mismatch'), dotClass: 'bg-[#ff453a]' },
-    { label: '失败', value: count('failed'), dotClass: 'bg-[#ff453a]' },
-    { label: '孤儿', value: orphanEntries.value.length, dotClass: 'bg-[#ff9f0a]' },
-    { label: '不可移植', value: users.filter(e => e.portability === 'unportable').length, dotClass: 'bg-[#ff9f0a]' },
-  ];
-});
-
-const hasFailedState = computed(() => entries.value.some(e => e.status === 'failed'));
-
-const installButtons: { mode: DshInstallMode; label: string }[] = [
-  { mode: 'incremental', label: '增量安装' },
-  { mode: 'update', label: '更新' },
-  { mode: 'reinstall-failed', label: '仅失败重装' },
-  { mode: 'reinstall-all', label: '全部重新安装' },
-];
-
-function selectProfile(name: string) {
-  selectedProfile.value = name;
-  store.loadDshInstallEntries(name).catch(() => {});
 }
 
 async function checkUpdate(entry: DshPluginInstallEntry) {
   try {
     const result = await store.checkDshPluginUpdate(entry.profileName, entry.key);
     if (result.error) {
-      store.showToast({
-        title: '检查更新失败',
-        message: result.error,
-        type: 'error',
-      });
+      store.showToast({ title: '检查更新失败', message: result.error, type: 'error' });
     } else if (result.updateAvailable) {
       store.showToast({
         title: '发现新版本',
@@ -572,11 +697,7 @@ async function checkUpdate(entry: DshPluginInstallEntry) {
       });
     }
   } catch (e: any) {
-    store.showToast({
-      title: '检查更新失败',
-      message: e?.message || '无法检查更新',
-      type: 'error',
-    });
+    store.showToast({ title: '检查更新失败', message: e?.message || '无法检查更新', type: 'error' });
   }
 }
 
@@ -619,11 +740,7 @@ async function toggle(entry: DshPluginInstallEntry, enabled: boolean) {
   try {
     await store.toggleDshPlugin(entry.profileName, entry.key, enabled);
   } catch (e: any) {
-    store.showToast({
-      title: '切换失败',
-      message: e?.message || '无法切换插件状态',
-      type: 'error',
-    });
+    store.showToast({ title: '切换失败', message: e?.message || '无法切换插件状态', type: 'error' });
   }
 }
 
@@ -635,11 +752,7 @@ async function adopt(entry: DshPluginInstallEntry) {
   try {
     await store.adoptDshOrphan(entry.profileName, entry.name);
   } catch (e: any) {
-    store.showToast({
-      title: '纳入配置失败',
-      message: e?.message || '无法纳入配置',
-      type: 'error',
-    });
+    store.showToast({ title: '纳入配置失败', message: e?.message || '无法纳入配置', type: 'error' });
   }
 }
 
@@ -664,11 +777,7 @@ async function clearFailed() {
   try {
     await store.clearDshInstallState(selectedProfile.value);
   } catch (e: any) {
-    store.showToast({
-      title: '清除失败',
-      message: e?.message || '无法清除安装状态',
-      type: 'error',
-    });
+    store.showToast({ title: '清除失败', message: e?.message || '无法清除安装状态', type: 'error' });
   }
 }
 </script>

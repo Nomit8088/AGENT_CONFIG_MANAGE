@@ -2,11 +2,24 @@
   <div class="h-full overflow-y-auto p-4 space-y-4 transition-colors duration-200">
     <!-- Header -->
     <div class="flex items-center justify-between gap-3">
-      <div class="min-w-0">
-        <h2 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 插件中心</h2>
-        <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5 truncate">
-          管理本地 <span class="font-mono">~/.dsh/profiles/*</span> 插件：扫描、对账、诊断修复
-        </p>
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-lg bg-[#bf5af2]/10 border border-[#bf5af2]/20 text-[#bf5af2] flex items-center justify-center shrink-0">
+          <Puzzle class="w-4 h-4" />
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h2 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 插件中心</h2>
+            <span
+              v-if="store.dshProfileCount > 0"
+              class="px-1.5 py-0.5 rounded-md text-[10px] font-mono border bg-[#bf5af2]/10 text-[#bf5af2] border-[#bf5af2]/30"
+            >
+              {{ store.dshProfileCount }} profile
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5 truncate">
+            管理本地 <span class="font-mono">~/.dsh/profiles/*</span> 插件：扫描、对账、诊断修复
+          </p>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <button

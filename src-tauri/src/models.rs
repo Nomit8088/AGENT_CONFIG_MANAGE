@@ -62,6 +62,14 @@ pub struct SkillsSyncStatus {
     pub last_error: Option<String>,
 }
 
+/// 本地 vs 远端 文件级差异条目（按功能范围 skills/ 或 dsh/ 隔离）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncDiffEntry {
+    pub path: String,
+    pub status: String, // "added" | "modified" | "deleted"
+    pub side: String,   // "local" | "remote" | "both"
+}
+
 /// 全局同步仓库配置（技能与 DSH 插件共用同一 remote/branch）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncRepoConfig {

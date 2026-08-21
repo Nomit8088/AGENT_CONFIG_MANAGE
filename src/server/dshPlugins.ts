@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import { spawn, spawnSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
-import { detectSystemProxy, gitProxyArgs, runGit } from './gitSyncUtil';
+import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import type {
   DshDiagnoseResult,
@@ -1893,6 +1893,15 @@ export function getDshPluginsSyncStatus(): SkillsSyncStatus {
   }
 
   return status;
+}
+
+/** DSH 插件范围的「本地 vs 远端」文件级差异（复用共享仓库 origin/<branch>）。 */
+export function getDshPluginsSyncDiff() {
+  const root = syncRoot();
+  if (!fs.existsSync(path.join(root, '.git'))) return [];
+  const syncCfg = readDshSyncConfig();
+  const branch = effectiveDshBranch(syncCfg);
+  return computeGitSyncDiff(root, 'dsh', branch);
 }
 
 function updateLastSync(status: string, error?: string): void {

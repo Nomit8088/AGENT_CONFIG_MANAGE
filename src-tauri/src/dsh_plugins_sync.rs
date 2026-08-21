@@ -10,7 +10,7 @@ use crate::dsh_plugins::{
     is_portable_spec, list_profile_dirs, read_pkg, reconcile_node_modules, resolve_dsh_home,
     run_install_blocking, write_pkg, BUILTIN_BUNDLE_PREFIX,
 };
-use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus};
+use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
 
 /// 与 skills sync 共用同一 Git 仓库根目录。
@@ -236,6 +236,18 @@ pub fn get_dsh_plugins_sync_status() -> SkillsSyncStatus {
     }
 
     status
+}
+
+/// DSH 插件范围的「本地 vs 远端」文件级差异（复用共享仓库 origin/<branch>）。
+#[tauri::command]
+pub fn get_dsh_plugins_sync_diff() -> Vec<SyncDiffEntry> {
+    let root = sync_root();
+    if !root.join(".git").exists() {
+        return Vec::new();
+    }
+    let cfg = sync_config();
+    let branch = effective_branch(&cfg);
+    crate::git_sync::sync_diff(&root, "dsh", &branch)
 }
 
 #[tauri::command]
