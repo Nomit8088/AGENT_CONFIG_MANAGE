@@ -3,8 +3,12 @@ import {
   AgentInfo,
   AppConfig,
   DshDiagnoseResult,
+  DshInstallMode,
+  DshInstallReport,
   DshPluginDiff,
+  DshPluginInstallEntry,
   DshPluginScanResult,
+  DshPluginUpdateCheck,
   DshRecoveryAction,
   IgnoredSkill,
   ProjectInfo,
@@ -114,6 +118,18 @@ export const useAppStore = defineStore('app', {
     dshPluginsScanLoading: false,
     dshPluginDiffModal: {
       visible: false,
+    },
+
+    // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
+    dshInstallEntries: [] as DshPluginInstallEntry[],
+    dshInstallEntriesLoading: false,
+    dshPluginUpdates: {} as Record<string, DshPluginUpdateCheck>,
+    dshInstallReport: null as DshInstallReport | null,
+    dshInstalling: false,
+    installTerminal: {
+      visible: false,
+      lines: [] as string[],
+      running: false,
     },
 
     // Agent Unmanaged Details Modal/Drawer
@@ -513,6 +529,7 @@ export const useAppStore = defineStore('app', {
     async toggleDshPlugin(profile: string, key: string, enabled: boolean) {
       await api.toggleDshPlugin(profile, key, enabled);
       await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: enabled ? '插件已启用' : '插件已停用',
         message: `profile [${profile}] 的 ${key} 已${enabled ? '启用' : '停用'}`,
@@ -523,6 +540,7 @@ export const useAppStore = defineStore('app', {
     async removeDshPlugin(profile: string, key: string) {
       await api.removeDshPlugin(profile, key);
       await this.loadDshPlugins();
+      await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: '插件已卸载',
         message: `profile [${profile}] 的 ${key} 已从配置中移除（并已尽力清理 node_modules）`,
@@ -530,14 +548,146 @@ export const useAppStore = defineStore('app', {
       });
     },
 
-    async installDshPlugins(profile: string) {
-      await api.installDshPlugins(profile);
-      await this.loadDshPlugins();
+    async loadDshInstallEntries(profile?: string) {
+      const target = (profile || '').trim() || this.dshPluginsScan?.profiles[0]?.name || 'web';
+      this.dshInstallEntriesLoading = true;
+      try {
+        this.dshInstallEntries = await api.scanDshInstallEntries(target);
+      } finally {
+        this.dshInstallEntriesLoading = false;
+      }
+    },
+
+    async installDshPlugins(profile: string, mode: DshInstallMode = 'incremental') {
+      this.dshInstalling = true;
+      try {
+        this.dshInstallReport = await api.installDshPlugins(profile, mode);
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        if (this.dshInstallReport.ok) {
+          this.showToast({
+            title: '安装完成',
+            message: `profile [${profile}] 已执行 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '安装未完全成功',
+            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            type: 'error',
+          });
+        }
+        return this.dshInstallReport;
+      } catch (e: any) {
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '安装失败',
+          message: e?.message || '无法执行 pnpm 安装',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
+    },
+
+    async installDshPluginsStreamed(profile: string, mode: DshInstallMode) {
+      this.dshInstalling = true;
+      this.installTerminal = { visible: true, lines: [], running: true };
+      try {
+        this.dshInstallReport = await api.installDshPluginsStreamed(profile, mode, line => {
+          this.installTerminal.lines.push(line);
+        });
+        this.installTerminal.running = false;
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        if (this.dshInstallReport.ok) {
+          this.showToast({
+            title: '安装完成',
+            message: `profile [${profile}] 已完成 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '安装未完全成功',
+            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            type: 'error',
+          });
+        }
+        return this.dshInstallReport;
+      } catch (e: any) {
+        this.installTerminal.running = false;
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '安装失败',
+          message: e?.message || '无法执行 pnpm 安装',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
+    },
+
+    toggleInstallTerminal(visible: boolean) {
+      this.installTerminal.visible = visible;
+      if (!visible) this.installTerminal.running = false;
+    },
+
+    async clearDshInstallState(profile: string, pkg?: string) {
+      await api.clearDshInstallState(profile, pkg);
+      await this.loadDshInstallEntries(profile);
       this.showToast({
-        title: '依赖安装完成',
-        message: `profile [${profile}] 已执行 pnpm install`,
-        type: 'success',
+        title: '安装状态已清除',
+        message: pkg ? `已清除 ${pkg} 的失败状态` : `已清除 profile [${profile}] 的全部安装状态`,
+        type: 'info',
       });
+    },
+
+    async checkDshPluginUpdate(profile: string, key: string) {
+      const result = await api.checkDshPluginUpdate(profile, key);
+      this.dshPluginUpdates = {
+        ...this.dshPluginUpdates,
+        [key]: result,
+      };
+      return result;
+    },
+
+    async updateDshPlugin(profile: string, key: string) {
+      this.dshInstalling = true;
+      try {
+        const report = await api.updateDshPlugin(profile, key);
+        await this.loadDshPlugins();
+        await this.loadDshInstallEntries(profile);
+        // 更新完成后清除该包的更新检查缓存
+        const updates = { ...this.dshPluginUpdates };
+        delete updates[key];
+        this.dshPluginUpdates = updates;
+        if (report.ok) {
+          this.showToast({
+            title: '插件更新完成',
+            message: `profile [${profile}] 的 ${key} 已更新到最新`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: '插件更新失败',
+            message: report.failed.map(f => `${f.name}: ${f.reason}`).join('\n'),
+            type: 'error',
+          });
+        }
+        return report;
+      } catch (e: any) {
+        await this.loadDshInstallEntries(profile).catch(() => {});
+        this.showToast({
+          title: '插件更新失败',
+          message: e?.message || '无法更新插件',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.dshInstalling = false;
+      }
     },
 
     async loadDshPluginsSyncStatus() {
@@ -627,6 +777,7 @@ export const useAppStore = defineStore('app', {
       await api.alignDshPlugins(profile);
       await this.loadDshPlugins();
       await this.reconcileDshPlugins();
+      if (profile) await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
         title: '一键对齐完成',
         message: '本地插件配置已对齐镜像并执行 pnpm install',
