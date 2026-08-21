@@ -29,7 +29,7 @@
     </div>
 
     <!-- Log output -->
-    <div ref="logRef" class="h-48 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 dark:text-[#e5e5ea] whitespace-pre-wrap break-all">
+    <div ref="logRef" class="h-36 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 dark:text-[#e5e5ea] whitespace-pre-wrap break-all">
       <p v-if="store.installTerminal.lines.length === 0" class="text-slate-500 dark:text-white/40">
         终端空闲，点击上方安装按钮开始流式输出 pnpm 日志…
       </p>

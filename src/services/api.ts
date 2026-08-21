@@ -91,6 +91,13 @@ export const api = {
     return requestApi<SyncRepoConfig>('/api/sync/repo', 'POST', { remoteUrl, branch });
   },
 
+  async unbindSyncRepo(): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('unbind_sync_repo');
+    }
+    return requestApi<void>('/api/sync/repo/unbind', 'POST');
+  },
+
   async getAgents(): Promise<AgentInfo[]> {
     if (isTauri()) {
       return invokeTauri<AgentInfo[]>('get_agents');

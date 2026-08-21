@@ -276,6 +276,28 @@ pub fn save_sync_repo(remote_url: String, branch: Option<String>) -> Result<Sync
     Ok(get_sync_repo_config())
 }
 
+/// 解绑全局同步仓库：清除配置与旧配置块中的远端信息，并移除本地 origin（保留 .git 与工作区）。
+#[tauri::command]
+pub fn unbind_sync_repo() -> Result<(), String> {
+    let mut app_cfg = load_config();
+    app_cfg.sync_repo = None;
+    if let Some(ss) = app_cfg.skills_sync.as_mut() {
+        ss.remote_url = String::new();
+        ss.branch = "main".to_string();
+    }
+    if let Some(plugins) = app_cfg.dsh_plugins.as_mut() {
+        if let Some(sync) = plugins.sync.as_mut() {
+            sync.remote_url = String::new();
+            sync.branch = "main".to_string();
+        }
+    }
+    save_config(&app_cfg)?;
+
+    let root = sync_root();
+    let _ = run_git(&root, ["remote", "remove", "origin"]);
+    Ok(())
+}
+
 /// 初始化/校正本地共享仓库（`%APPDATA%\AgentHub\.git` + origin + fetch 基线）。
 fn ensure_local_repo(remote_url: &str, branch: &str) -> Result<(), String> {
     let root = sync_root();

@@ -252,14 +252,14 @@ flowchart TD
 │   │   └── style.css                   # 全局样式、毛玻璃、滚动条美化
 │   └── components/
 │       ├── Header.vue                  # 顶部导航条 (状态统计、主题切换、设置)
-│       ├── Navigation.vue              # 核心四栏切换 Tab
+│       ├── Navigation.vue              # 核心页签切换 Tab（大厅/技能/插件/项目/同步）
 │       ├── AgentBrandIcon.vue          # 真实 Agent 官方高精度矢量 SVG 图标体系 (16 Agents)
-│       ├── AgentCard.vue               # Agent 大厅状态卡片 (已启用 / 未启用双模卡片)
-│       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分组 + 关键词检索)
-│       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (中央技能库全维度搜索、来源/挂载过滤与排序)
-│       ├── SyncView.vue                # 面板: 同步中心 (技能 + DSH 插件，同仓库按功能分开同步/拉取/推送)
-│       ├── UnmanagedGroupSection.vue   # 存量检测按 Agent 归类卡片区 (支持状态筛选、排序与一键纳管全部)
-│       ├── AgentDetailModal.vue        # 存量管理弹窗 (待纳管/已忽略 Tabs + 弹窗内技能搜索)
+│       ├── AgentCard.vue               # Agent 大厅卡片 (已启用/未启用双模；待纳管/忽略/已挂载为只读状态标签+悬浮提示，统一「技能管理」入口弹窗)
+│       ├── AgentsView.vue              # 面板 1: Agent Hub (已启用/未启用分段页签切换 + 关键词检索 + 卡片网格)
+│       ├── SkillsMatrix.vue            # 面板 2: Skills Matrix (仅中央技能库：搜索/筛选/排序/新建/编辑/删除 + 紧凑分发计数)
+│       ├── SyncView.vue                # 面板: 同步中心 (主视觉仓库卡 + 蓝色技能卡 + 紫色DSH卡；未配置时展示仓库格式指引)
+│       ├── UnmanagedGroupSection.vue   # [已弃用] 存量检测按 Agent 归类卡片区 (功能已合并进 AgentCard 卡片徽章 + AgentDetailModal)
+│       ├── AgentDetailModal.vue        # Agent 技能管理弹窗 (待纳管/已忽略/中央技能分发 Tabs + 弹窗内搜索)
 │       ├── AgentPillPicker.vue         # Teleported 智能翻转多选分发器
 │       ├── SkillDrawer.vue             # 技能右侧详情抽屉 (Markdown 渲染)
 │       ├── SkillEditorModal.vue        # SKILL.md 编辑与创建弹窗
@@ -269,9 +269,10 @@ flowchart TD
 │       ├── AddProjectModal.vue         # 纳管新项目弹窗
 │       ├── DiffModal.vue               # 面板 4: Diff 语法高亮冲突决策弹窗
 │       ├── PluginsView.vue             # 面板 5: DSH 插件中心容器（插件面板 / 诊断修复 / 同步与对账 三分段 Tab）
-│       ├── DshPluginList.vue           # DSH 本地插件可视化扫描面板（profile 选择 + 启停开关 + 可移植性标签）
+│       ├── DshPluginList.vue           # DSH 本地插件可视化扫描面板（profile 选择 + 搜索/状态/类型筛选 + 启停开关 + 可移植性标签）
+│       ├── DshPluginRow.vue            # DSH 插件可展开行（默认仅名称/徽章/开关，点击展开 spec/installed/required 与操作）
 │       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（崩溃堆栈解析 + 一键关闭并重试）
-│       ├── DshPluginSync.vue           # DSH 插件配置同步 + 对账面板（推送/拉取/一键对齐）
+│       ├── DshPluginSync.vue           # DSH 插件配置同步 + 对账面板（推送/拉取/一键对齐；可隐藏仓库状态卡以嵌入同步页）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
 │       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器)
 │       └── ToastContainer.vue          # 全局浮动操作提示
@@ -748,7 +749,79 @@ npm run tauri build
     - Windows 兼容：Rust `local_link_spec` 去掉 `canonicalize` 产生的 `\\?\` 前缀并转正斜杠，`UNC` 前缀还原为 `//server/share`。
     - Web 路由新增 `POST /api/dsh/plugins/adopt-orphan`；`api.ts` / `useAppStore` / `DshPluginList.vue` 接入；孤儿行新增「纳入配置」按钮（蓝色语义，与红色移除并列）。
     - 本机实操：`@dsh-external/dsh-better-input-box` 已改为可移植纳管（`github:Nomit8088/dsh-better-input-box` + bundles）；插件仓库补齐 `lib/` 构建产物并推送（commit `78dca5f`），`pnpm-lock.yaml` 已锁定该 commit，`node_modules` 由 pnpm 管理（含 `lib/index.js`）。
+    - 本机实操：`@dsh-external/dsh-diff-review` 已改为可移植纳管（`github:Nomit8088/dsh-diff-review` + bundles）；插件仓库自带 `prepare: node scripts/build.mjs`，安装时构建 `lib/`；已按 pnpm 报错把该 git 包加入 profile `pnpm-workspace.yaml` 的 `allowBuilds`（commit `fe87698`），`pnpm-lock.yaml` 已锁定，`node_modules` 由 pnpm 管理（含 `lib/index.js`）。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
+- **2026-08-20 (Session 28)**:
+  - **cc-switch 式小窗口与全站紧凑化布局重构**:
+    - `src-tauri/tauri.conf.json` 默认窗口从 `1280×860`（min `1024×700`）调整为 `960×640`（min `760×520`）并居中启动，贴近 cc-switch 小窗形态。
+    - `Header.vue` 高度 `h-14 → h-12`，品牌区紧凑化，状态徽章仅在 `lg+` 大窗展示，小窗自动隐藏避免拥挤；扫描按钮小窗仅显示图标。
+    - `Navigation.vue` Tab 文案全面短标签化（大厅 / 技能 / 同步 / 插件 / 项目 / 待纳管），Tab 列表支持小窗横向滚动不换行；右侧快捷操作在小窗仅显示图标（`xl` 才显示文字）。
+    - `AgentsView.vue` / `SkillsMatrix.vue` / `ProjectsView.vue` / `PluginsView.vue` / `SyncView.vue` 统一 `p-6/p-5 → p-4`，卡片网格从 `lg:grid-cols-3` 调整为 `xl:grid-cols-3`（960 小窗下保持 2 列，避免信息熵过密）；Agent 卡片与项目侧栏同步收紧。
+    - Skills Matrix 表格列 `min-w` 压缩（已挂载 Agent 列 `340px → 200px` 等），小窗下横向滚动距离显著减小。
+    - 弹窗兜底：`SettingsModal.vue` / `AddAgentModal.vue` / `AddProjectModal.vue` 增加 `max-h-[85vh] overflow-y-auto`，小窗不裁切。
+  - **DSH 插件面板筛选 + 可展开行重构**:
+    - 新增 `DshPluginRow.vue`：插件行默认仅显示状态点 / 名称 / 类型与状态徽章 / 启停开关 / 展开箭头；`spec / installed / required` 与「检查更新 / 更新 / 卸载 / 失败堆栈」等操作统一点击展开后展示，异常状态（failed / version-mismatch / 可更新）自动展开。
+    - `DshPluginList.vue` 新增筛选工具栏：插件名 / spec / key 模糊搜索 + 状态筛选（全部/正常/待装/版本冲突/失败/孤儿）+ 类型筛选（全部/内置/bundle/依赖/patch 行），分组计数支持「筛选后/总数」展示，无匹配时给出空态与重置入口。
+    - 健康摘要条与各分组保留全量统计，不受筛选影响；筛选只影响列表展示。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 29)**:
+  - **Agent Hub 大厅小窗信息密度与页签化重构**:
+    - `AgentsView.vue` 改为分段页签切换：`[ 已启用 (N) | 未启用 (N) ]`，同一时间只展示一类 Agent 列表，避免小窗下双区堆叠导致的长时间滚动；搜索框只作用于当前页签，页签计数随搜索结果实时变化。
+    - `AgentCard.vue` 从大卡片重构为紧凑列表行卡片：单行展示品牌图标、名称、状态、启停开关与快捷操作，第二行以 3 列摘要展示「技能目录 / 私有规则 / Junction·Hardlink 类型」，使 960 小窗下无需横向滚动即可看完关键配置；未启用卡片同步紧凑化。
+    - 列表由双列网格改为单列紧凑列表，Agent 数量多时纵向信息密度提升约 2~3 倍。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 30)**:
+  - **技能管理合入大厅，技能页签聚焦中央技能库（小窗同屏）**:
+    - `AgentsView.vue` 大厅新增第三分段页签「待纳管 (N)」，原技能页签顶部的 `UnmanagedGroupSection` 整体迁移至此；搜索框仅作用于已启用/未启用页签，待纳管页签使用组件自带搜索/筛选/排序。
+    - `AgentCard.vue` 启用卡片新增可展开「技能分发管理」：展开后直接勾选/取消中央技能完成对该 Agent 的挂载/卸载，支持「全部挂载 / 全部卸载」，列表内实时显示已挂载/未挂载状态；原「配置技能分发」按钮改为「打开中央技能库」。
+    - `SkillsMatrix.vue` 移除 `UnmanagedGroupSection` 与表格/卡片中的「已挂载 Agent 目标」药丸列（`AgentPillPicker` / `AgentBrandIcon` 不再在技能页签使用），表格压缩为 5 列（选择/名称/版本来源/全局分发状态/操作），全局分发状态列下方显示「已分发 N 个 Agent」；卡片视图底部只显示紧凑分发计数。
+    - `Navigation.vue` 移除独立「待纳管」Tab，大厅 Tab 在存在待纳管时以橙色徽章显示待纳管数量；`App.vue` 将 `unmanaged` 路由至大厅。
+    - 效果：技能页签只保留中央技能库，小窗下无需滚动即可同屏完成搜索、筛选与技能管理；按 Agent 维度的技能分发与存量纳管全部收口到大厅。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 31)**:
+  - **Agent 恢复卡片形式，待纳管信息合并进 Agent 卡片（去掉第三页签）**:
+    - `AgentsView.vue` 移除「待纳管」第三分段页签，恢复 `[ 已启用 | 未启用 ]` 两页签；Agent 列表恢复为卡片网格（`sm:2 / md:3 / xl:4` 列），小窗 960 下 3 列、大窗 4 列。
+    - 保留全局「一键纳管全部 (N)」快捷入口（顶部工具栏，有待纳管时显示）。
+    - `AgentCard.vue` 参考原纳管卡片样式重构为卡片：头部品牌图标 + 名称 + 状态 + 启停开关；卡片内直接展示技能目录路径，并新增三枚可点击徽章——**「N 待纳管 / 存量受控」**（点击打开 AgentDetailModal 待纳管页签）、**「N 忽略」**（点击打开已忽略页签）、**「N 已挂载」**（点击展开技能分发管理）。
+    - 技能分发管理（勾选中央技能挂载/卸载、全部挂载/全部卸载）保留在卡片内展开区。
+    - `UnmanagedGroupSection.vue` 不再被引用（功能已并入 AgentCard + AgentDetailModal），组件文件保留但标记弃用。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 32)**:
+  - **技能分发改为点击弹窗管理（与纳管卡片一致）**:
+    - `AgentCard.vue` 移除卡片内展开式技能分发区；「N 已挂载」徽章点击直接调用 `store.openAgentDetailModal(agentId, 'skills')` 打开弹窗，与「待纳管 / 忽略」徽章的交互一致。
+    - `AgentDetailModal.vue` 新增第三页签「中央技能分发」：展示中央技能库列表，勾选即可对该 Agent 挂载 / 卸载，支持「全部挂载 / 全部卸载」、弹窗内搜索技能名称/描述；底部提示文案随页签动态切换（Junction / Hardlink）。
+    - `useAppStore.ts` 的 `agentDetailModal.activeTab` 与 `openAgentDetailModal` 签名扩展为 `'unmanaged' | 'ignored' | 'skills'`。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 33)**:
+  - **Agent 卡片统一管理入口 + 状态标签只读化**:
+    - `AgentCard.vue` 将「待纳管/存量受控」「忽略」「已挂载」三枚可点击徽章改为**只读状态标签**，仅保留颜色语义与 `title` 悬浮提示（解释各自含义），不再单独可点，避免误触与认知负担。
+    - 卡片底部新增**统一「技能管理」按钮**（FolderSearch + 文案 + ChevronRight），点击打开 AgentDetailModal：有待纳管时默认进入「待纳管」页签，否则默认进入「中央技能分发」页签。
+    - 移除卡片内零散的技能库跳转按钮，保持卡片尺寸与页面可读性。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 34)**:
+  - **同步页签排序调整 + 未配置可进入 + 共享仓库状态重构**:
+    - `Navigation.vue` Tab 顺序调整为 **大厅 / 技能 / 插件 / 项目 / 同步**；同步 Tab 不再因未配置仓库而置灰禁用，始终可点击进入。
+    - `SyncView.vue` 未配置仓库时展示守卫页：说明当前仓库未配置，并给出**仓库格式规范指引**（根目录必须含 `skills/` 与 `dsh/`、目录用途、HTTPS/私有仓库凭据建议、本地仓库路径与只同步范围），附「打开全局设置配置仓库」按钮。
+    - `SyncView.vue` 重构同步展示逻辑，去掉顶部「技能同步 / DSH 插件同步」分段页签切换：
+      - 顶部为**共享仓库状态卡**（初始化状态 / 当前分支 / 领先 / 落后 / 远端 URL / 测试连接），技能与 DSH 插件复用同一 Git 仓库，不再各自重复展示。
+      - 下方为**技能同步 / DSH 插件同步双功能卡片并排**（`xl` 双列，小窗单列）：技能卡片展示未提交修改、最后同步、拉取/推送、自动拉取开关、分叉恢复与错误横幅；DSH 卡片展示未提交修改与最后同步，并内嵌 `DshPluginSync.vue` 的拉取/推送/自动拉取/配置对账。
+    - `DshPluginSync.vue` 新增 `showRepoStatus` prop（默认 true），嵌入同步页时设为 false 隐藏内部仓库状态卡，避免与共享状态卡重复。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
+
+- **2026-08-20 (Session 35)**:
+  - **同步页视觉层次重构（主视觉仓库卡 + 彩色功能卡）**:
+    - `SyncView.vue` 将普通「仓库状态」卡升级为**主视觉仓库卡**：蓝色顶部标识线 + 大尺寸 GitBranch 图标 + 仓库 URL 副标题 + 状态徽章 + 三格统计条（分支/领先/落后），成为页面视觉中心。
+    - **技能同步卡**改为蓝色标识（顶部蓝色标识线 + 蓝色图标头 + `skills/` 路径标签）；**DSH 插件同步**改为紫色标识（紫色图标头 + `dsh/` 路径标签），两者差异一目了然。
+    - `DshPluginSync.vue` 操作卡同步改为紫色标识头部（`同步操作`），与同步页 DSH 分区呼应。
+    - 状态语义色保持绿色/橙色/红色，品牌标识色（蓝/紫）只用于功能区分，不干扰状态判断。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
 
 ---
 *文档更新时间：2026-08-20 | AgentHub Core Team*

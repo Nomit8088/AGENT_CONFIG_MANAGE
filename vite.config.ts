@@ -30,6 +30,7 @@ import {
   getSyncRepoConfig,
   validateSyncRepo,
   saveSyncRepo,
+  unbindSyncRepo,
   scanDshPlugins,
   diagnoseDshWeb,
   toggleDshPlugin,
@@ -626,6 +627,12 @@ function localApiPlugin(): Plugin {
               }
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(await saveSyncRepo(remoteUrl, branch || undefined)));
+            }
+
+            // POST /api/sync/repo/unbind
+            if (pathname === '/api/sync/repo/unbind' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(unbindSyncRepo()));
             }
 
             // GET /api/dsh/plugins/scan

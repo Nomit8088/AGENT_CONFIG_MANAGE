@@ -1,7 +1,7 @@
 <template>
-  <nav class="border-b border-black/8 dark:border-white/8 bg-white/60 dark:bg-[#1c1c1e]/60 px-5 py-2 flex items-center justify-between transition-colors duration-200 select-none">
-    <!-- Tab list -->
-    <div class="flex items-center gap-1.5">
+  <nav class="border-b border-black/8 dark:border-white/8 bg-white/60 dark:bg-[#1c1c1e]/60 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors duration-200 select-none">
+    <!-- Tab list (小窗允许横向滚动，避免换行) -->
+    <div class="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -9,7 +9,7 @@
         :disabled="tab.disabled"
         :title="tab.disabled ? tab.disabledReason : ''"
         :class="[
-          'px-3 py-1.5 text-xs flex items-center gap-2 rounded-lg transition-colors duration-200',
+          'px-2.5 py-1 text-xs flex items-center gap-1.5 rounded-lg transition-colors duration-200 flex-shrink-0',
           tab.disabled
             ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-white/40'
             : store.currentTab === tab.id
@@ -23,7 +23,7 @@
           v-if="tab.badge !== undefined && tab.badge > 0"
           :class="[
             'text-[10px] px-1.5 py-0.5 rounded-md font-mono',
-            tab.id === 'unmanaged'
+            tab.badgeTone === 'warn'
               ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border border-[#ff9f0a]/30 font-semibold'
               : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/10'
           ]"
@@ -33,33 +33,36 @@
       </button>
     </div>
 
-    <!-- Quick Action for Current Tab -->
-    <div class="flex items-center gap-2">
+    <!-- Quick Action for Current Tab (小窗仅图标，title 提示) -->
+    <div class="flex items-center gap-1.5 flex-shrink-0">
       <button
         v-if="store.currentTab === 'agents'"
         @click="store.addAgentModal.visible = true"
-        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        title="添加自定义 Agent"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
-        <span>添加自定义 Agent</span>
+        <span class="hidden xl:inline">添加 Agent</span>
       </button>
 
       <button
         v-if="store.currentTab === 'skills'"
         @click="openNewSkillModal"
-        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        title="新建中央 Skill"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
-        <span>新建中央 Skill</span>
+        <span class="hidden xl:inline">新建 Skill</span>
       </button>
 
       <button
         v-if="store.currentTab === 'projects'"
         @click="store.addProjectModal.visible = true"
-        class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        title="纳管新项目"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
-        <span>纳管新项目</span>
+        <span class="hidden xl:inline">纳管项目</span>
       </button>
     </div>
   </nav>
@@ -68,26 +71,41 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Bot, Layers, FolderGit2, UploadCloud, AlertTriangle, Plus, Puzzle } from 'lucide-vue-next';
+import { Bot, Layers, FolderGit2, UploadCloud, Plus, Puzzle } from 'lucide-vue-next';
 
 const store = useAppStore();
 
-const tabs = computed(() => [
-  { id: 'agents', label: 'Agent Hub (大厅)', icon: Bot, badge: store.detectedAgentsCount, disabled: false, disabledReason: '' },
-  { id: 'skills', label: 'Skills Matrix (技能矩阵)', icon: Layers, badge: store.skills.length, disabled: false, disabledReason: '' },
+type TabItem = {
+  id: string;
+  label: string;
+  icon: any;
+  badge: number;
+  badgeTone?: 'warn';
+  disabled: boolean;
+  disabledReason: string;
+};
+
+const tabs = computed<TabItem[]>(() => [
+  {
+    id: 'agents',
+    label: '大厅',
+    icon: Bot,
+    badge: store.totalUnmanagedCount > 0 ? store.totalUnmanagedCount : store.detectedAgentsCount,
+    badgeTone: store.totalUnmanagedCount > 0 ? 'warn' : undefined,
+    disabled: false,
+    disabledReason: '',
+  },
+  { id: 'skills', label: '技能', icon: Layers, badge: store.skills.length, disabled: false, disabledReason: '' },
+  { id: 'plugins', label: '插件', icon: Puzzle, badge: store.dshPluginDiffCount, disabled: false, disabledReason: '' },
+  { id: 'projects', label: '项目', icon: FolderGit2, badge: store.projects.length, disabled: false, disabledReason: '' },
   {
     id: 'sync',
-    label: '同步中心',
+    label: '同步',
     icon: UploadCloud,
     badge: store.skillsSyncStatus.dirtyCount,
-    disabled: !store.syncRepoConfigured,
-    disabledReason: '请先在全局设置中配置并校验同步仓库',
+    disabled: false,
+    disabledReason: '',
   },
-  { id: 'plugins', label: 'DSH 插件中心', icon: Puzzle, badge: store.dshPluginDiffCount, disabled: false, disabledReason: '' },
-  { id: 'projects', label: 'Project Rules (规则中心)', icon: FolderGit2, badge: store.projects.length, disabled: false, disabledReason: '' },
-  ...(store.totalUnmanagedCount > 0
-    ? [{ id: 'unmanaged', label: '待纳管存量', icon: AlertTriangle, badge: store.totalUnmanagedCount, disabled: false, disabledReason: '' }]
-    : []),
 ]);
 
 function openNewSkillModal() {

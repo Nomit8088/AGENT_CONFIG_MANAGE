@@ -268,3 +268,22 @@ export async function saveSyncRepo(remoteUrl: string, branch?: string): Promise<
 
   return getSyncRepoConfig();
 }
+
+/** 解绑全局同步仓库：清除配置与旧配置块中的远端信息，并移除本地 origin（保留 .git 与工作区）。 */
+export function unbindSyncRepo(): { success: true } {
+  const appCfg = readConfigFile();
+  delete appCfg.sync_repo;
+  if (appCfg.skills_sync) {
+    appCfg.skills_sync.remoteUrl = '';
+    appCfg.skills_sync.branch = 'main';
+  }
+  if (appCfg.dsh_plugins?.sync) {
+    appCfg.dsh_plugins.sync.remoteUrl = '';
+    appCfg.dsh_plugins.sync.branch = 'main';
+  }
+  writeConfigFile(appCfg);
+
+  const root = syncRepoRoot();
+  gitTry(root, ['remote', 'remove', 'origin']);
+  return { success: true };
+}

@@ -105,6 +105,7 @@ export const useAppStore = defineStore('app', {
     syncRepoValidating: false,
     syncRepoValidation: null as SyncRepoValidation | null,
     syncRepoValidatedKey: '',
+    syncRepoUnbinding: false,
 
     // DSH 插件中心
     dshPluginsScan: null as DshPluginScanResult | null,
@@ -144,7 +145,7 @@ export const useAppStore = defineStore('app', {
     agentDetailModal: {
       visible: false,
       agentId: '',
-      activeTab: 'unmanaged' as 'unmanaged' | 'ignored',
+      activeTab: 'unmanaged' as 'unmanaged' | 'ignored' | 'skills',
     },
   }),
 
@@ -429,6 +430,45 @@ export const useAppStore = defineStore('app', {
         return this.syncRepo;
       } finally {
         this.syncRepoValidating = false;
+      }
+    },
+
+    async unbindSyncRepo() {
+      this.syncRepoUnbinding = true;
+      try {
+        await api.unbindSyncRepo();
+        this.syncRepo = null;
+        this.syncRepoValidation = null;
+        this.syncRepoValidatedKey = '';
+        if (this.config) {
+          this.config.sync_repo = undefined;
+          if (this.config.skills_sync) {
+            this.config.skills_sync.remoteUrl = '';
+            this.config.skills_sync.branch = 'main';
+          }
+          if (this.config.dsh_plugins?.sync) {
+            this.config.dsh_plugins.sync.remoteUrl = '';
+            this.config.dsh_plugins.sync.branch = 'main';
+          }
+        }
+        await Promise.all([
+          this.loadSkillsSyncStatus().catch(() => {}),
+          this.loadDshPluginsSyncStatus().catch(() => {}),
+        ]);
+        this.showToast({
+          title: '仓库已解绑',
+          message: '同步中心已锁定；本地数据与 Git 历史均已保留',
+          type: 'info',
+        });
+      } catch (e: any) {
+        this.showToast({
+          title: '解绑失败',
+          message: e?.message || '无法解绑仓库',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.syncRepoUnbinding = false;
       }
     },
 
@@ -1061,7 +1101,7 @@ export const useAppStore = defineStore('app', {
       });
     },
 
-    openAgentDetailModal(agentId: string, tab: 'unmanaged' | 'ignored' = 'unmanaged') {
+    openAgentDetailModal(agentId: string, tab: 'unmanaged' | 'ignored' | 'skills' = 'unmanaged') {
       this.agentDetailModal = {
         visible: true,
         agentId,

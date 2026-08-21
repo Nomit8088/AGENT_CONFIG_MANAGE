@@ -70,6 +70,64 @@
         </button>
       </div>
 
+      <!-- Filter toolbar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative flex-1 min-w-[200px] max-w-xs">
+          <Search class="w-3.5 h-3.5 text-slate-400 dark:text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索插件名 / spec / key..."
+            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          />
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80 p-0.5"
+          >
+            <X class="w-3 h-3" />
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <span class="text-[11px] text-slate-400 dark:text-white/40">状态:</span>
+          <select
+            v-model="statusFilter"
+            class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          >
+            <option value="all">全部状态</option>
+            <option value="ok">正常</option>
+            <option value="pending">待装</option>
+            <option value="version-mismatch">版本冲突</option>
+            <option value="failed">失败</option>
+            <option value="orphan">孤儿</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <span class="text-[11px] text-slate-400 dark:text-white/40">类型:</span>
+          <select
+            v-model="kindFilter"
+            class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          >
+            <option value="all">全部类型</option>
+            <option value="inbox">内置</option>
+            <option value="bundle">bundle</option>
+            <option value="plain">依赖</option>
+            <option value="row">patch 行</option>
+          </select>
+        </div>
+
+        <button
+          v-if="hasActiveFilters"
+          @click="resetFilters"
+          class="px-2 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 border border-black/10 dark:border-white/12 text-xs transition-colors duration-200 flex items-center gap-1"
+        >
+          <RotateCcw class="w-3 h-3" />
+          <span>重置</span>
+        </button>
+      </div>
+
       <!-- Install terminal -->
       <DshInstallTerminal v-if="store.installTerminal.visible" />
 
@@ -89,18 +147,18 @@
       </div>
 
       <!-- Official built-in group -->
-      <section v-if="officialEntries.length" class="space-y-2">
+      <section v-if="filteredOfficialEntries.length" class="space-y-2">
         <div class="flex items-baseline justify-between px-1">
           <div class="flex items-baseline gap-2 min-w-0">
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">官方内置插件</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ officialEntries.length }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredOfficialEntries.length }}<template v-if="hasActiveFilters">/{{ officialEntries.length }}</template></span>
           </div>
           <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">@deepseek-ai/dsh-* · Harness 运行时解析 · 只读</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-3">
           <div class="flex flex-wrap gap-2">
             <span
-              v-for="entry in officialEntries"
+              v-for="entry in filteredOfficialEntries"
               :key="entry.key"
               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
             >
@@ -113,17 +171,17 @@
       </section>
 
       <!-- Portable user plugins -->
-      <section v-if="portableEntries.length" class="space-y-2">
+      <section v-if="filteredPortableEntries.length" class="space-y-2">
         <div class="flex items-baseline justify-between px-1">
           <div class="flex items-baseline gap-2 min-w-0">
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">用户插件 · 可移植</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ portableEntries.length }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredPortableEntries.length }}<template v-if="hasActiveFilters">/{{ portableEntries.length }}</template></span>
           </div>
           <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">可跨机复现安装 · 参与配置同步</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
-          <PluginRow
-            v-for="entry in portableEntries"
+          <DshPluginRow
+            v-for="entry in filteredPortableEntries"
             :key="entry.key"
             :entry="entry"
             :update-check="store.dshPluginUpdates[entry.key]"
@@ -137,17 +195,17 @@
       </section>
 
       <!-- Local dev (unportable) user plugins -->
-      <section v-if="unportableEntries.length" class="space-y-2">
+      <section v-if="filteredUnportableEntries.length" class="space-y-2">
         <div class="flex items-baseline justify-between px-1">
           <div class="flex items-baseline gap-2 min-w-0">
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">用户插件 · 本地开发</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30">{{ unportableEntries.length }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30">{{ filteredUnportableEntries.length }}<template v-if="hasActiveFilters">/{{ unportableEntries.length }}</template></span>
           </div>
           <span class="text-[11px] text-[#ff9f0a] truncate ml-3">link: / file: 等本机路径 · 不参与同步，推送时自动剔除</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-[#ff9f0a]/30 dark:border-[#ff9f0a]/30 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
-          <PluginRow
-            v-for="entry in unportableEntries"
+          <DshPluginRow
+            v-for="entry in filteredUnportableEntries"
             :key="entry.key"
             :entry="entry"
             @toggle="toggle"
@@ -158,17 +216,17 @@
       </section>
 
       <!-- Patch rows -->
-      <section v-if="patchEntries.length" class="space-y-2">
+      <section v-if="filteredPatchEntries.length" class="space-y-2">
         <div class="flex items-baseline justify-between px-1">
           <div class="flex items-baseline gap-2 min-w-0">
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">Patch 配置行</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ patchEntries.length }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10">{{ filteredPatchEntries.length }}<template v-if="hasActiveFilters">/{{ patchEntries.length }}</template></span>
           </div>
           <span class="text-[11px] text-slate-400 dark:text-white/40 truncate ml-3">cordis.patch.yml 顶层条目 · 非 npm 包，只做启停</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
           <div
-            v-for="entry in patchEntries"
+            v-for="entry in filteredPatchEntries"
             :key="entry.key"
             class="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
           >
@@ -201,17 +259,17 @@
       </section>
 
       <!-- Orphans -->
-      <section v-if="orphanEntries.length" class="space-y-2">
+      <section v-if="filteredOrphanEntries.length" class="space-y-2">
         <div class="flex items-baseline justify-between px-1">
           <div class="flex items-baseline gap-2 min-w-0">
             <h3 class="font-serif text-sm font-semibold text-slate-900 dark:text-white/95">孤儿安装</h3>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30">{{ orphanEntries.length }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30">{{ filteredOrphanEntries.length }}<template v-if="hasActiveFilters">/{{ orphanEntries.length }}</template></span>
           </div>
           <span class="text-[11px] text-[#ff453a] truncate ml-3">本机已装但未在配置中声明 · 可纳入配置或移除</span>
         </div>
         <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-[#ff453a]/30 dark:border-[#ff453a]/30 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200">
           <div
-            v-for="entry in orphanEntries"
+            v-for="entry in filteredOrphanEntries"
             :key="entry.key"
             class="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
           >
@@ -243,6 +301,14 @@
           </div>
         </div>
       </section>
+
+      <!-- No match under active filters -->
+      <div
+        v-if="entries.length > 0 && hasActiveFilters && filteredTotalCount === 0 && !store.dshInstallEntriesLoading"
+        class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
+      >
+        无匹配当前筛选条件的插件，可点击「重置」清空筛选
+      </div>
 
       <!-- All clean / empty user entries -->
       <div
@@ -290,7 +356,6 @@
 import { computed, defineComponent, h, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import {
-  Package,
   CircleDot,
   ListTree,
   Puzzle,
@@ -302,117 +367,13 @@ import {
   Terminal,
   X,
   Link2,
+  Search,
 } from 'lucide-vue-next';
-import type { DshInstallMode, DshPluginInstallEntry, DshPluginInstallStatus, DshPluginKind, DshPluginUpdateCheck } from '../types';
+import type { DshInstallMode, DshPluginInstallEntry, DshPluginInstallStatus } from '../types';
 import DshInstallTerminal from './DshInstallTerminal.vue';
+import DshPluginRow from './DshPluginRow.vue';
 
 // ---- 轻量本地子组件（本文件内部使用） ----
-
-const PluginRow = defineComponent({
-  props: {
-    entry: { type: Object as () => DshPluginInstallEntry, required: true },
-    updateCheck: { type: Object as () => DshPluginUpdateCheck | undefined, default: undefined },
-  },
-  emits: ['toggle', 'remove', 'show-error', 'check-update', 'update'],
-  setup(props, { emit }) {
-    return () => {
-      const entry = props.entry;
-      const icon =
-        entry.kind === 'bundle'
-          ? h(Package, { class: 'w-3.5 h-3.5' })
-          : h(CircleDot, { class: 'w-3.5 h-3.5' });
-
-      return h('div', { class: 'flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]' }, [
-        h('span', { class: ['w-2 h-2 rounded-sm shrink-0', dotClass(entry.status)] }),
-        h('div', {
-          class: 'w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80 shrink-0',
-        }, [icon]),
-        h('div', { class: 'flex-1 min-w-0' }, [
-          h('div', { class: 'flex items-center gap-2 flex-wrap' }, [
-            h('span', { class: 'font-mono text-xs text-slate-900 dark:text-white/90 break-all' }, entry.name),
-            h('span', {
-              class: ['text-[10px] px-1.5 py-0.5 rounded-md font-mono border', kindBadgeClass(entry.kind)],
-            }, kindLabel(entry.kind)),
-            h('span', {
-              class: ['text-[10px] px-1.5 py-0.5 rounded-md font-mono border', statusBadgeClass(entry.status)],
-            }, statusLabel(entry.status)),
-            entry.portability === 'unportable'
-              ? h('span', {
-                  class: 'text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-[#ff9f0a]/10 text-[#ff9f0a] border border-[#ff9f0a]/30',
-                }, '不可移植')
-              : null,
-          ]),
-          h('div', { class: 'mt-1 grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-0.5 text-[11px] font-mono' }, [
-            h('span', {
-              class: ['truncate', entry.spec ? 'text-slate-500 dark:text-white/50' : 'text-slate-400 dark:text-white/40'],
-            }, `spec: ${entry.spec || '—'}`),
-            h('span', {
-              class: [
-                'truncate',
-                entry.installed && entry.status !== 'version-mismatch'
-                  ? 'text-[#30d158] dark:text-[#30d158]'
-                  : 'text-slate-500 dark:text-white/50',
-              ],
-            }, `installed: ${entry.installed ? `v${entry.installedVersion || '?'}` : '未安装'}`),
-            h('span', {
-              class: [
-                'truncate',
-                entry.status === 'version-mismatch'
-                  ? 'text-[#ff453a] dark:text-[#ff453a]'
-                  : 'text-slate-500 dark:text-white/50',
-              ],
-            }, `required: ${entry.requiredVersion ? `v${entry.requiredVersion}` : '—'}`),
-          ]),
-          entry.installError
-            ? h('div', { class: 'mt-1' }, [
-                h('button', {
-                  type: 'button',
-                  onClick: () => emit('show-error', entry.installError || ''),
-                  class: 'text-[11px] text-[#ff453a] hover:text-[#ff9f0a] transition-colors duration-200 font-medium',
-                }, '查看失败堆栈'),
-              ])
-            : null,
-          props.updateCheck?.updateAvailable
-            ? h('div', { class: 'mt-1 text-[11px] font-mono text-[#ff9f0a]' }, [
-                h('span', '可更新：'),
-                h('span', props.updateCheck.current || '?'),
-                h('span', ' → '),
-                h('span', props.updateCheck.latest || '?'),
-              ])
-            : props.updateCheck?.error
-              ? h('div', { class: 'mt-1 text-[11px] font-mono text-[#ff453a]' }, props.updateCheck.error)
-              : props.updateCheck?.hint
-                ? h('div', { class: 'mt-1 text-[11px] font-mono text-slate-400 dark:text-white/40' }, props.updateCheck.hint)
-                : null,
-        ]),
-        h('div', { class: 'flex items-center gap-2 shrink-0' }, [
-          h(SegmentedToggle, {
-            enabled: entry.enabled,
-            onToggle: (enabled: boolean) => emit('toggle', entry, enabled),
-          }),
-          entry.portability === 'portable' && entry.kind !== 'row'
-            ? props.updateCheck?.updateAvailable
-              ? h('button', {
-                  type: 'button',
-                  onClick: () => emit('update', entry),
-                  class: 'px-2 py-1 rounded-lg text-[11px] font-medium bg-[#ff9f0a]/10 text-[#ff9f0a] border border-[#ff9f0a]/30 hover:bg-[#ff9f0a]/20 transition-colors duration-200 flex items-center gap-1',
-                }, [h(Download, { class: 'w-3 h-3' }), h('span', '更新')])
-              : h(IconButton, {
-                  title: '检查更新',
-                  onClick: () => emit('check-update', entry),
-                }, [h(RefreshCw, { class: 'w-3.5 h-3.5' })])
-            : null,
-          h(IconButton, {
-            title: entry.declaredInConfig
-              ? '卸载（从 dependencies / bundles / patch 中彻底移除）'
-              : '从 node_modules 移除',
-            onClick: () => emit('remove', entry),
-          }, [h(Trash2, { class: 'w-3.5 h-3.5' })]),
-        ]),
-      ]);
-    };
-  },
-});
 
 const SegmentedToggle = defineComponent({
   props: {
@@ -471,15 +432,11 @@ const IconButton = defineComponent({
   },
 });
 
-function dotClass(status: DshPluginInstallStatus): string {
-  switch (status) {
-    case 'ok': return 'bg-[#30d158]';
-    case 'pending': return 'bg-[#ff9f0a]';
-    case 'orphan': return 'bg-[#ff9f0a]';
-    case 'version-mismatch': return 'bg-[#ff453a]';
-    case 'failed': return 'bg-[#ff453a]';
-  }
-}
+// ---- 筛选状态 ----
+
+const searchQuery = ref('');
+const statusFilter = ref<'all' | DshPluginInstallStatus>('all');
+const kindFilter = ref<'all' | 'inbox' | 'bundle' | 'plain' | 'row'>('all');
 
 // ---- 状态与分组 ----
 
@@ -519,6 +476,51 @@ const userPackageEntries = computed(() =>
 
 const portableEntries = computed(() => userPackageEntries.value.filter(e => e.portability === 'portable'));
 const unportableEntries = computed(() => userPackageEntries.value.filter(e => e.portability === 'unportable'));
+
+const hasActiveFilters = computed(
+  () =>
+    searchQuery.value.trim() !== '' ||
+    statusFilter.value !== 'all' ||
+    kindFilter.value !== 'all'
+);
+
+function matchesFilters(entry: DshPluginInstallEntry): boolean {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (q) {
+    const haystack = [
+      entry.name,
+      entry.spec || '',
+      entry.key,
+      entry.kind,
+      entry.status,
+    ].join(' ').toLowerCase();
+    if (!haystack.includes(q)) return false;
+  }
+  if (statusFilter.value !== 'all' && entry.status !== statusFilter.value) return false;
+  if (kindFilter.value !== 'all' && entry.kind !== kindFilter.value) return false;
+  return true;
+}
+
+const filteredOfficialEntries = computed(() => officialEntries.value.filter(matchesFilters));
+const filteredPatchEntries = computed(() => patchEntries.value.filter(matchesFilters));
+const filteredOrphanEntries = computed(() => orphanEntries.value.filter(matchesFilters));
+const filteredPortableEntries = computed(() => portableEntries.value.filter(matchesFilters));
+const filteredUnportableEntries = computed(() => unportableEntries.value.filter(matchesFilters));
+
+const filteredTotalCount = computed(
+  () =>
+    filteredOfficialEntries.value.length +
+    filteredPatchEntries.value.length +
+    filteredOrphanEntries.value.length +
+    filteredPortableEntries.value.length +
+    filteredUnportableEntries.value.length
+);
+
+function resetFilters() {
+  searchQuery.value = '';
+  statusFilter.value = 'all';
+  kindFilter.value = 'all';
+}
 
 const summaryStats = computed(() => {
   const users = userPackageEntries.value;
@@ -609,51 +611,6 @@ async function runInstall(mode: DshInstallMode) {
     await store.installDshPluginsStreamed(profile, mode);
   } catch (e: any) {
     // store 已 toast
-  }
-}
-
-function kindLabel(kind: DshPluginKind): string {
-  switch (kind) {
-    case 'inbox': return '内置';
-    case 'bundle': return 'bundle';
-    case 'plain': return '依赖';
-    case 'row': return 'patch 行';
-  }
-}
-
-function kindBadgeClass(kind: DshPluginKind): string {
-  switch (kind) {
-    case 'inbox':
-      return 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30';
-    case 'bundle':
-      return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
-    case 'plain':
-      return 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10';
-    case 'row':
-      return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
-  }
-}
-
-function statusLabel(status: DshPluginInstallStatus): string {
-  switch (status) {
-    case 'ok': return '正常';
-    case 'pending': return '待装';
-    case 'orphan': return '孤儿';
-    case 'version-mismatch': return '版本冲突';
-    case 'failed': return '失败';
-  }
-}
-
-function statusBadgeClass(status: DshPluginInstallStatus): string {
-  switch (status) {
-    case 'ok':
-      return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
-    case 'pending':
-    case 'orphan':
-      return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
-    case 'version-mismatch':
-    case 'failed':
-      return 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30';
   }
 }
 

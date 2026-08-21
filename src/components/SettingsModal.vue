@@ -3,7 +3,7 @@
     v-if="store.settingsModal.visible"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
   >
-    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200">
+    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200 max-h-[85vh] overflow-y-auto">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3">
         <div class="flex items-center gap-2.5">
@@ -233,6 +233,34 @@
             <Save v-else class="w-3.5 h-3.5" />
             <span>{{ store.syncRepoValidating ? '校验中…' : '保存仓库配置并启用同步' }}</span>
           </button>
+
+          <!-- 已绑定仓库：解绑入口 -->
+          <div
+            v-if="store.syncRepoConfigured"
+            class="space-y-2 border-t border-black/8 dark:border-white/8 pt-3"
+          >
+            <div class="text-[11px] text-slate-500 dark:text-white/50">当前绑定仓库</div>
+            <div class="font-mono text-[11px] text-slate-800 dark:text-white/90 break-all leading-relaxed">
+              {{ store.syncRepo?.remoteUrl }}
+            </div>
+            <div class="font-mono text-[11px] text-slate-500 dark:text-white/50">
+              分支：{{ store.syncRepo?.branch || 'main' }}
+            </div>
+            <button
+              @click="unbindRepo"
+              :disabled="store.syncRepoUnbinding"
+              :class="[
+                'w-full px-3 py-2 rounded-lg text-xs font-medium border transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed',
+                confirmUnbind
+                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
+                  : 'bg-red-500/5 hover:bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+              ]"
+            >
+              <RefreshCw v-if="store.syncRepoUnbinding" class="w-3.5 h-3.5 animate-spin" />
+              <Unlink v-else class="w-3.5 h-3.5" />
+              <span>{{ store.syncRepoUnbinding ? '解绑中…' : confirmUnbind ? '再次点击确认解绑' : '解绑仓库' }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -257,9 +285,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch, onBeforeUnmount } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw } from 'lucide-vue-next';
+import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink } from 'lucide-vue-next';
 
 const store = useAppStore();
 
@@ -323,6 +351,12 @@ const canSaveRepo = computed(() =>
   !!repoForm.remoteUrl.trim() && !store.syncRepoValidating
 );
 
+const confirmUnbind = ref(false);
+let unbindConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => {
+  if (unbindConfirmTimer) clearTimeout(unbindConfirmTimer);
+});
+
 function setTheme(theme: 'dark' | 'light' | 'system') {
   form.theme = theme;
   store.applyTheme(theme);
@@ -377,6 +411,27 @@ async function saveRepo() {
     store.syncRepoValidation = { ok: false, error: e?.message || '保存失败', initialized: false, formatOk: false };
     store.syncRepoValidatedKey = repoKey.value;
     store.showToast({ title: '保存仓库配置失败', message: e?.message || '请先通过校验', type: 'error' });
+  }
+}
+
+async function unbindRepo() {
+  if (!confirmUnbind.value) {
+    confirmUnbind.value = true;
+    if (unbindConfirmTimer) clearTimeout(unbindConfirmTimer);
+    unbindConfirmTimer = setTimeout(() => {
+      confirmUnbind.value = false;
+    }, 4000);
+    return;
+  }
+
+  confirmUnbind.value = false;
+  if (unbindConfirmTimer) clearTimeout(unbindConfirmTimer);
+  try {
+    await store.unbindSyncRepo();
+    repoForm.remoteUrl = '';
+    repoForm.branch = 'main';
+  } catch {
+    // 错误提示已在 store.unbindSyncRepo 中弹出
   }
 }
 </script>

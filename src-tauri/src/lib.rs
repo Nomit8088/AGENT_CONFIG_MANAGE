@@ -608,6 +608,7 @@ pub fn run() {
             sync_repo::get_sync_repo_config,
             sync_repo::validate_sync_repo,
             sync_repo::save_sync_repo,
+            sync_repo::unbind_sync_repo,
             get_agents,
             scan_agents,
             save_agents_list,

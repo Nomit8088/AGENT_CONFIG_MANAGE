@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-4">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- 仓库状态 -->
-      <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-4 space-y-3 transition-colors duration-200">
+    <div :class="showRepoStatus ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'space-y-4'">
+      <!-- 仓库状态（嵌入同步页时由共享仓库状态卡替代，可隐藏） -->
+      <div v-if="showRepoStatus" class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-4 space-y-3 transition-colors duration-200">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80">
             <GitBranch class="w-3.5 h-3.5" />
@@ -35,15 +35,16 @@
         </div>
       </div>
 
-      <!-- 操作 -->
-      <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-4 space-y-4 transition-colors duration-200">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-white/80">
+      <!-- 操作（紫色标识，与同步页 DSH 分区呼应） -->
+      <div class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 border-t-[#bf5af2]/60 overflow-hidden transition-colors duration-200">
+        <div class="flex items-center gap-2 px-4 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/8 dark:border-white/8">
+          <div class="w-7 h-7 rounded-lg bg-[#bf5af2]/10 border border-[#bf5af2]/20 text-[#bf5af2] flex items-center justify-center">
             <RefreshCw class="w-3.5 h-3.5" />
           </div>
-          <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">操作</h3>
+          <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">同步操作</h3>
         </div>
 
+        <div class="p-4 space-y-4">
         <div
           v-if="!status.initialized"
           class="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400 space-y-2"
@@ -107,6 +108,7 @@
             </div>
           </div>
         </template>
+        </div>
       </div>
     </div>
 
@@ -188,6 +190,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+
+withDefaults(defineProps<{
+  showRepoStatus?: boolean;
+}>(), {
+  showRepoStatus: true,
+});
 import {
   RefreshCw,
   DownloadCloud,
