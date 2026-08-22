@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
+use crate::process::spawn_cmd;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -33,7 +34,7 @@ fn which_cmd(name: &str) -> Option<String> {
     #[cfg(not(windows))]
     let finder = "which";
 
-    let out = Command::new(finder).arg(name).output().ok()?;
+    let out = spawn_cmd(finder).arg(name).output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -1569,13 +1570,13 @@ fn add_dependency_and_bundle(
 fn kill_tree(pid: u32) {
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill")
+        let _ = spawn_cmd("taskkill")
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .output();
     }
     #[cfg(not(windows))]
     {
-        let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
+        let _ = spawn_cmd("kill").args(["-9", &pid.to_string()]).output();
     }
 }
 
@@ -1591,7 +1592,7 @@ fn run_with_timeout(
     cwd: Option<&Path>,
     timeout_ms: u64,
 ) -> RunResult {
-    let mut command = Command::new(cmd);
+    let mut command = spawn_cmd(cmd);
     command.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     if let Some(dir) = cwd {
         command.current_dir(dir);
@@ -2028,7 +2029,7 @@ fn run_pnpm_streaming(
     use std::io::{BufRead, BufReader};
     use std::sync::mpsc::{channel, RecvTimeoutError};
 
-    let mut command = Command::new(cmd);
+    let mut command = spawn_cmd(cmd);
     command
         .args(args)
         .current_dir(cwd)

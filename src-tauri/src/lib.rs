@@ -1,4 +1,5 @@
 pub mod models;
+pub mod process;
 pub mod fs_junction;
 pub mod git_guard;
 pub mod agent_detector;

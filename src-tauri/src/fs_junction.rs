@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use crate::process::spawn_cmd;
 
 pub fn expand_tilde(path_str: &str) -> PathBuf {
     if path_str.starts_with("~/") || path_str.starts_with("~\\") || path_str == "~" {
@@ -41,7 +41,7 @@ pub fn create_junction(link_path: &Path, target_path: &Path) -> Result<(), Strin
     #[cfg(windows)]
     {
         // On Windows, mklink /J creates NTFS Junction point without requiring elevation/Developer Mode
-        let output = Command::new("cmd")
+        let output = spawn_cmd("cmd")
             .args(&[
                 "/c",
                 "mklink",
@@ -84,7 +84,7 @@ pub fn remove_junction(link_path: &Path) -> Result<(), String> {
         use std::os::windows::fs::MetadataExt;
         const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
         if meta.file_type().is_symlink() || (meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0 {
-            let output = Command::new("cmd")
+            let output = spawn_cmd("cmd")
                 .args(&["/c", "rmdir", &link_path.to_string_lossy()])
                 .output();
 
