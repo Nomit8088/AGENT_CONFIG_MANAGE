@@ -4,13 +4,13 @@
       <div
         v-for="toast in store.toasts"
         :key="toast.id"
-        class="pointer-events-auto p-3.5 rounded-xl border border-black/10 dark:border-white/12 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl shadow-lg dark:shadow-none flex items-start gap-3 transition-colors duration-200 text-slate-900 dark:text-white/90"
+        class="pointer-events-auto p-3.5 rounded-xl border border-black/10 dark:border-white/12 bg-white/95 dark:bg-[#121316]/95 backdrop-blur-xl shadow-lg dark:shadow-none flex items-start gap-3 transition-colors duration-200 text-slate-900 dark:text-white/90"
       >
         <div class="flex-shrink-0 mt-0.5">
-          <CheckCircle2 v-if="toast.type === 'success'" class="w-4 h-4 text-[#30d158]" />
-          <AlertTriangle v-else-if="toast.type === 'warning'" class="w-4 h-4 text-[#ff9f0a]" />
-          <AlertCircle v-else-if="toast.type === 'error'" class="w-4 h-4 text-[#ff453a]" />
-          <Info v-else class="w-4 h-4 text-[#0a84ff]" />
+          <CheckCircle2 v-if="toast.type === 'success'" class="w-4 h-4 text-[#22c55e]" />
+          <AlertTriangle v-else-if="toast.type === 'warning'" class="w-4 h-4 text-[#f59e0b]" />
+          <AlertCircle v-else-if="toast.type === 'error'" class="w-4 h-4 text-[#ef4444]" />
+          <Info v-else class="w-4 h-4 text-[#3b82f6]" />
         </div>
 
         <div class="flex-1 min-w-0">

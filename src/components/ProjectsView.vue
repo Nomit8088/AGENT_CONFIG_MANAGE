@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col md:flex-row overflow-hidden transition-colors duration-200">
     <!-- Left Project List Sidebar -->
-    <div class="w-full md:w-72 border-r border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl flex flex-col flex-shrink-0">
+    <div class="w-full md:w-72 border-r border-black/8 dark:border-white/8 bg-white/80 dark:bg-[#121316]/80 backdrop-blur-xl flex flex-col flex-shrink-0">
       <!-- List Header -->
       <div class="p-3 border-b border-black/8 dark:border-white/8 flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -10,7 +10,7 @@
         </div>
         <button
           @click="store.addProjectModal.visible = true"
-          class="p-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
+          class="p-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
           title="纳管新项目"
         >
           <Plus class="w-3.5 h-3.5" />
@@ -25,7 +25,7 @@
             v-model="searchQuery"
             type="text"
             placeholder="搜索项目名称或路径..."
-            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
@@ -46,7 +46,7 @@
           :class="[
             'p-2.5 rounded-lg cursor-pointer transition-colors duration-200 border text-xs group relative',
             store.activeProjectId === p.id
-              ? 'bg-black/5 dark:bg-[#2c2c2e] border-black/10 dark:border-white/15'
+              ? 'bg-black/5 dark:bg-[#1c1d22] border-black/10 dark:border-white/15'
               : 'bg-transparent border-transparent hover:bg-black/[0.03] dark:hover:bg-white/5 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/90'
           ]"
         >
@@ -55,14 +55,14 @@
               <span
                 :class="[
                   'w-2 h-2 rounded-sm',
-                  p.overrideEnabled ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
+                  p.overrideEnabled ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30'
                 ]"
               ></span>
               <span class="font-serif font-semibold text-slate-900 dark:text-white/95 truncate max-w-[150px]">{{ p.name }}</span>
             </div>
             <button
               @click.stop="handleDelete(p)"
-              class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#ff453a] dark:text-white/40 dark:hover:text-[#ff453a] p-1 transition-colors duration-200"
+              class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#ef4444] dark:text-white/40 dark:hover:text-[#ef4444] p-1 transition-colors duration-200"
               title="解除纳管"
             >
               <Trash2 class="w-3.5 h-3.5" />
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Right Main Workspace -->
-    <div class="flex-1 overflow-y-auto p-4 bg-[#f5f5f7] dark:bg-[#2c2c2e]">
+    <div class="flex-1 overflow-y-auto p-4 bg-[#f4f4f5] dark:bg-[#1c1d22]">
       <ProjectEditor
         v-if="store.activeProject"
         :project="store.activeProject"

@@ -1,7 +1,7 @@
 <template>
-  <div class="rounded-xl bg-[#1c1c1e] border border-black/8 dark:border-white/8 overflow-hidden transition-colors duration-200">
+  <div class="rounded-xl bg-[#121316] border border-black/8 dark:border-white/8 overflow-hidden transition-colors duration-200">
     <!-- Status bar -->
-    <div class="flex items-center justify-between px-3 py-2 border-b border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#2c2c2e]">
+    <div class="flex items-center justify-between px-3 py-2 border-b border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#1c1d22]">
       <div class="flex items-center gap-2 text-xs">
         <span
           class="w-2 h-2 rounded-sm transition-colors duration-200"
@@ -41,9 +41,9 @@
     <!-- Report summary -->
     <div
       v-if="store.dshInstallReport"
-      class="px-3 py-2 border-t border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#2c2c2e] text-[11px] font-mono flex items-center gap-3 flex-wrap"
+      class="px-3 py-2 border-t border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#1c1d22] text-[11px] font-mono flex items-center gap-3 flex-wrap"
     >
-      <span :class="store.dshInstallReport.ok ? 'text-[#30d158]' : 'text-[#ff453a]'">
+      <span :class="store.dshInstallReport.ok ? 'text-[#22c55e]' : 'text-[#ef4444]'">
         {{ store.dshInstallReport.ok ? '✓ 安装成功' : '✗ 安装存在失败' }}
       </span>
       <span class="text-slate-500 dark:text-white/50">mode: {{ store.dshInstallReport.mode }}</span>
@@ -71,9 +71,9 @@ const statusText = computed(() => {
 });
 
 const statusDotClass = computed(() => {
-  if (store.installTerminal.running) return 'bg-[#ff9f0a]';
+  if (store.installTerminal.running) return 'bg-[#f59e0b]';
   if (store.dshInstallReport) {
-    return store.dshInstallReport.ok ? 'bg-[#30d158]' : 'bg-[#ff453a]';
+    return store.dshInstallReport.ok ? 'bg-[#22c55e]' : 'bg-[#ef4444]';
   }
   return 'bg-slate-400 dark:bg-white/40';
 });

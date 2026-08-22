@@ -738,8 +738,13 @@ fn now_millis() -> u64 {
 
 fn git_url_from_spec(spec: &str) -> Option<String> {
     let s = spec.trim();
-    if let Some(url) = s.strip_prefix("git+https://").or_else(|| s.strip_prefix("git+http://")) {
-        return Some(url.to_string());
+    // 只剥掉 pnpm 的 git+ 前缀，保留 https:// 或 http:// scheme。
+    // （原实现 strip_prefix("git+https://") 会连 scheme 一起丢掉，导致 git ls-remote 报
+    //  "protocol 'gitee.com' is not supported" 之类错误，gitee/gitlab/gh-proxy 全部检查失败。）
+    if let Some(url) = s.strip_prefix("git+") {
+        if url.starts_with("https://") || url.starts_with("http://") {
+            return Some(url.to_string());
+        }
     }
     if let Some(repo) = s.strip_prefix("github:") {
         return Some(format!("https://github.com/{}.git", repo));
@@ -748,9 +753,22 @@ fn git_url_from_spec(spec: &str) -> Option<String> {
 }
 
 fn git_ls_remote(url: &str) -> Result<String, String> {
+    // 1) 用户配置了 GitHub 镜像前缀时，对 github.com 原始地址镜像优先（用户显式选择）。
+    if let Some(mirrored) = github_mirror_url(url) {
+        let args = vec!["ls-remote".to_string(), mirrored, "HEAD".to_string()];
+        let r = run_with_timeout("git", &args, None, 20000);
+        if r.exit_code == Some(0) {
+            if let Some(line) = r.output.lines().next() {
+                if !line.trim().is_empty() {
+                    return Ok(line.trim().to_string());
+                }
+            }
+        }
+    }
+
     let args = vec!["ls-remote".to_string(), url.to_string(), "HEAD".to_string()];
 
-    // 先直连（gh-proxy 等代理域名直连通常可用）；失败再注入系统代理（GitHub 直连场景）
+    // 2) 直连；3) 失败再注入系统代理（GitHub 直连场景）
     let direct = run_with_timeout("git", &args, None, 20000);
     if direct.exit_code == Some(0) {
         if let Some(line) = direct.output.lines().next() {
@@ -783,19 +801,72 @@ fn git_ls_remote(url: &str) -> Result<String, String> {
     })
 }
 
+/// 读取 `dsh_plugins.gitHubMirror`，仅对指向原始 github.com 的 URL 返回镜像化地址，
+/// 避免对已带 gh-proxy 等前缀的地址二次嵌套。
+fn github_mirror_url(url: &str) -> Option<String> {
+    let mirror = load_config()
+        .dsh_plugins
+        .map(|p| p.git_hub_mirror.trim().to_string())
+        .unwrap_or_default();
+    if mirror.is_empty() {
+        return None;
+    }
+    let u = url.trim();
+    let is_github = u.starts_with("https://github.com/") || u.starts_with("http://github.com/");
+    if !is_github {
+        return None;
+    }
+    let prefix = if mirror.ends_with('/') {
+        mirror
+    } else {
+        format!("{}/", mirror)
+    };
+    Some(format!("{}{}", prefix, u))
+}
+
 fn extract_commit_hash(value: Option<&str>) -> Option<String> {
     let v = value?;
-    let pos = v.find('#')?;
-    let hash = &v[pos + 1..];
-    let hash: String = hash
-        .chars()
-        .take_while(|c| c.is_ascii_hexdigit())
-        .collect();
-    if hash.len() >= 7 {
-        Some(hash)
-    } else {
-        None
+
+    // 1) `#` 形式：git+https://...git#<commit>（gh-proxy / git+https 依赖）
+    if let Some(pos) = v.find('#') {
+        let hash: String = v[pos + 1..]
+            .chars()
+            .take_while(|c| c.is_ascii_hexdigit())
+            .collect();
+        if hash.len() >= 7 {
+            return Some(hash);
+        }
+        return None;
     }
+
+    // 2) codeload tarball 形式：https://codeload.github.com/<owner>/<repo>/tar.gz/<commit>[ (...)]
+    //    （pnpm 对 github: 依赖的解析结果；末尾可能带 peer 上下文如 (dsh-better-sidebar@0.14.0)）
+    if let Some(pos) = v.find("/tar.gz/") {
+        let rest = &v[pos + "/tar.gz/".len()..];
+        let hash: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_hexdigit())
+            .collect();
+        if hash.len() >= 7 {
+            return Some(hash);
+        }
+        return None;
+    }
+
+    // 3) GitHub archive 形式：https://github.com/<owner>/<repo>/archive/<commit>.tar.gz|.zip
+    if let Some(pos) = v.find("/archive/") {
+        let rest = &v[pos + "/archive/".len()..];
+        let hash: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_hexdigit())
+            .collect();
+        if hash.len() >= 7 {
+            return Some(hash);
+        }
+        return None;
+    }
+
+    None
 }
 
 fn read_lock_importer_version(profile_dir: &Path, pkg_name: &str) -> Option<String> {
@@ -919,6 +990,16 @@ pub fn check_dsh_plugin_update(profile: String, key: String) -> DshPluginUpdateC
         }
     };
 
+    // 1) npm semver 依赖：查 registry latest。
+    if is_semver_spec(Some(&spec)) {
+        return check_npm_update(&key, &pkg_name, &profile_dir, &spec, now);
+    }
+
+    // 2) GitHub Release 固定 URL（tgz 资产）：查 releases/latest 的 tag。
+    if let Some((owner, repo, tag)) = parse_github_release_spec(&spec) {
+        return check_release_update(&key, &pkg_name, &owner, &repo, &tag, now);
+    }
+
     let git_url = match git_url_from_spec(&spec) {
         Some(u) => u,
         None => {
@@ -930,7 +1011,7 @@ pub fn check_dsh_plugin_update(profile: String, key: String) -> DshPluginUpdateC
                 current: None,
                 latest: None,
                 error: None,
-                hint: Some(format!("当前 spec 类型不支持检查更新（仅 git+https / github: 可用）：{}", spec)),
+                hint: Some(format!("当前 spec 类型不支持检查更新（支持 git+https / github: / npm 版本 / GitHub Release URL）：{}", spec)),
             };
         }
     };
@@ -960,6 +1041,223 @@ pub fn check_dsh_plugin_update(profile: String, key: String) -> DshPluginUpdateC
             checked_at: now,
             update_available: false,
             current: None,
+            latest: None,
+            error: Some(e),
+            hint: None,
+        },
+    }
+}
+
+// ---- 检查更新辅助：npm registry / GitHub Release ----
+
+/// 轻量 HTTP agent：注入系统代理，供 npm registry / GitHub API 查询使用。
+fn build_http_agent() -> ureq::Agent {
+    let builder = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(20))
+        .redirects(5)
+        .user_agent("AgentHub");
+    if let Some(proxy) = crate::git_sync::system_proxy() {
+        if let Ok(p) = ureq::Proxy::new(proxy) {
+            return builder.proxy(p).build();
+        }
+    }
+    builder.build()
+}
+
+/// 把版本号拆成数字序列，用于比较（"v0.2.7" / "0.2.7" → [0,2,7]）。
+fn semver_parts(v: &str) -> Vec<u64> {
+    v.trim()
+        .trim_start_matches('v')
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|p| !p.is_empty())
+        .map(|p| p.parse::<u64>().unwrap_or(0))
+        .collect()
+}
+
+fn semver_newer(latest: &str, current: &str) -> bool {
+    let a = semver_parts(latest);
+    let b = semver_parts(current);
+    for i in 0..a.len().max(b.len()) {
+        let av = a.get(i).copied().unwrap_or(0);
+        let bv = b.get(i).copied().unwrap_or(0);
+        if av != bv {
+            return av > bv;
+        }
+    }
+    false
+}
+
+/// 判断某个版本是否落在 spec 允许的范围内。支持 `^`/`~`/精确版本；
+/// 其余复杂范围（`>=`、`<`、`||` 等）保守返回 true，避免漏报。
+fn spec_range_allows(spec: &str, version: &str) -> bool {
+    let s = spec.trim();
+    let v = semver_parts(version);
+    let (major, minor, patch) = (
+        v.get(0).copied().unwrap_or(0),
+        v.get(1).copied().unwrap_or(0),
+        v.get(2).copied().unwrap_or(0),
+    );
+
+    if let Some(rest) = s.strip_prefix('^') {
+        let b = semver_parts(rest);
+        let (bm, bmin, bp) = (
+            b.get(0).copied().unwrap_or(0),
+            b.get(1).copied().unwrap_or(0),
+            b.get(2).copied().unwrap_or(0),
+        );
+        if bm > 0 {
+            return major == bm && (minor > bmin || (minor == bmin && patch >= bp));
+        }
+        if bmin > 0 {
+            return major == 0 && minor == bmin && patch >= bp;
+        }
+        return major == 0 && minor == 0 && patch == bp;
+    }
+
+    if let Some(rest) = s.strip_prefix('~') {
+        let b = semver_parts(rest);
+        let (bm, bmin, bp) = (
+            b.get(0).copied().unwrap_or(0),
+            b.get(1).copied().unwrap_or(0),
+            b.get(2).copied().unwrap_or(0),
+        );
+        // ~x.y.z := >=x.y.z <x.(y+1).0
+        return major == bm && minor == bmin && patch >= bp;
+    }
+
+    if is_exact_semver_spec(Some(s)) {
+        return version.trim().trim_start_matches('v') == s.trim().trim_start_matches('v');
+    }
+
+    true
+}
+
+/// 查询 npm registry 的 latest 版本（scoped 包名需把 `/` 编码为 `%2F`）。
+fn query_npm_latest(pkg_name: &str) -> Result<String, String> {
+    let encoded = pkg_name.replace('/', "%2F");
+    let url = format!("https://registry.npmjs.org/{}/latest", encoded);
+    let resp = build_http_agent()
+        .get(&url)
+        .call()
+        .map_err(|e| format!("请求 npm registry 失败: {}", e))?;
+    if resp.status() != 200 {
+        return Err(format!("npm registry 返回 HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("读取响应失败: {}", e))?;
+    let v: JsonValue = serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {}", e))?;
+    v.get("version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "npm registry 响应缺少 version".to_string())
+}
+
+/// 从 spec 中解析 GitHub Release 资产 URL 的 owner/repo/tag（可带 gh-proxy 等镜像前缀）。
+fn parse_github_release_spec(spec: &str) -> Option<(String, String, String)> {
+    let re = regex::Regex::new(r"github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/").unwrap();
+    let caps = re.captures(spec)?;
+    let owner = caps.get(1)?.as_str().to_string();
+    let repo = caps.get(2)?.as_str().to_string();
+    let tag = caps.get(3)?.as_str().to_string();
+    Some((owner, repo, tag))
+}
+
+fn query_github_latest_release(owner: &str, repo: &str) -> Result<String, String> {
+    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+    let resp = build_http_agent()
+        .get(&url)
+        .set("Accept", "application/vnd.github+json")
+        .call()
+        .map_err(|e| format!("请求 GitHub Releases 失败: {}", e))?;
+    if resp.status() != 200 {
+        return Err(format!("GitHub Releases 返回 HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("读取响应失败: {}", e))?;
+    let v: JsonValue = serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {}", e))?;
+    v.get("tag_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "GitHub 响应缺少 tag_name".to_string())
+}
+
+fn check_npm_update(
+    key: &str,
+    pkg_name: &str,
+    profile_dir: &Path,
+    spec: &str,
+    now: u64,
+) -> DshPluginUpdateCheck {
+    let current = read_lock_importer_version(profile_dir, pkg_name)
+        .or_else(|| read_installed_version(profile_dir, pkg_name));
+    match query_npm_latest(pkg_name) {
+        Ok(latest) => {
+            let newer = current
+                .as_deref()
+                .map(|c| semver_newer(&latest, c))
+                .unwrap_or(true);
+            let in_range = spec_range_allows(spec, &latest);
+            let update_available = newer && in_range;
+            let hint = if newer && !in_range {
+                Some(format!(
+                    "registry 有 {}，但超出当前 spec {} 范围，需先改 spec 才能升级",
+                    latest, spec
+                ))
+            } else {
+                None
+            };
+            DshPluginUpdateCheck {
+                key: key.to_string(),
+                name: pkg_name.to_string(),
+                checked_at: now,
+                update_available,
+                current,
+                latest: Some(latest),
+                error: None,
+                hint,
+            }
+        }
+        Err(e) => DshPluginUpdateCheck {
+            key: key.to_string(),
+            name: pkg_name.to_string(),
+            checked_at: now,
+            update_available: false,
+            current,
+            latest: None,
+            error: Some(e),
+            hint: None,
+        },
+    }
+}
+
+fn check_release_update(
+    key: &str,
+    pkg_name: &str,
+    owner: &str,
+    repo: &str,
+    tag: &str,
+    now: u64,
+) -> DshPluginUpdateCheck {
+    let current = tag.trim_start_matches('v').to_string();
+    match query_github_latest_release(owner, repo) {
+        Ok(latest) => {
+            let latest = latest.trim_start_matches('v').to_string();
+            let update_available = !latest.is_empty() && semver_newer(&latest, &current);
+            DshPluginUpdateCheck {
+                key: key.to_string(),
+                name: pkg_name.to_string(),
+                checked_at: now,
+                update_available,
+                current: Some(current),
+                latest: Some(latest),
+                error: None,
+                hint: None,
+            }
+        }
+        Err(e) => DshPluginUpdateCheck {
+            key: key.to_string(),
+            name: pkg_name.to_string(),
+            checked_at: now,
+            update_available: false,
+            current: Some(current),
             latest: None,
             error: Some(e),
             hint: None,

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen w-screen flex flex-col bg-[#f5f5f7] dark:bg-[#1c1c1e] text-slate-900 dark:text-white/90 overflow-hidden font-sans transition-colors duration-200">
+  <div class="h-screen w-screen flex flex-col bg-[#f4f4f5] dark:bg-[#121316] text-slate-900 dark:text-white/90 overflow-hidden font-sans transition-colors duration-200">
     <!-- Top Header -->
     <Header />
 
@@ -7,7 +7,7 @@
     <Navigation />
 
     <!-- Main Dynamic Workspace -->
-    <main class="flex-1 overflow-hidden relative bg-[#f5f5f7] dark:bg-[#1c1c1e]">
+    <main class="flex-1 overflow-hidden relative bg-[#f4f4f5] dark:bg-[#121316]">
       <transition name="fade" mode="out-in">
         <AgentsView v-if="store.currentTab === 'agents' || store.currentTab === 'unmanaged'" />
         <SkillsMatrix v-else-if="store.currentTab === 'skills'" />

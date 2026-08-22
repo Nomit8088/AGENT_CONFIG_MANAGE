@@ -3,11 +3,11 @@
     v-if="store.settingsModal.visible"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
   >
-    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200 max-h-[85vh] overflow-y-auto">
+    <div class="bg-white dark:bg-[#121316] w-full max-w-lg rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200 max-h-[85vh] overflow-y-auto">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
+          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
             <Settings class="w-4 h-4" />
           </div>
           <div>
@@ -26,7 +26,7 @@
       <!-- Settings Items -->
       <div class="space-y-4 text-xs">
         <!-- Storage Path info -->
-        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 space-y-1">
+        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-1">
           <div class="text-slate-500 dark:text-white/60 font-medium">数据存储路径 (Single Source of Truth)</div>
           <div class="font-mono text-slate-800 dark:text-white/90 text-[11px] truncate">
             %APPDATA%\AgentHub\skills\
@@ -39,14 +39,14 @@
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">外观主题设置</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">切换深色模式、浅色模式或跟随系统设置</div>
           </div>
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="setTheme('dark')"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1.5',
                 form.theme === 'dark'
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -59,7 +59,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1.5',
                 form.theme === 'light'
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -72,7 +72,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1.5',
                 form.theme === 'system'
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -88,14 +88,14 @@
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">默认项目规则模式</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">新建纳管项目时的默认规则应用策略</div>
           </div>
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="form.default_rule_mode = 'append'"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.default_rule_mode === 'append'
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -107,7 +107,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.default_rule_mode === 'overwrite'
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -122,14 +122,14 @@
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">自动捕获外部安装 (File Watcher)</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">检测 npx skills add -g 或外部技能创建并自动同步</div>
           </div>
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="form.auto_capture_skills = true"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.auto_capture_skills
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -141,7 +141,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 !form.auto_capture_skills
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -156,14 +156,14 @@
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">桌面操作 Toast 提示</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">挂载/解绑及冲突处理完成时展示通知</div>
           </div>
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="form.toast_notifications = true"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.toast_notifications
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -175,7 +175,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 !form.toast_notifications
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -190,14 +190,14 @@
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动时自动检查更新</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">每次启动静默检测 GitHub Releases 新版本</div>
           </div>
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="form.auto_check_update = true"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.auto_check_update
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -209,7 +209,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 !form.auto_check_update
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -227,15 +227,31 @@
           <button
             type="button"
             @click="openUpdate"
-            class="px-2.5 py-1 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded-lg bg-[#3b82f6]/10 hover:bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
           >
             <PackageOpen class="w-3.5 h-3.5" />
             <span>检查更新</span>
           </button>
         </div>
 
+        <!-- DSH 插件 GitHub 镜像 -->
+        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-2">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">DSH 插件 GitHub 镜像</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">
+              检查/更新 github: 依赖时经此镜像访问 GitHub（如 https://gh-proxy.com/）；留空则直连并自动走系统代理
+            </div>
+          </div>
+          <input
+            v-model="form.gitHubMirror"
+            type="text"
+            placeholder="https://gh-proxy.com/"
+            class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
+          />
+        </div>
+
         <!-- Sync Repo Config (Global) -->
-        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 space-y-3">
+        <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-3">
           <div>
             <div class="font-serif font-semibold text-slate-900 dark:text-white/90">同步仓库配置（全局）</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">
@@ -249,7 +265,7 @@
               v-model="repoForm.remoteUrl"
               type="text"
               placeholder="https://github.com/you/agenthub-sync.git"
-              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
+              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
             />
           </div>
           <div class="space-y-2">
@@ -258,7 +274,7 @@
               v-model="repoForm.branch"
               type="text"
               placeholder="main"
-              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
+              class="w-full px-3 py-2 rounded-lg bg-black/[0.03] dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors duration-200"
             />
           </div>
 
@@ -267,8 +283,8 @@
             :class="[
               'px-2.5 py-1.5 rounded-lg text-[11px] font-mono border transition-colors duration-200',
               repoValidationOk
-                ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
-                : 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30'
+                ? 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/30'
+                : 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30'
             ]"
           >
             {{ repoValidationMessage }}
@@ -277,7 +293,7 @@
           <button
             @click="saveRepo"
             :disabled="!canSaveRepo"
-            class="w-full px-3 py-2 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full px-3 py-2 rounded-lg bg-[#3b82f6]/10 hover:bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw v-if="store.syncRepoValidating" class="w-3.5 h-3.5 animate-spin" />
             <Save v-else class="w-3.5 h-3.5" />
@@ -324,7 +340,7 @@
         </button>
         <button
           @click="save"
-          class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1.5"
+          class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1.5"
         >
           <Save class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" />
           <span>保存偏好设置</span>
@@ -348,6 +364,7 @@ const form = reactive({
   auto_capture_skills: store.config.auto_capture_skills,
   toast_notifications: store.config.toast_notifications,
   auto_check_update: store.config.auto_check_update ?? false,
+  gitHubMirror: store.config.dsh_plugins?.gitHubMirror ?? '',
 });
 
 function parseValidatedKey(key: string): { remoteUrl: string; branch: string } {
@@ -372,6 +389,7 @@ watch(
     form.auto_capture_skills = cfg.auto_capture_skills;
     form.toast_notifications = cfg.toast_notifications;
     form.auto_check_update = cfg.auto_check_update ?? false;
+    form.gitHubMirror = cfg.dsh_plugins?.gitHubMirror ?? '';
   },
   { deep: true }
 );
@@ -436,6 +454,10 @@ async function save() {
     auto_capture_skills: form.auto_capture_skills,
     toast_notifications: form.toast_notifications,
     auto_check_update: form.auto_check_update,
+    dsh_plugins: {
+      ...(store.config.dsh_plugins ?? { dshCommand: '', pnpmCommand: '' }),
+      gitHubMirror: form.gitHubMirror.trim(),
+    },
   });
   close();
 }

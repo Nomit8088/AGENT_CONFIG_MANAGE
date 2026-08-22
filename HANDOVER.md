@@ -930,4 +930,16 @@ npm run tauri build
     - 更新源仓库硬编码为 `Nomit8088/AGENT_CONFIG_MANAGE`（与 `.github/workflows/release.yml` 的 tauri-action 产物一致）。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
+---
+- **2026-08-22 (Session 49)**:
+  - **前端视觉重构升级：Linear / Raycast 级高设计感与丰富语义色谱全量落地**:
+    - **视觉层级痛点攻关**：
+      - 针对原浅色模式下列表泛白泛素（无阴影、低对比、缺乏层级）与旧版满屏荧光绿过载问题，全面重构为符合 Linear / Raycast / Supabase 顶级开发工具质感的现代化 UI；
+      - **画布与卡片对比**：浅色模式采用冷调 Slate 灰底（`#f1f5f9`）+ 纯白立体卡片（`#ffffff` + 微阴影 `shadow-xs`），深色模式采用深邃极客黑（`#0c0d12`）+ 深冷卡片（`#14161f` + 悬浮发光发丝边框 `hover:border-indigo-500/35`）；
+      - **来源协议精致微徽章 (Protocol Micro-Pills)**：为 `GITHUB` (经典钴蓝)、`NPM` (紫罗兰)、`GIT+` (冰川蓝)、`LOCAL` (琥珀金)、`OFFICIAL` (电光紫) 独立设计代码胶囊微标签与渐变图标瓦片；
+      - **状态指示微型化**：`正常` 状态采用精致温润的翡翠微胶囊（`bg-emerald-500/10 text-emerald-600` + 微型圆点），彻底告别大面积荧光绿刷屏；
+      - **模块品牌维度色谱**：DSH 插件中心（科技紫）、技能中心（电光靛蓝）、同步中心（冰川蓝）、大厅 Agent（琥珀金），使各功能板块个性鲜明且整体协调优雅。
+    - **全站 20+ 组件全量同步**：`style.css`、`Header.vue`、`DshPluginRow.vue`、`DshPluginList.vue`、`PluginsView.vue`、`SkillsMatrix.vue`、`SyncView.vue` 全量焕新。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建，2.09s）零错误零警告。
+
 *文档更新时间：2026-08-22 | AgentHub Core Team*
