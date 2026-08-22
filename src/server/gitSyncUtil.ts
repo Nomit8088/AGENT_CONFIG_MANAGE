@@ -56,7 +56,7 @@ function queryRegValue(name: string): string | null {
     ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings', '/v', name],
     { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 },
   );
-  // 输出形如: "    ProxyServer    REG_SZ    127.0.0.1:7897"
+  // 输出形如: "    ProxyServer    REG_SZ    <host>:<port>"
   const line = out.split(/\r?\n/).find(l => l.includes(name));
   if (!line) return null;
   const value = line.split(/\s+/).filter(Boolean).pop();

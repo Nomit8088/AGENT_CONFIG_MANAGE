@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 use crate::models::SyncDiffEntry;
 
 /// 读取 Windows WinINET 注册表值（HKCU）。输出形如:
-/// `    ProxyServer    REG_SZ    127.0.0.1:7897`
+/// `    ProxyServer    REG_SZ    <host>:<port>`
 fn query_reg_value(name: &str) -> Option<String> {
     let out = spawn_cmd("reg")
         .args([

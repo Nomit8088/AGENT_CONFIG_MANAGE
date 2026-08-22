@@ -101,6 +101,22 @@ flowchart LR
 
 ---
 
+## 📸 Screenshots
+
+### DSH Plugin Lifecycle Management
+
+<p align="center">
+  <img src="docs/images/promo-dsh-plugin-manager.png" alt="DSH Plugin Lifecycle Management" width="800">
+</p>
+
+### One-Click Crash Diagnosis & Recovery
+
+<p align="center">
+  <img src="docs/images/promo-dsh-crash-diagnosis.png" alt="DSH One-Click Crash Diagnosis & Recovery" width="800">
+</p>
+
+---
+
 ## ⚡ Core Feature Overview
 
 ### 1. Central Skills Junction Matrix (Skills Matrix)
@@ -115,7 +131,7 @@ flowchart LR
 
 ### 3. Sync Center & Proxy Auto-Detection (Sync Center)
 - **Path-Scoped Module Sync**: Skills and DSH plugins share a single Git repository while isolating commits and pushes (`skills/` vs `dsh/`);
-- **WinINET Proxy Auto-Detection**: Detects system registry proxy (`127.0.0.1:7897`) and injects proxy arguments into Git operations automatically.
+- **WinINET Proxy Auto-Detection**: Detects system registry proxy (`<host>:<port>`) and injects proxy arguments into Git operations automatically.
 
 ### 4. App Online Auto-Updater (App Auto-Updater)
 - **cc-switch Style GitHub Releases Updates**: Fetches latest tags and release notes without signing chains;

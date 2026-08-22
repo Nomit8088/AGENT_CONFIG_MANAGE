@@ -101,6 +101,22 @@ flowchart LR
 
 ---
 
+## 📸 产品预览
+
+### DSH 插件全生命周期管理
+
+<p align="center">
+  <img src="docs/images/promo-dsh-plugin-manager.png" alt="DSH 插件全生命周期管理" width="800">
+</p>
+
+### 启动崩溃一键诊断自愈
+
+<p align="center">
+  <img src="docs/images/promo-dsh-crash-diagnosis.png" alt="DSH 启动崩溃一键诊断自愈" width="800">
+</p>
+
+---
+
 ## ⚡ 核心功能全景
 
 ### 1. 跨 Agent 中央技能矩阵 (Skills Matrix)
@@ -115,7 +131,7 @@ flowchart LR
 
 ### 3. 同步中心 & 网络代理自愈 (Sync Center)
 - **分模块独立同步**：技能与 DSH 插件共用同一 Git 仓库，但提交与推送严格按路径隔离（`skills/` 与 `dsh/`），互不干扰；
-- **Windows WinINET 系统代理自愈**：自动探测系统注册表代理（如 `127.0.0.1:7897`），向 Git 命令动态注入代理配置，彻底解决 GitHub 直连重置与超时难题。
+- **Windows WinINET 系统代理自愈**：自动探测系统注册表代理（如 `<host>:<port>`），向 Git 命令动态注入代理配置，彻底解决 GitHub 直连重置与超时难题。
 
 ### 4. 应用本体在线更新 (App Auto-Updater)
 - **cc-switch 风格无签名自更新**：自动获取 GitHub Releases 最新版本信息与 Release Notes；

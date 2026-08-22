@@ -20,11 +20,11 @@
 
 ## 2. 🎨 全局设计规范与 UI 开发准则 (核心强制)
 
-> 📖 **设计规范详见专门文档**：[**DESIGN_GUIDELINES.md**](file:///d:/dev/toolPrograms/agent_config_manager/DESIGN_GUIDELINES.md)
+> 📖 **设计规范详见专门文档**：[**DESIGN_GUIDELINES.md**](DESIGN_GUIDELINES.md)
 
 * **设计风格**：**macOS 毛玻璃极简 (macOS Vibrancy / `macos-vibrancy`)**。
 * **开发红线与继承原则**：
-  1. **后续无论添加任何新功能、新页面、新弹窗或重构组件，都必须无条件参考 [DESIGN_GUIDELINES.md](file:///d:/dev/toolPrograms/agent_config_manager/DESIGN_GUIDELINES.md) 中的规范，严禁风格漂移！**
+  1. **后续无论添加任何新功能、新页面、新弹窗或重构组件，都必须无条件参考 [DESIGN_GUIDELINES.md](DESIGN_GUIDELINES.md) 中的规范，严禁风格漂移！**
   2. **双主题兼容**：所有组件必须同时支持浅色（`#f5f5f7` / `#ffffff` / `text-slate-900`）与深色（`#1c1c1e` / `#2c2c2e` / `text-white/95`），必须携带 `dark:` 前缀类名。
   3. **排版规范**：标题统一采用 **Serif 衬线体 (`font-serif`)**，正文采用系统无衬线体，代码/路径/版本号采用 **等宽体 (`font-mono`)**。
   4. **开关交互**：全站所有开关统一采用 **macOS 分段滑块 (Segmented Slider)**：`[ 选项 A | 选项 B ]`。
@@ -84,7 +84,7 @@
       "agentId": "claude-code",
       "agentName": "Claude Code",
       "skillName": "omc-doctor",
-      "path": "C:\\Users\\nomit\\.claude\\skills\\omc-doctor",
+      "path": "C:\\Users\\<username>\\.claude\\skills\\my-private-skill",
       "ignoredAt": 1723982400000
     }
   ],
@@ -120,7 +120,7 @@
     "icon": "bot",
     "detected": true,
     "enabled": true,
-    "skillsDir": "C:\\Users\\nomit\\.claude\\skills",
+    "skillsDir": "C:\\Users\\<username>\\.claude\\skills",
     "ruleType": "local_file",
     "localRuleFilename": "CLAUDE.local.md"
   },
@@ -130,7 +130,7 @@
     "icon": "sparkles",
     "detected": true,
     "enabled": true,
-    "skillsDir": "C:\\Users\\nomit\\.gemini\\config\\skills",
+    "skillsDir": "C:\\Users\\<username>\\.gemini\\config\\skills",
     "ruleType": "global_file",
     "localRuleFilename": "GEMINI.local.md"
   },
@@ -196,9 +196,9 @@
 ```jsonc
 [
   {
-    "id": "proj-kingeye-v4",
-    "name": "kingeye_v_4",
-    "path": "D:\\dev\\PythonPrograms\\kingeye_v_4",
+    "id": "proj-example-v1",
+    "name": "example_project",
+    "path": "D:\\dev\\Projects\\example_project",
     "isGit": true,
     "overrideEnabled": true,        // 规则总开关: ON / OFF
     "ruleMode": "overwrite",        // "overwrite" (覆盖) 或 "append" (追加)
@@ -667,7 +667,7 @@ npm run tauri build
 - **2026-08-20 (Session 19)**:
   - **同步中心（Skills Sync）可用性根治与诊断增强**:
     - **根因 1 — git 真实报错被吞**：Node 端 `gitExec` 原先 `stdio: ['pipe','pipe','ignore']` 丢弃 stderr，`config.json` 只落盘无意义的 `Command failed: git pull ...`；新增 `src/server/gitSyncUtil.ts` 统一捕获 stderr/stdout 并设置 120s 超时（`localApi.ts` 与 `dshPlugins.ts` 共用），失败时返回真实 fatal 信息。
-    - **根因 2 — git 不读 Windows 系统代理**：本机 WinINET 代理 `127.0.0.1:7897` 下 GitHub 直连被 reset，`git ls-remote` 亦失败；新增系统代理探测（环境变量 → `reg query` WinINET），并以 `-c http.proxy / -c https.proxy` 注入所有 git 网络命令，连接恢复秒级可用。
+    - **根因 2 — git 不读 Windows 系统代理**：本机 WinINET 代理 `<host>:<port>` 下 GitHub 直连被 reset，`git ls-remote` 亦失败；新增系统代理探测（环境变量 → `reg query` WinINET），并以 `-c http.proxy / -c https.proxy` 注入所有 git 网络命令，连接恢复秒级可用。
     - **根因 3 — 前端丢弃服务端错误体**：`api.ts requestApi` 原先仅抛 `API error: <statusText>`；改为解析 `{error}` 体透传真实信息，同步/拉取/推送失败提示不再失真。
     - **根因 4 — 本地与远端历史分叉无解**：本地仓库与远端各为独立 root commit 时 `--ff-only` 必然失败；新增 `test_skills_sync_connection`（`ls-remote` 连接自检）与 `reset_skills_sync_to_remote`（`fetch + reset --hard origin/<branch>`，仅覆盖受管 `skills/` 与 `.gitignore`，不触碰 config/agents/projects/backups 私有文件）。
     - **UI 优化**：`SyncView.vue` 错误横幅改为 `whitespace-pre-wrap` 展示多行 stderr + 模式化诊断提示；分叉场景显示「以远端为准（重置本地）」二次确认恢复卡。
