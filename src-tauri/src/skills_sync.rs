@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use crate::process::spawn_cmd;
 
 use crate::models::{SkillsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -50,7 +50,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = Command::new("git")
+    let output = spawn_cmd("git")
         .args(crate::git_sync::proxy_args())
         .args(args)
         .current_dir(cwd)

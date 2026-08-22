@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use crate::process::spawn_cmd;
 
 use crate::models::{SyncRepoConfig, SyncRepoValidation};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -47,7 +47,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
 {
-    let output = Command::new("git")
+    let output = spawn_cmd("git")
         .args(crate::git_sync::proxy_args())
         .args(args)
         .current_dir(cwd)
@@ -173,7 +173,7 @@ pub fn validate_sync_repo(remote_url: String, branch: Option<String>) -> SyncRep
             .unwrap_or(0)
     ));
 
-    let clone = Command::new("git")
+    let clone = spawn_cmd("git")
         .args(crate::git_sync::proxy_args())
         .args(["clone", "--depth", "1", "--branch", resolved_branch.as_str()])
         .arg(remote_url.as_str())

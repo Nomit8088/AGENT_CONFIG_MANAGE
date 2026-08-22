@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use crate::process::spawn_cmd;
 
 pub struct GitStatus {
     pub is_git: bool,
@@ -19,7 +19,7 @@ pub fn check_git_status(project_path: &Path) -> GitStatus {
     }
 
     let branch = {
-        let output = Command::new("git")
+        let output = spawn_cmd("git")
             .args(&["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(project_path)
             .output();
