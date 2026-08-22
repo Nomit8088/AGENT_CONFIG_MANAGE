@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::process::spawn_cmd;
+use crate::git_sync::run_git;
 
 use crate::models::{SyncRepoConfig, SyncRepoValidation};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -40,26 +40,6 @@ fn ensure_gitignore(root: &Path) {
             let _ = fs::write(&gitignore, new_text);
         }
     }
-}
-
-fn run_git<I, S>(cwd: &Path, args: I) -> Result<String, String>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<std::ffi::OsStr>,
-{
-    let output = spawn_cmd("git")
-        .args(crate::git_sync::proxy_args())
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .map_err(|e| format!("无法执行 git 命令: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { stdout } else { stderr });
-    }
-    Ok(stdout)
 }
 
 fn git_try(cwd: &Path, args: &[&str]) -> String {
@@ -173,23 +153,24 @@ pub fn validate_sync_repo(remote_url: String, branch: Option<String>) -> SyncRep
             .unwrap_or(0)
     ));
 
-    let clone = spawn_cmd("git")
-        .args(crate::git_sync::proxy_args())
-        .args(["clone", "--depth", "1", "--branch", resolved_branch.as_str()])
-        .arg(remote_url.as_str())
-        .arg(&tmp_dir)
-        .current_dir(&tmp_root)
-        .output();
+    let cloned = run_git(
+        &tmp_root,
+        [
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            resolved_branch.as_str(),
+            remote_url.as_str(),
+            tmp_dir.to_str().unwrap_or(""),
+        ],
+    );
 
-    let cloned = match clone {
-        Ok(out) => out.status.success(),
-        Err(_) => false,
-    };
-    if !cloned {
+    if let Err(e) = cloned {
         let _ = fs::remove_dir_all(&tmp_dir);
         return SyncRepoValidation {
             ok: false,
-            error: Some("无法浅克隆远端仓库进行格式校验".to_string()),
+            error: Some(format!("无法浅克隆远端仓库进行格式校验: {}", e)),
             initialized: false,
             format_ok: false,
             resolved_branch: Some(resolved_branch),

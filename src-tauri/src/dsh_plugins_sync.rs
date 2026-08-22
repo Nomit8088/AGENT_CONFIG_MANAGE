@@ -1,8 +1,7 @@
 use std::collections::HashSet;
-use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::process::spawn_cmd;
+use crate::git_sync::run_git;
 
 use serde_json::Value as JsonValue;
 
@@ -57,26 +56,6 @@ fn ensure_gitignore(root: &Path) {
             let _ = fs::write(&gitignore, new_text);
         }
     }
-}
-
-fn run_git<I, S>(cwd: &Path, args: I) -> Result<String, String>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    let output = spawn_cmd("git")
-        .args(crate::git_sync::proxy_args())
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .map_err(|e| format!("无法执行 git 命令: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { stdout } else { stderr });
-    }
-    Ok(stdout)
 }
 
 fn git_try(cwd: &Path, args: &[&str]) -> String {

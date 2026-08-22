@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
-use crate::process::spawn_cmd;
+use crate::process::{run_captured, spawn_cmd, LOCAL_CMD_TIMEOUT, NETWORK_CMD_TIMEOUT};
 use std::sync::OnceLock;
 
 use crate::models::SyncDiffEntry;
@@ -112,18 +113,49 @@ pub fn proxy_args() -> Vec<String> {
     }
 }
 
+/// 关闭 git 的交互式提示。控制台窗口已被 CREATE_NO_WINDOW 隐藏，任何 stdin 提示
+/// （用户名/密码、SSH 主机密钥/口令）都会变成「看不见的挂起或失败」。让它们快速失败，
+/// 具体错误由 `run_git` 的 `Err` 返回给前端展示。
+const GIT_NO_PROMPT_ENV: &[(&str, &str)] = &[
+    ("GIT_TERMINAL_PROMPT", "0"),
+    (
+        "GIT_SSH_COMMAND",
+        "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new",
+    ),
+];
+
+/// 统一的 git 执行入口：自动注入系统代理与「禁止交互提示」环境变量。
+/// 网络类命令（fetch/pull/push/ls-remote/clone）使用更长超时，其余本地只读命令用短超时。
+/// 成功返回裁剪后的 stdout，失败返回 `Err`（stderr 或 stdout 或超时信息）。
+pub fn run_git<I, S>(cwd: &Path, args: I) -> Result<String, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let user_args: Vec<OsString> = args
+        .into_iter()
+        .map(|a| a.as_ref().to_os_string())
+        .collect();
+    let is_network = user_args
+        .first()
+        .and_then(|a| a.to_str())
+        .map(|s| matches!(s, "fetch" | "pull" | "push" | "ls-remote" | "clone"))
+        .unwrap_or(false);
+
+    let mut all: Vec<OsString> = proxy_args().into_iter().map(OsString::from).collect();
+    all.extend(user_args);
+
+    let timeout = if is_network {
+        NETWORK_CMD_TIMEOUT
+    } else {
+        LOCAL_CMD_TIMEOUT
+    };
+    run_captured("git", all, Some(cwd), GIT_NO_PROMPT_ENV, timeout)
+}
+
 /// 非抛错的只读 git 输出（失败返回 None），用于本地差异计算，不做网络 fetch。
 fn git_out_opt(cwd: &Path, args: &[&str]) -> Option<String> {
-    let output = spawn_cmd("git")
-        .args(proxy_args())
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    run_git(cwd, args.iter().copied()).ok()
 }
 
 fn status_of_code(code: &str) -> &'static str {
