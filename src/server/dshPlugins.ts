@@ -798,7 +798,10 @@ export async function updateDshPlugin(profile: string, key: string, onLine?: (li
 
   const after = readInstalledVersion(profileDir, pkgName);
   const l3 = validateInstalledPkg(profileDir, pkgName);
-  const ok = result.exitCode === 0 && !result.timedOut && l3.ok;
+  const blocked = parseGitPrepareNotAllowed(result.output).includes(pkgName);
+  // 与 install 流水线一致：ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED 是硬失败（git 依赖未真正更新）；
+  // 其余非 0 退出（如 IGNORED_BUILDS 忽略构建脚本）以 L3 入口校验为最终判定。
+  const ok = !blocked && !result.timedOut && l3.ok;
 
   const state = readInstallState();
   let profileState = { ...(state[profileName] || {}) };
@@ -817,13 +820,19 @@ export async function updateDshPlugin(profile: string, key: string, onLine?: (li
     report.warnings.push('pnpm update 执行超过 10 分钟，已强制终止（timeout）');
   }
 
+  if (blocked) {
+    report.warnings.push(`pnpm 拒绝执行 git 依赖 prepare 构建脚本：${pkgName}；请在 pnpm-workspace.yaml 的 allowBuilds 中放行对应包/提交后重试`);
+  }
+
   if (ok) {
     if (before !== after) report.updated.push(pkgName);
     report.installed.push(pkgName);
     if (profileState[pkgName]) delete profileState[pkgName];
   } else {
-    const reason = result.exitCode !== 0 || result.timedOut ? 'non-zero-exit' : 'missing-entry';
-    const stack = reason === 'non-zero-exit' ? result.output : (l3.reason || '入口校验失败');
+    const reason = blocked || result.timedOut ? 'non-zero-exit' : 'missing-entry';
+    const stack = reason === 'non-zero-exit'
+      ? (result.output || 'pnpm 拒绝执行 git 依赖 prepare 构建脚本（未加入 allowBuilds）')
+      : (l3.reason || '入口校验失败');
     report.failed.push({
       name: pkgName,
       reason,
@@ -895,6 +904,21 @@ function parseIgnoredBuilds(output: string): string[] {
     .filter(s => s && !s.toLowerCase().includes('run "pnpm approve-builds"'));
 }
 
+/** 解析 pnpm 输出中的 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`，返回被拒绝的包名列表。
+ *  这类错误是「硬失败」：pnpm 会拒绝安装/更新该 git 依赖（prepare 未执行），
+ *  旧入口文件仍存在会误导 L3 校验误判为成功，必须显式标记失败。 */
+function parseGitPrepareNotAllowed(output: string): string[] {
+  const names: string[] = [];
+  const re = /The git-hosted package '([^']+)'/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(output)) !== null) {
+    const full = m[1]; // 形如 '@dsh-external/dsh-diff-review@0.0.1'
+    const name = full.replace(/@\d[^@]*$/, '');
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
 export async function installDshPluginsV2(profile: string, mode: DshInstallMode, onLine?: (line: string) => void): Promise<DshInstallReport> {
   const profileName = (profile || '').trim() || 'web';
   const cfg = readConfigFile();
@@ -948,20 +972,35 @@ export async function installDshPluginsV2(profile: string, mode: DshInstallMode,
     warnings.push(`pnpm 忽略了以下依赖的构建脚本：${ignoredBuilds.join(', ')}；如为原生模块，请在 pnpm-workspace.yaml 的 allowBuilds 中放行后重试`);
   }
 
+  const gitPrepareBlocked = parseGitPrepareNotAllowed(result.output);
+  if (gitPrepareBlocked.length > 0) {
+    warnings.push(`pnpm 拒绝执行 git 依赖 prepare 构建脚本：${gitPrepareBlocked.join(', ')}；请在 pnpm-workspace.yaml 的 allowBuilds 中放行对应包/提交后重试`);
+  }
+
   for (const item of declared) {
     const before = beforeVersions.get(item.name);
     const after = readInstalledVersion(profileDir, item.name);
 
     const l3 = validateInstalledPkg(profileDir, item.name);
     const versionChanged = before !== undefined && after !== undefined && before !== after;
+    const blocked = gitPrepareBlocked.includes(item.name);
 
     // L3 是最终判定：磁盘上入口文件存在即视为该包安装成功。
     // pnpm 可能因「忽略构建脚本」等非致命原因返回非 0 退出码，但包实际已安装，
     // 此时不应把全部声明包都标记为失败。
-    if (l3.ok) {
+    // 例外：ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED 是硬失败（prepare 未执行、git 依赖未真正更新），
+    // 即使旧入口文件仍在也必须标记失败，避免「虚假成功」。
+    if (l3.ok && !blocked) {
       installed.push(item.name);
       if (versionChanged) updated.push(item.name);
       if (profileState[item.name]) delete profileState[item.name];
+      continue;
+    }
+
+    if (blocked) {
+      const stack = result.output || 'pnpm 拒绝执行 git 依赖 prepare 构建脚本（未加入 allowBuilds）';
+      failed.push({ name: item.name, reason: 'non-zero-exit', stack: trimStack(stack) });
+      persistFailure(item.name, 'non-zero-exit', stack);
       continue;
     }
 

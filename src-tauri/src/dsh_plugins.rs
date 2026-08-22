@@ -1003,7 +1003,10 @@ fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, St
 
     let after = read_installed_version(&profile_dir, &pkg_name);
     let l3 = validate_installed_pkg(&profile_dir, &pkg_name);
-    let ok = run.exit_code == Some(0) && !run.timed_out && l3.is_ok();
+    let blocked = parse_git_prepare_not_allowed(&run.output).contains(&pkg_name);
+    // 与 install 流水线一致：ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED 是硬失败（git 依赖未真正更新）；
+    // 其余非 0 退出（如 IGNORED_BUILDS 忽略构建脚本）以 L3 入口校验为最终判定。
+    let ok = !blocked && !run.timed_out && l3.is_ok();
 
     let mut state = read_install_state();
     let mut report = DshInstallReport {
@@ -1023,6 +1026,13 @@ fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, St
             .push("pnpm update 执行超过 10 分钟，已强制终止（timeout）".to_string());
     }
 
+    if blocked {
+        report.warnings.push(format!(
+            "pnpm 拒绝执行 git 依赖 prepare 构建脚本：{}；请在 pnpm-workspace.yaml 的 allowBuilds 中放行对应包/提交后重试",
+            pkg_name
+        ));
+    }
+
     if ok {
         if before.as_deref() != after.as_deref() {
             report.updated.push(pkg_name.clone());
@@ -1032,13 +1042,17 @@ fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, St
             profile_state.remove(&pkg_name);
         }
     } else {
-        let reason = if run.exit_code != Some(0) || run.timed_out {
+        let reason = if blocked || run.timed_out {
             "non-zero-exit"
         } else {
             "missing-entry"
         };
         let stack = if reason == "non-zero-exit" {
-            run.output.clone()
+            if run.output.is_empty() {
+                "pnpm 拒绝执行 git 依赖 prepare 构建脚本（未加入 allowBuilds）".to_string()
+            } else {
+                run.output.clone()
+            }
         } else {
             l3.err().unwrap_or_else(|| "入口校验失败".to_string())
         };
@@ -2205,6 +2219,30 @@ fn parse_ignored_builds(output: &str) -> Vec<String> {
         .collect()
 }
 
+/// 解析 pnpm 输出中的 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`，返回被拒绝的包名列表。
+/// 这类错误是「硬失败」：pnpm 会拒绝安装/更新该 git 依赖（prepare 未执行），
+/// 旧入口文件仍存在会误导 L3 校验误判为成功，必须显式标记失败。
+fn parse_git_prepare_not_allowed(output: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut parts = output.split("The git-hosted package '");
+    parts.next(); // 跳过前导片段
+    for part in parts {
+        let Some(end) = part.find('\'') else { continue };
+        let full = &part[..end]; // 形如 '@dsh-external/dsh-diff-review@0.0.1'
+        // 去掉末尾的 @版本号
+        let name = full
+            .rsplit_once('@')
+            .filter(|(_, ver)| ver.chars().next().is_some_and(|c| c.is_ascii_digit()))
+            .map(|(n, _)| n)
+            .unwrap_or(full)
+            .to_string();
+        if !name.is_empty() && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+}
+
 fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(String)>) -> Result<DshInstallReport, String> {
     let cfg = load_config();
     let pnpm_cmd = resolve_pnpm_command(&cfg)
@@ -2262,16 +2300,27 @@ fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(S
         ));
     }
 
+    let git_prepare_blocked = parse_git_prepare_not_allowed(&run.output);
+    if !git_prepare_blocked.is_empty() {
+        warnings.push(format!(
+            "pnpm 拒绝执行 git 依赖 prepare 构建脚本：{}；请在 pnpm-workspace.yaml 的 allowBuilds 中放行对应包/提交后重试",
+            git_prepare_blocked.join(", ")
+        ));
+    }
+
     for (name, _kind, _spec) in &declared {
         let before = before_versions.get(name).cloned().flatten();
         let after = read_installed_version(&profile_dir, name);
         let l3 = validate_installed_pkg(&profile_dir, name);
         let version_changed = before.is_some() && after.is_some() && before.as_deref() != after.as_deref();
+        let blocked = git_prepare_blocked.contains(name);
 
         // L3 是最终判定：磁盘上入口文件存在即视为该包安装成功。
         // pnpm 可能因「忽略构建脚本」等非致命原因返回非 0 退出码，但包实际已安装，
         // 此时不应把全部声明包都标记为失败。
-        if l3.is_ok() {
+        // 例外：ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED 是硬失败（prepare 未执行、git 依赖未真正更新），
+        // 即使旧入口文件仍在也必须标记失败，避免「虚假成功」。
+        if l3.is_ok() && !blocked {
             installed.push(name.clone());
             if version_changed {
                 updated.push(name.clone());
@@ -2279,6 +2328,21 @@ fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(S
             if let Some(profile_state) = state.get_mut(&profile_name) {
                 profile_state.remove(name);
             }
+            continue;
+        }
+
+        if blocked {
+            let stack = if run.output.is_empty() {
+                "pnpm 拒绝执行 git 依赖 prepare 构建脚本（未加入 allowBuilds）".to_string()
+            } else {
+                run.output.clone()
+            };
+            failed.push(DshInstallFailure {
+                name: name.clone(),
+                reason: "non-zero-exit".to_string(),
+                stack: trim_stack(&stack, 4096),
+            });
+            persist_install_failure(&mut state, &profile_name, name, "non-zero-exit", &stack);
             continue;
         }
 
