@@ -14,7 +14,7 @@
           v-if="store.totalUnmanagedCount > 0"
           @click="store.takeoverAllUnmanagedSkills()"
           title="一键将所有 Agent 下的存量物理技能全部纳管并替换为中央受控链接"
-          class="px-2.5 py-1.5 rounded-lg bg-[#30d158]/10 text-[#30d158] hover:bg-[#30d158]/20 border border-[#30d158]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+          class="px-2.5 py-1.5 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 border border-[#22c55e]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
           <PackageCheck class="w-3.5 h-3.5" />
           <span class="hidden sm:inline">一键纳管全部 ({{ store.totalUnmanagedCount }})</span>
@@ -32,7 +32,7 @@
         <button
           @click="store.scanAgents()"
           :disabled="store.isLoading"
-          class="px-2.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+          class="px-2.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
           <RefreshCw class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" :class="{ 'animate-spin': store.isLoading }" />
           <span class="hidden sm:inline">重新扫描</span>
@@ -48,7 +48,7 @@
           v-model="searchQuery"
           type="text"
           placeholder="搜索 Agent 名称、私有规则文件名、路径..."
-          class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         />
         <button
           v-if="searchQuery"
@@ -60,18 +60,18 @@
       </div>
 
       <!-- Segmented control: 已启用 / 未启用 -->
-      <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs flex-shrink-0">
+      <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs flex-shrink-0">
         <button
           type="button"
           @click="agentFilterTab = 'enabled'"
           :class="[
             'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
             agentFilterTab === 'enabled'
-              ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+              ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
-          <span v-if="agentFilterTab === 'enabled'" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+          <span v-if="agentFilterTab === 'enabled'" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
           <span>已启用 ({{ filteredEnabled.length }})</span>
         </button>
         <button
@@ -80,7 +80,7 @@
           :class="[
             'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
             agentFilterTab === 'disabled'
-              ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+              ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
@@ -94,7 +94,7 @@
     <template v-if="currentList.length > 0">
       <div class="flex items-center justify-between px-1">
         <h3 class="font-serif text-xs font-semibold text-slate-900 dark:text-white/90 tracking-wider flex items-center gap-2">
-          <span class="w-2 h-2 rounded-sm" :class="agentFilterTab === 'enabled' ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'"></span>
+          <span class="w-2 h-2 rounded-sm" :class="agentFilterTab === 'enabled' ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30'"></span>
           <span>{{ agentFilterTab === 'enabled' ? '已启用 Agent' : '未启用 / 待激活 Agent' }} ({{ currentList.length }})</span>
         </h3>
         <button
@@ -102,7 +102,7 @@
           @click="enableAllDisabled"
           class="text-xs text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 flex items-center gap-1 font-medium transition-colors duration-200"
         >
-          <Zap class="w-3.5 h-3.5 text-[#ff9f0a]" />
+          <Zap class="w-3.5 h-3.5 text-[#f59e0b]" />
           <span>全部一键启用</span>
         </button>
       </div>
@@ -120,7 +120,7 @@
     <!-- Empty state -->
     <div
       v-else
-      class="bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 rounded-xl p-8 text-center text-slate-400 dark:text-white/50"
+      class="bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 rounded-xl p-8 text-center text-slate-400 dark:text-white/50"
     >
       <Bot class="w-8 h-8 mx-auto text-slate-300 dark:text-white/40 mb-2" />
       <p class="text-xs">

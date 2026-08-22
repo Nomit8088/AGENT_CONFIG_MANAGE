@@ -3,11 +3,11 @@
     v-if="store.dshPluginDiffModal.visible"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
   >
-    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-3xl rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none flex flex-col max-h-[90vh] text-slate-900 dark:text-white transition-colors duration-200">
+    <div class="bg-white dark:bg-[#121316] w-full max-w-3xl rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none flex flex-col max-h-[90vh] text-slate-900 dark:text-white transition-colors duration-200">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3 flex-shrink-0">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
+          <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
             <GitCompare class="w-4 h-4" />
           </div>
           <div>
@@ -33,7 +33,7 @@
           <div
             v-for="(item, i) in diff.items"
             :key="i"
-            class="rounded-lg border border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#2c2c2e] p-3 transition-colors duration-200"
+            class="rounded-lg border border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1d22] p-3 transition-colors duration-200"
           >
             <div class="flex items-center gap-2 flex-wrap">
               <span
@@ -48,11 +48,11 @@
               <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">profile: {{ item.profileName }}</span>
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono">
-              <div class="rounded-md bg-black/[0.02] dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 px-2 py-1.5">
+              <div class="rounded-md bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 px-2 py-1.5">
                 <div class="text-slate-400 dark:text-white/40">本地</div>
                 <div class="text-slate-700 dark:text-white/70 break-all">{{ item.local || '—' }}</div>
               </div>
-              <div class="rounded-md bg-black/[0.02] dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 px-2 py-1.5">
+              <div class="rounded-md bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 px-2 py-1.5">
                 <div class="text-slate-400 dark:text-white/40">仓库</div>
                 <div class="text-slate-700 dark:text-white/70 break-all">{{ item.remote || '—' }}</div>
               </div>
@@ -99,9 +99,9 @@ function kindLabel(kind: DshPluginDiffItem['kind']): string {
 
 function kindClass(kind: DshPluginDiffItem['kind']): string {
   switch (kind) {
-    case 'missing': return 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30';
-    case 'extra': return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
-    case 'version': return 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30';
+    case 'missing': return 'bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30';
+    case 'extra': return 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30';
+    case 'version': return 'bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30';
     case 'patch': return 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10';
   }
 }

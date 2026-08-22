@@ -1,11 +1,11 @@
 <template>
   <div v-if="project" class="h-full flex flex-col space-y-4">
     <!-- Top Control Bar -->
-    <div class="bg-white dark:bg-[#1c1c1e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
+    <div class="bg-white dark:bg-[#121316] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
       <!-- Row 1: Project Identity & Actions -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-xl bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80 flex-shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80 flex-shrink-0">
             <FolderGit2 class="w-5 h-5" />
           </div>
           <div class="min-w-0">
@@ -26,7 +26,7 @@
                 class="text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80 p-0.5 transition-colors duration-200"
                 title="复制绝对路径"
               >
-                <Check v-if="copied" class="w-3 h-3 text-[#30d158]" />
+                <Check v-if="copied" class="w-3 h-3 text-[#22c55e]" />
                 <Copy v-else class="w-3 h-3" />
               </button>
             </div>
@@ -36,18 +36,18 @@
         <!-- Right Master Switch & Save Action -->
         <div class="flex items-center gap-2.5 flex-wrap flex-shrink-0 self-end sm:self-auto">
           <!-- Master Switch Segmented Slider -->
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               type="button"
               @click="form.enabled = true"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.enabled
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span v-if="form.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+              <span v-if="form.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
               <span>启用定制</span>
             </button>
             <button
@@ -56,7 +56,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 !form.enabled
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
@@ -68,7 +68,7 @@
           <button
             @click="saveChanges"
             :disabled="isSaving"
-            class="px-4 py-1.5 rounded-lg bg-[#3a3a3c] dark:bg-[#3a3a3c] hover:bg-black/80 dark:hover:bg-white/10 disabled:opacity-50 text-white border border-black/10 dark:border-white/8 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5 shadow-sm dark:shadow-none"
+            class="px-4 py-1.5 rounded-lg bg-[#282a32] dark:bg-[#282a32] hover:bg-black/80 dark:hover:bg-white/10 disabled:opacity-50 text-white border border-black/10 dark:border-white/8 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5 shadow-sm dark:shadow-none"
           >
             <Save class="w-3.5 h-3.5" />
             <span>{{ isSaving ? '保存中...' : '保存并应用' }}</span>
@@ -87,7 +87,7 @@
           <!-- Guard Status Indicator -->
           <span
             v-if="form.ruleMode === 'append'"
-            class="px-2.5 py-0.5 rounded-md bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/30 flex items-center gap-1 font-medium text-[11px]"
+            class="px-2.5 py-0.5 rounded-md bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/30 flex items-center gap-1 font-medium text-[11px]"
           >
             <ShieldCheck class="w-3.5 h-3.5" />
             <span>.git/info/exclude 私有隔离生效中 · 免 Hook</span>
@@ -95,7 +95,7 @@
 
           <span
             v-else-if="form.ruleMode === 'overwrite' && project.hookInstalled"
-            class="px-2.5 py-0.5 rounded-md bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/30 flex items-center gap-1 font-medium text-[11px]"
+            class="px-2.5 py-0.5 rounded-md bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/30 flex items-center gap-1 font-medium text-[11px]"
           >
             <ShieldCheck class="w-3.5 h-3.5" />
             <span>Git Hook 守卫生效中 {{ form.preCommitGuard ? '(pre-checkout & pre-commit 防护)' : '(已放行 commit)' }}</span>
@@ -103,7 +103,7 @@
 
           <span
             v-else-if="form.ruleMode === 'overwrite' && !project.hookInstalled"
-            class="px-2.5 py-0.5 rounded-md bg-[#ff9f0a]/10 text-[#ff9f0a] border border-[#ff9f0a]/30 flex items-center gap-1 font-medium text-[11px]"
+            class="px-2.5 py-0.5 rounded-md bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/30 flex items-center gap-1 font-medium text-[11px]"
           >
             <AlertTriangle class="w-3.5 h-3.5" />
             <span>Git Hook 缺失或异常</span>
@@ -114,7 +114,7 @@
             v-if="form.ruleMode === 'overwrite' && project.isGit"
             @click="handleRepairHooks"
             :disabled="isRepairing"
-            class="px-2.5 py-0.5 rounded-md bg-[#0a84ff]/10 hover:bg-[#0a84ff]/20 text-[#0a84ff] border border-[#0a84ff]/30 text-[11px] font-semibold flex items-center gap-1 transition-colors duration-200"
+            class="px-2.5 py-0.5 rounded-md bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20 text-[#3b82f6] border border-[#3b82f6]/30 text-[11px] font-semibold flex items-center gap-1 transition-colors duration-200"
             title="一键安装或修复 pre-checkout, post-checkout 及 pre-commit 守卫防护"
           >
             <Zap class="w-3 h-3" />
@@ -130,14 +130,14 @@
 
     <!-- Segmented Navigation Tabs -->
     <div class="flex items-center justify-between gap-3">
-      <div class="flex items-center p-1 rounded-xl bg-white dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 shadow-xs text-xs">
+      <div class="flex items-center p-1 rounded-xl bg-white dark:bg-[#121316] border border-black/8 dark:border-white/8 shadow-xs text-xs">
         <button
           type="button"
           @click="activeTab = 'editor'"
           :class="[
             'px-3.5 py-1.5 rounded-lg transition-colors duration-200 font-medium flex items-center gap-1.5',
             activeTab === 'editor'
-              ? 'bg-black/5 dark:bg-[#2c2c2e] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+              ? 'bg-black/5 dark:bg-[#1c1d22] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
@@ -151,7 +151,7 @@
           :class="[
             'px-3.5 py-1.5 rounded-lg transition-colors duration-200 font-medium flex items-center gap-1.5',
             activeTab === 'settings'
-              ? 'bg-black/5 dark:bg-[#2c2c2e] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+              ? 'bg-black/5 dark:bg-[#1c1d22] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
@@ -168,8 +168,8 @@
           :class="[
             'px-3 py-1.5 rounded-lg border transition-colors duration-200 font-medium flex items-center gap-1.5',
             showBaseline
-              ? 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30'
-              : 'bg-white dark:bg-[#1c1c1e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30'
+              : 'bg-white dark:bg-[#121316] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white'
           ]"
           title="展开/收起原版 AGENTS.md 基准参考抽屉"
         >
@@ -180,9 +180,9 @@
         <button
           type="button"
           @click="insertTemplate"
-          class="px-3 py-1.5 rounded-lg bg-white dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white font-medium flex items-center gap-1.5 transition-colors duration-200"
+          class="px-3 py-1.5 rounded-lg bg-white dark:bg-[#121316] border border-black/8 dark:border-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
-          <Sparkles class="w-3.5 h-3.5 text-[#ff9f0a]" />
+          <Sparkles class="w-3.5 h-3.5 text-[#f59e0b]" />
           <span>插入模板</span>
         </button>
       </div>
@@ -191,8 +191,8 @@
     <!-- Main Tab 1: Editor View -->
     <div v-if="activeTab === 'editor'" class="flex-1 min-h-[420px] flex gap-4 overflow-hidden relative">
       <!-- Full-Width Custom Markdown Editor -->
-      <div class="flex-1 bg-white dark:bg-[#1c1c1e] rounded-xl border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none flex flex-col overflow-hidden transition-colors duration-200">
-        <div class="px-4 py-2.5 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1c1e] flex items-center justify-between text-xs">
+      <div class="flex-1 bg-white dark:bg-[#121316] rounded-xl border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none flex flex-col overflow-hidden transition-colors duration-200">
+        <div class="px-4 py-2.5 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#121316] flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <span class="font-serif font-semibold text-slate-900 dark:text-white/90">本机个性化规则编辑器 (Markdown)</span>
             <span class="text-[10px] text-slate-400 dark:text-white/40 font-mono">({{ lineCount }} 行 · {{ charCount }} 字)</span>
@@ -211,9 +211,9 @@
       <!-- Slide-over Baseline Drawer (On Demand) -->
       <div
         v-if="showBaseline"
-        class="w-80 md:w-96 bg-white dark:bg-[#1c1c1e] rounded-xl border border-black/8 dark:border-white/8 shadow-xl dark:shadow-none flex flex-col overflow-hidden transition-colors duration-200 animate-in slide-in-from-right duration-200"
+        class="w-80 md:w-96 bg-white dark:bg-[#121316] rounded-xl border border-black/8 dark:border-white/8 shadow-xl dark:shadow-none flex flex-col overflow-hidden transition-colors duration-200 animate-in slide-in-from-right duration-200"
       >
-        <div class="px-4 py-2.5 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1c1e] flex items-center justify-between text-xs">
+        <div class="px-4 py-2.5 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#121316] flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <FileText class="w-3.5 h-3.5 text-slate-400 dark:text-white/40" />
             <span class="font-serif font-semibold text-slate-800 dark:text-white/80">原版 AGENTS.md (团队基准)</span>
@@ -225,7 +225,7 @@
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
-        <div class="flex-1 p-3.5 bg-black/[0.01] dark:bg-[#1c1c1e] overflow-y-auto font-mono text-xs text-slate-600 dark:text-white/60 whitespace-pre-wrap leading-relaxed select-text">
+        <div class="flex-1 p-3.5 bg-black/[0.01] dark:bg-[#121316] overflow-y-auto font-mono text-xs text-slate-600 dark:text-white/60 whitespace-pre-wrap leading-relaxed select-text">
           {{ project.originalRuleContent || '（当前工作区暂无原版 AGENTS.md，将以纯自定义模式生效）' }}
         </div>
       </div>
@@ -234,7 +234,7 @@
     <!-- Main Tab 2: Settings & Distribution View -->
     <div v-else-if="activeTab === 'settings'" class="flex-1 overflow-y-auto space-y-4 pb-4">
       <!-- Section 1: Rule Mode Selector Cards -->
-      <div class="bg-white dark:bg-[#1c1c1e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
+      <div class="bg-white dark:bg-[#121316] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
         <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 flex items-center gap-2">
           <SlidersHorizontal class="w-4 h-4 text-slate-700 dark:text-white/80" />
           <span>规则生效模式策略</span>
@@ -247,16 +247,16 @@
             :class="[
               'p-3.5 rounded-xl border cursor-pointer transition-colors duration-200 space-y-2 relative',
               form.ruleMode === 'append'
-                ? 'bg-black/[0.03] dark:bg-[#2c2c2e] border-black/20 dark:border-white/25 shadow-xs'
+                ? 'bg-black/[0.03] dark:bg-[#1c1d22] border-black/20 dark:border-white/25 shadow-xs'
                 : 'bg-transparent border-black/8 dark:border-white/8 hover:bg-black/[0.01] dark:hover:bg-white/5 opacity-70 hover:opacity-100'
             ]"
           >
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 font-serif font-semibold text-slate-900 dark:text-white/95">
-                <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'append' ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30']"></span>
+                <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'append' ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30']"></span>
                 <span>追加模式 (Append / 零冲突私有隔离)</span>
               </div>
-              <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#30d158]/10 text-[#30d158] font-medium border border-[#30d158]/30">
+              <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#22c55e]/10 text-[#22c55e] font-medium border border-[#22c55e]/30">
                 免 Hook · 推荐
               </span>
             </div>
@@ -271,16 +271,16 @@
             :class="[
               'p-3.5 rounded-xl border cursor-pointer transition-colors duration-200 space-y-2 relative',
               form.ruleMode === 'overwrite'
-                ? 'bg-black/[0.03] dark:bg-[#2c2c2e] border-black/20 dark:border-white/25 shadow-xs'
+                ? 'bg-black/[0.03] dark:bg-[#1c1d22] border-black/20 dark:border-white/25 shadow-xs'
                 : 'bg-transparent border-black/8 dark:border-white/8 hover:bg-black/[0.01] dark:hover:bg-white/5 opacity-70 hover:opacity-100'
             ]"
           >
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 font-serif font-semibold text-slate-900 dark:text-white/95">
-                <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'overwrite' ? 'bg-[#0a84ff]' : 'bg-slate-300 dark:bg-white/30']"></span>
+                <span :class="['w-2 h-2 rounded-sm', form.ruleMode === 'overwrite' ? 'bg-[#3b82f6]' : 'bg-slate-300 dark:bg-white/30']"></span>
                 <span>覆盖模式 (Overwrite / 多基线接管)</span>
               </div>
-              <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#0a84ff]/10 text-[#0a84ff] font-medium border border-[#0a84ff]/30">
+              <span class="text-[10px] px-2 py-0.5 rounded-md bg-[#3b82f6]/10 text-[#3b82f6] font-medium border border-[#3b82f6]/30">
                 Hook 守卫守护
               </span>
             </div>
@@ -292,7 +292,7 @@
       </div>
 
       <!-- Section 2: Git Hook & Pre-Commit Protection (For Git Projects) -->
-      <div v-if="project.isGit" class="bg-white dark:bg-[#1c1c1e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
+      <div v-if="project.isGit" class="bg-white dark:bg-[#121316] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 flex items-center gap-2">
@@ -305,19 +305,19 @@
           </div>
 
           <!-- Pre-commit Switch Segmented Slider -->
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs flex-shrink-0 self-start sm:self-auto">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 text-xs flex-shrink-0 self-start sm:self-auto">
             <button
               type="button"
               @click="form.preCommitGuard = true"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 form.preCommitGuard
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
               title="开启拦截：git commit 时自动拦截提交本地 AGENTS.md"
             >
-              <span v-if="form.preCommitGuard" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+              <span v-if="form.preCommitGuard" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
               <span>开启拦截 (防误提)</span>
             </button>
             <button
@@ -326,7 +326,7 @@
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                 !form.preCommitGuard
-                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
               title="允许提交：放行 git commit AGENTS.md"
@@ -336,9 +336,9 @@
           </div>
         </div>
 
-        <div class="p-3 rounded-lg bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+        <div class="p-3 rounded-lg bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2">
-            <span :class="['w-2 h-2 rounded-sm', project.hookInstalled ? 'bg-[#30d158]' : 'bg-[#ff9f0a]']"></span>
+            <span :class="['w-2 h-2 rounded-sm', project.hookInstalled ? 'bg-[#22c55e]' : 'bg-[#f59e0b]']"></span>
             <span class="text-slate-700 dark:text-white/80 font-mono text-[11px]">
               Hook 状态: {{ project.hookInstalled ? 'pre-checkout & post-checkout 已安装' : '未检测到 Hook 文件' }}
               {{ form.preCommitGuard ? ' (pre-commit 拦截保护中)' : ' (pre-commit 守卫已放行)' }}
@@ -348,16 +348,16 @@
           <button
             @click="handleRepairHooks"
             :disabled="isRepairing"
-            class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-semibold flex items-center gap-1 transition-colors duration-200"
+            class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-semibold flex items-center gap-1 transition-colors duration-200"
           >
-            <Zap class="w-3 h-3 text-[#ff9f0a]" />
+            <Zap class="w-3 h-3 text-[#f59e0b]" />
             <span>{{ isRepairing ? '修复中...' : '⚡ 一键安装/修复 Git Hook' }}</span>
           </button>
         </div>
       </div>
 
       <!-- Section 3: Linked Agents Grid -->
-      <div class="bg-white dark:bg-[#1c1c1e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
+      <div class="bg-white dark:bg-[#121316] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-3 transition-colors duration-200">
         <div class="flex items-center justify-between">
           <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 flex items-center gap-2">
             <Layers class="w-4 h-4 text-slate-700 dark:text-white/80" />
@@ -389,7 +389,7 @@
             :class="[
               'p-2.5 rounded-xl border cursor-pointer transition-colors duration-200 flex items-center gap-2.5',
               form.linkedAgents.includes(agent.id)
-                ? 'bg-black/[0.03] dark:bg-[#2c2c2e] border-black/15 dark:border-white/20'
+                ? 'bg-black/[0.03] dark:bg-[#1c1d22] border-black/15 dark:border-white/20'
                 : 'bg-transparent border-black/8 dark:border-white/8 opacity-60 hover:opacity-100 hover:bg-black/[0.01] dark:hover:bg-white/5'
             ]"
           >
@@ -399,7 +399,7 @@
               v-model="form.linkedAgents"
               class="custom-checkbox flex-shrink-0"
             />
-            <div class="w-6 h-6 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
+            <div class="w-6 h-6 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
               <AgentBrandIcon :agentId="agent.id" size="sm" />
             </div>
             <div class="min-w-0 flex-1">

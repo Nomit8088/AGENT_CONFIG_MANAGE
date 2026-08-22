@@ -247,6 +247,7 @@ export interface DshPluginsSyncConfig {
 export interface DshPluginsConfig {
   dshCommand: string;       // 空 = 自动探测
   pnpmCommand: string;
+  gitHubMirror?: string;    // 可选 GitHub 镜像前缀，如 https://gh-proxy.com/；空 = 直连 + 系统代理
   sync?: DshPluginsSyncConfig;
 }
 

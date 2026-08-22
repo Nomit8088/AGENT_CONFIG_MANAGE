@@ -1,9 +1,9 @@
 <template>
-  <div class="bg-white dark:bg-[#2c2c2e] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-4 transition-colors duration-200">
+  <div class="bg-white dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none space-y-4 transition-colors duration-200">
     <!-- Header & Action Row -->
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1c1e] text-slate-700 dark:text-white/80 flex items-center justify-center border border-black/10 dark:border-white/10">
+        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#121316] text-slate-700 dark:text-white/80 flex items-center justify-center border border-black/10 dark:border-white/10">
           <FolderSearch class="w-4 h-4" />
         </div>
         <div>
@@ -11,11 +11,11 @@
             <span>本地存量 Skill 检测与纳管 (Agent Skills)</span>
             <span
               v-if="store.totalUnmanagedCount > 0"
-              class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#ff9f0a] border border-black/8 dark:border-white/8 font-mono font-semibold"
+              class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#f59e0b] border border-black/8 dark:border-white/8 font-mono font-semibold"
             >
               {{ store.totalUnmanagedCount }} 个待纳管
             </span>
-            <span v-else class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#30d158] border border-black/8 dark:border-white/8 font-mono">
+            <span v-else class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#22c55e] border border-black/8 dark:border-white/8 font-mono">
               全部受控
             </span>
           </h3>
@@ -34,7 +34,7 @@
             v-model="searchQuery"
             type="text"
             placeholder="搜索 Agent / 目录..."
-            class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
@@ -48,7 +48,7 @@
         <!-- Filter Dropdown -->
         <select
           v-model="statusFilter"
-          class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
           <option value="all">全部 Agent ({{ store.enabledAgents.length }})</option>
           <option value="unmanaged">仅显示有待纳管</option>
@@ -58,7 +58,7 @@
         <!-- Sort Dropdown -->
         <select
           v-model="sortKey"
-          class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
           <option value="unmanaged_desc">待纳管数量 (从多到少)</option>
           <option value="name_asc">Agent 名称 (A-Z)</option>
@@ -67,7 +67,7 @@
         <!-- Rescan Button -->
         <button
           @click="store.scanUnmanaged()"
-          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1"
           title="重新扫描各 Agent 目录"
         >
           <RefreshCw class="w-3 h-3" />
@@ -78,10 +78,10 @@
         <button
           v-if="store.totalUnmanagedCount > 0"
           @click="store.takeoverAllUnmanagedSkills()"
-          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1 font-medium"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1 font-medium"
           title="一键将所有 Agent 下的存量物理技能全部纳管并替换为中央受控链接"
         >
-          <PackageCheck class="w-3 h-3 text-[#30d158]" />
+          <PackageCheck class="w-3 h-3 text-[#22c55e]" />
           <span>一键纳管全部 ({{ store.totalUnmanagedCount }})</span>
         </button>
       </div>
@@ -96,15 +96,15 @@
         :class="[
           'p-3.5 rounded-xl border transition-colors duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden',
           getAgentUnmanagedCount(agent.id) > 0
-            ? 'bg-white dark:bg-[#2c2c2e] border-black/12 dark:border-white/12 hover:border-black/20 dark:hover:bg-[#343437]'
-            : 'bg-black/[0.02] dark:bg-[#1c1c1e] border-black/6 dark:border-white/8 hover:bg-black/[0.04] dark:hover:bg-[#2c2c2e]'
+            ? 'bg-white dark:bg-[#1c1d22] border-black/12 dark:border-white/12 hover:border-black/20 dark:hover:bg-[#343437]'
+            : 'bg-black/[0.02] dark:bg-[#121316] border-black/6 dark:border-white/8 hover:bg-black/[0.04] dark:hover:bg-[#1c1d22]'
         ]"
       >
         <div>
           <!-- Card Header -->
           <div class="flex items-center justify-between gap-2 mb-2">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 flex items-center justify-center">
+              <div class="w-7 h-7 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 flex items-center justify-center">
                 <AgentBrandIcon :agentId="agent.id" size="sm" />
               </div>
               <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 truncate max-w-[120px]">
@@ -115,7 +115,7 @@
             <span
               :class="[
                 'w-2 h-2 rounded-sm',
-                agent.detected ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
+                agent.detected ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30'
               ]"
             ></span>
           </div>
@@ -131,11 +131,11 @@
           <div class="flex items-center gap-2">
             <span
               v-if="getAgentUnmanagedCount(agent.id) > 0"
-              class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#ff9f0a] border border-black/8 dark:border-white/8 font-mono"
+              class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#f59e0b] border border-black/8 dark:border-white/8 font-mono"
             >
               {{ getAgentUnmanagedCount(agent.id) }} 待纳管
             </span>
-            <span v-else class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#30d158] border border-black/8 dark:border-white/8 font-mono">
+            <span v-else class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#22c55e] border border-black/8 dark:border-white/8 font-mono">
               0 实体
             </span>
 

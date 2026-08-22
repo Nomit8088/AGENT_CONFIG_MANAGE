@@ -312,6 +312,9 @@ pub struct DshPluginsConfig {
     pub dsh_command: String,
     #[serde(rename = "pnpmCommand", default)]
     pub pnpm_command: String,
+    /// 可选的 GitHub 镜像前缀（如 `https://gh-proxy.com/`）；空 = 直连 + 系统代理。
+    #[serde(rename = "gitHubMirror", default)]
+    pub git_hub_mirror: String,
     #[serde(default, rename = "sync")]
     pub sync: Option<DshPluginsSyncConfig>,
 }
@@ -321,6 +324,7 @@ impl Default for DshPluginsConfig {
         Self {
             dsh_command: String::new(),
             pnpm_command: String::new(),
+            git_hub_mirror: String::new(),
             sync: None,
         }
     }

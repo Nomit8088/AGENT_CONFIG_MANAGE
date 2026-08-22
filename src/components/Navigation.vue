@@ -1,5 +1,5 @@
 <template>
-  <nav class="border-b border-black/8 dark:border-white/8 bg-white/60 dark:bg-[#1c1c1e]/60 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors duration-200 select-none">
+  <nav class="border-b border-black/8 dark:border-white/8 bg-white/60 dark:bg-[#121316]/60 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors duration-200 select-none">
     <!-- Tab list (小窗允许横向滚动，避免换行) -->
     <div class="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
       <button
@@ -24,7 +24,7 @@
           :class="[
             'text-[10px] px-1.5 py-0.5 rounded-md font-mono',
             tab.badgeTone === 'warn'
-              ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border border-[#ff9f0a]/30 font-semibold'
+              ? 'bg-[#f59e0b]/15 text-[#f59e0b] border border-[#f59e0b]/30 font-semibold'
               : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/10'
           ]"
         >
@@ -39,7 +39,7 @@
         v-if="store.currentTab === 'agents'"
         @click="store.addAgentModal.visible = true"
         title="添加自定义 Agent"
-        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span class="hidden xl:inline">添加 Agent</span>
@@ -49,7 +49,7 @@
         v-if="store.currentTab === 'skills'"
         @click="openNewSkillModal"
         title="新建中央 Skill"
-        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span class="hidden xl:inline">新建 Skill</span>
@@ -59,7 +59,7 @@
         v-if="store.currentTab === 'projects'"
         @click="store.addProjectModal.visible = true"
         title="纳管新项目"
-        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+        class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
       >
         <Plus class="w-3.5 h-3.5" />
         <span class="hidden xl:inline">纳管项目</span>
