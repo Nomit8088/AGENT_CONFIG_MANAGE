@@ -2,7 +2,7 @@
 
 All notable changes to AgentHub are documented in this file.
 
-## [1.0.2] - 2026-08-22
+## [1.0.3] - 2026-08-22
 
 ### Fixed
 - 修复 `git_url_from_spec` 丢失 scheme 的问题：`git+https://` 依赖（含 gitee / gitlab / gh-proxy 镜像）此前会被剥成无 scheme 地址，导致 `git ls-remote` 报 `protocol not supported`、检查更新全部失败；现只剥 `git+`、保留 `https://`。
