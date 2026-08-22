@@ -13,7 +13,7 @@ import { detectSystemProxy } from './gitSyncUtil';
 import type { AppUpdateCheck, AppUpdateDownload } from '../types';
 
 // 需与 package.json / Cargo.toml / tauri.conf.json 保持一致。
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 const UPDATE_REPO = 'Nomit8088/AGENT_CONFIG_MANAGE';
 const UPDATE_API_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 const USER_AGENT = 'AgentHub';
