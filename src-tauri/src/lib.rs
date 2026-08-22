@@ -8,6 +8,7 @@ pub mod git_sync;
 pub mod dsh_plugins;
 pub mod dsh_plugins_sync;
 pub mod sync_repo;
+pub mod app_update;
 pub mod watcher;
 
 use std::collections::{HashMap, HashSet};
@@ -655,6 +656,9 @@ pub fn run() {
             dsh_plugins_sync::reconcile_dsh_plugins,
             dsh_plugins_sync::align_dsh_plugins,
             dsh_plugins_sync::get_dsh_plugins_sync_diff,
+            app_update::check_app_update,
+            app_update::download_app_update,
+            app_update::install_app_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

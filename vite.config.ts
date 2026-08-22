@@ -55,6 +55,11 @@ import {
   detectAgentInstalled,
   detectSystemTheme,
 } from './src/server/localApi';
+import {
+  checkAppUpdate,
+  downloadAppUpdate,
+  installAppUpdate,
+} from './src/server/appUpdate';
 
 function localApiPlugin(): Plugin {
   return {
@@ -796,6 +801,38 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
               const { profile } = jsonBody;
               await alignDshPlugins(profile);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/app/update/check
+            if (pathname === '/api/app/update/check' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(await checkAppUpdate()));
+            }
+
+            // GET /api/app/update/download/stream (SSE)
+            if (pathname === '/api/app/update/download/stream' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+              res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
+              try {
+                const report = await downloadAppUpdate((downloaded, total) => {
+                  const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+                  res.write(`data: ${JSON.stringify({ type: 'progress', downloaded, total, percent })}\n\n`);
+                });
+                res.write(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+              } catch (err: any) {
+                res.write(`data: ${JSON.stringify({ type: 'error', error: err?.message || '下载失败' })}\n\n`);
+              }
+              return res.end();
+            }
+
+            // POST /api/app/update/install
+            if (pathname === '/api/app/update/install' && req.method === 'POST') {
+              const { path: installPath } = jsonBody;
+              installAppUpdate(installPath);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

@@ -78,6 +78,7 @@
   "default_rule_mode": "append",     // "append" 或 "overwrite"
   "auto_capture_skills": true,
   "toast_notifications": true,
+  "auto_check_update": false,         // 启动时自动检查更新 (GitHub Releases)
   "ignored_skills": [                // 已标记为私有/忽略的存量技能 (不纳管)
     {
       "agentId": "claude-code",
@@ -247,7 +248,8 @@ flowchart TD
 │   │   └── api.ts                      # Dual-Mode IPC 适配层 (Tauri ↔ Web API)
 │   ├── server/
 │   │   ├── localApi.ts                 # Web 模式下的 Node 原生系统操作层 (NTFS Junction/FS)
-│   │   └── dshPlugins.ts               # Web 模式 DSH 插件扫描/诊断/开关/同步/对账（与 Rust 对齐）
+│   │   ├── dshPlugins.ts               # Web 模式 DSH 插件扫描/诊断/开关/同步/对账（与 Rust 对齐）
+│   │   └── appUpdate.ts                # Web 模式应用本体在线更新（GitHub Releases 检查/下载/安装，代理感知）
 │   ├── assets/
 │   │   └── style.css                   # 全局样式、毛玻璃、滚动条美化
 │   └── components/
@@ -274,7 +276,8 @@ flowchart TD
 │       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（紫色品牌控件卡 + 崩溃堆栈解析 + 一键关闭并重试）
 │       ├── DshPluginSync.vue           # DSH 插件配置对账卡片（本地 ~/.dsh ↔ 同步镜像 dsh/；对账/一键对齐/差异详情）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
-│       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器)
+│       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器 + 自动检查更新开关)
+│       ├── UpdateModal.vue             # 应用在线更新弹窗 (检查/下载进度/安装重启)
 │       └── ToastContainer.vue          # 全局浮动操作提示
 │
 └── src-tauri/                          # Rust 桌面端源码 (Tauri 2.0)
@@ -292,6 +295,7 @@ flowchart TD
         ├── dsh_plugins_sync.rs         # DSH 插件配置同步/对账/一键对齐（复用同一 .git，镜像到 dsh/）
         ├── agent_detector.rs           # 本地 Agent 探测与路径校验
         ├── storage.rs                  # %APPDATA%\AgentHub 本地持久化
+        ├── app_update.rs               # 应用本体在线更新（GitHub Releases 检查/下载/安装，ureq + 代理）
         └── watcher.rs                  # Notify 内核级文件监听后台线程
 ```
 
@@ -476,7 +480,7 @@ npm run tauri build
 
 ## 9. 后续演进建议与待办清单 (TODO)
 
-- [ ] **应用本体在线更新**：接入 Tauri Updater，支持 GitHub Releases 检查更新、下载与自动安装新版本。
+- [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
 - [ ] **MCP Server 配置总线**：扩展多 Agent 的 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp`）集中可视化管理与共享。
 - [ ] **Skills 市场导入**：接入 GitHub / npm skills 生态一键搜索并远程下载至中央库。
 - [ ] **CodeMirror 6 嵌入双栏 Diff**：在 ProjectEditor 与 DiffModal 中进一步引入 CodeMirror 6 的 MergeView 实时行级对比。
@@ -917,4 +921,13 @@ npm run tauri build
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 ---
+- **2026-08-22 (Session 48)**:
+  - **应用本体在线更新（cc-switch 风格：检查更新 + 下载 + 一键安装）**:
+    - **数据模型**：新增 `AppUpdateCheck` / `AppUpdateDownload`（TS `types/index.ts` + Rust `models.rs` 双端对齐）；`AppConfig` 新增 `auto_check_update`（默认 false）。
+    - **Rust 后端 `src-tauri/src/app_update.rs`**：`check_app_update`（GitHub Releases API `releases/latest`，解析 tag/body/assets，语义化版本比较，优先 `.exe` 其次 `.msi`）、`download_app_update`（`ureq` 流式下载 + `Channel<String>` 实时进度，注入 `git_sync::system_proxy()` 代理）、`install_app_update`（NSIS `/S` 静默 / MSI `msiexec /qn`，启动后退出应用释放文件锁）；新增 `ureq = "2.9"` 依赖并注册三命令。
+    - **Node 后端 `src/server/appUpdate.ts`**：`checkAppUpdate` / `downloadAppUpdate` / `installAppUpdate`，自带 HTTPS CONNECT 系统代理隧道（复用 `gitSyncUtil.detectSystemProxy`）与 302 跳转跟随；`vite.config.ts` 新增 `GET /api/app/update/check`、`GET /api/app/update/download/stream`（SSE 进度）、`POST /api/app/update/install`。
+    - **前端**：`api.ts` 新增三方法（Tauri Channel / Web SSE 双模）；`useAppStore.ts` 新增 `appUpdate*` 状态与 `checkAppUpdate` / `downloadAppUpdate` / `installAppUpdate` / `openUpdateModal` 动作，`init()` 按 `auto_check_update` 启动静默检查；新增 `UpdateModal.vue`（版本对比 + 更新日志 + 下载进度条 + 安装重启，macOS Vibrancy 规范）；`Header.vue` 版本徽章可点击打开更新弹窗、有更新时显示琥珀色圆点；`SettingsModal.vue` 新增「启动时自动检查更新」分段开关 +「检查更新」入口；`App.vue` 注册 `UpdateModal`。
+    - 更新源仓库硬编码为 `Nomit8088/AGENT_CONFIG_MANAGE`（与 `.github/workflows/release.yml` 的 tauri-action 产物一致）。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
 *文档更新时间：2026-08-22 | AgentHub Core Team*

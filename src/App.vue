@@ -23,6 +23,7 @@
     <AddProjectModal />
     <DiffModal />
     <SettingsModal />
+    <UpdateModal />
     <ToastContainer />
   </div>
 </template>
@@ -42,6 +43,7 @@ import SkillEditorModal from './components/SkillEditorModal.vue';
 import AddProjectModal from './components/AddProjectModal.vue';
 import DiffModal from './components/DiffModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import UpdateModal from './components/UpdateModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 
 const store = useAppStore();
