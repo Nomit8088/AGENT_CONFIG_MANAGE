@@ -1,7 +1,6 @@
-use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::process::spawn_cmd;
+use crate::git_sync::run_git;
 
 use crate::models::{SkillsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -43,26 +42,6 @@ fn ensure_gitignore(root: &Path) {
             let _ = fs::write(&gitignore, new_text);
         }
     }
-}
-
-fn run_git<I, S>(cwd: &Path, args: I) -> Result<String, String>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    let output = spawn_cmd("git")
-        .args(crate::git_sync::proxy_args())
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .map_err(|e| format!("无法执行 git 命令: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { stdout } else { stderr });
-    }
-    Ok(stdout)
 }
 
 /// 只统计指定路径范围内的未提交修改（含未跟踪文件），用于按功能隔离同步状态。

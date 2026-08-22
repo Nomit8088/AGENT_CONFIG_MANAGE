@@ -3,7 +3,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use crate::process::spawn_cmd;
+use crate::process::{kill_tree, spawn_cmd};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -1566,19 +1566,6 @@ fn add_dependency_and_bundle(
 }
 
 // ==================== 诊断 ====================
-
-fn kill_tree(pid: u32) {
-    #[cfg(windows)]
-    {
-        let _ = spawn_cmd("taskkill")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .output();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = spawn_cmd("kill").args(["-9", &pid.to_string()]).output();
-    }
-}
 
 struct RunResult {
     exit_code: Option<i32>,
