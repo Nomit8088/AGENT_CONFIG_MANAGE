@@ -909,5 +909,12 @@ npm run tauri build
     - 恢复后技能页同时具备「全局分发」与「按 Agent 分发」两种粒度，按 Agent 维度的分发仍保留在大厅「中央技能分发」页签。
     - 验收：`npx tsc --noEmit` 零错误、`npm run build`（Vite 生产构建）零错误零警告。
 
+- **2026-08-22 (Session 47)**:
+  - **DSH 插件安装/更新：修复 git 依赖 prepare 构建脚本未放行导致的「更新失败」与「虚假成功」**:
+    - **根因**：`dsh-diff-review` 等 git 托管插件 spec 为未锁 commit 的 `github:owner/repo`，而 `pnpm-workspace.yaml` 的 `allowBuilds` 条目按「包名@codeload tarball URL(含 commit)」精确锁定。上游新 commit 出现后，pnpm 解析到新 commit 但 allowBuilds 仍是旧 commit → 报 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`，`pnpm update` 硬失败；而安装流水线又只以 L3 入口校验判定，旧 `lib/` 仍在导致「虚假成功」。
+    - **配置修复**：`~/.dsh/profiles/web/pnpm-workspace.yaml` 与同步镜像 `%APPDATA%\AgentHub\dsh\profiles\web\pnpm-workspace.yaml` 的 `dsh-diff-review` allowBuilds 条目同步更新到最新 commit `69f084e66...`；实测 `pnpm update @dsh-external/dsh-diff-review` 后 lockfile/`node_modules` 均已切到新 commit，`lib/` 构建成功。
+    - **代码修复（双端对齐）**：新增 `parseGitPrepareNotAllowed`（Node）/ `parse_git_prepare_not_allowed`（Rust）解析 pnpm 输出中的 `The git-hosted package '<name>'`，得到被拒绝包名；`installDshPluginsV2`/`install_inner` 将命中该错误的包强制标记 `failed`（覆盖 L3 误判），并给出「请在 allowBuilds 放行对应包/提交后重试」的 warning；`updateDshPlugin`/`update_one_inner` 同步改为「`!blocked && !timed_out && L3.ok`」判定，使 `ERR_PNPM_IGNORED_BUILDS`（构建脚本被忽略、包实际已装）不再误报失败，同时保留 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` 为硬失败。
+    - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
+
 ---
-*文档更新时间：2026-08-21 | AgentHub Core Team*
+*文档更新时间：2026-08-22 | AgentHub Core Team*

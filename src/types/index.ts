@@ -1,3 +1,4 @@
+// 全局类型定义：Agent / 项目 / 技能 / 同步 / DSH 插件中心
 export interface AgentInfo {
   id: string;
   name: string;

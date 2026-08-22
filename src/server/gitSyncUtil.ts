@@ -1,3 +1,4 @@
+// Git 同步工具：统一捕获 stderr / 注入系统代理 / 计算本地↔远端文件差异（含 git diff 解析与 rename/delete 处理）
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
