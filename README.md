@@ -1,7 +1,7 @@
 # AgentHub (AGENT_CONFIG_MANAGE)
 
 <p align="center">
-  <strong>跨 AI Coding Agent 统一配置中枢 · 中央 Skills 软链矩阵 · 零 Git 冲突规则引擎 · DSH 插件全生命周期管理</strong>
+  <strong>跨 AI Coding Agent 统一配置中枢 · 中央 Skills 软链矩阵 · 零 Git 冲突规则引擎 · DSH 插件全生命周期管理 · 应用在线自动更新</strong>
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases"><img src="https://img.shields.io/badge/release-v1.0.0-emerald.svg" alt="Release"></a>
+  <a href="https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases"><img src="https://img.shields.io/badge/release-v1.0.1-emerald.svg" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/backend-Tauri%202.0%20(Rust)-orange.svg" alt="Tauri">
   <img src="https://img.shields.io/badge/frontend-Vue%203%20%2B%20TypeScript%20%2B%20Tailwind-38bdf8.svg" alt="Frontend">
@@ -28,7 +28,7 @@
 - **沙箱目录软链静默失效**：Google Antigravity 在 Windows 下出于安全隔离策略，会静默跳过带有 `FILE_ATTRIBUTE_REPARSE_POINT` 的 NTFS 目录软链；
 - **DSH 插件生态缺乏可视化管理**：DeepSeek HARNESS (DSH) 插件分散在配置与 patch 文件中，排查 `dsh web` 启动崩溃困难，且多设备间配置难以对账与自动安装。
 
-**AgentHub** 是一款轻量、高颜值、极速响应的跨 Agent 统一桌面客户端。基于 **Tauri 2.0 (Rust) + Vue 3 / TypeScript** 构建，拥有独特的 **Dual-Mode 双运行架构**，通过 **Windows NTFS Junction / Symlink**、**文件级 Hardlink Tree 双向同步引擎**、**智能 Git Hook 守卫** 与 **DSH 插件全生命周期管理器**，实现秒级跨 Agent 规则调配、中央技能库分发与团队 Git 仓库零冲突隔离。
+**AgentHub** 是一款轻量、高颜值、极速响应的跨 Agent 统一桌面客户端。基于 **Tauri 2.0 (Rust) + Vue 3 / TypeScript** 构建，拥有独特的 **Dual-Mode 双运行架构**，通过 **Windows NTFS Junction / Symlink**、**文件级 Hardlink Tree 双向同步引擎**、**智能 Git Hook 守卫**、**DSH 插件全生命周期管理器** 与 **应用本体在线更新引擎**，实现秒级跨 Agent 规则调配、中央技能库分发、团队 Git 仓库零冲突隔离，以及 GitHub Releases 应用在线检查 / 下载 / 一键安装。
 
 ---
 
@@ -41,7 +41,7 @@
 | **沙箱目录软链加载失效** | Google Antigravity 在 Windows 下出于安全防循环策略，会静默跳过带有 `FILE_ATTRIBUTE_REPARSE_POINT` 的目录软链（NTFS Junction），导致技能无法感知。 | **文件级 Hardlink Tree 引擎**：<br>针对 Antigravity 采用「物理文件夹 + 内部文件级 NTFS 硬链接（`mklink /H`）」机制，共享底层 Inode，实现 0 拷贝、0 延迟、100% 原生识别且双向实时同步。 |
 | **存量技能分散未纳管** | 各 Agent 目录下散落大量历史手动编写或 npx 安装的物理技能文件夹，缺乏统一可视与冲突识别手段。 | **存量检测与双栏 Diff 冲突决策**：<br>自动跨 Agent 扫描未纳管的物理文件夹，支持一键批量纳管、标记私有忽略（`ignored_skills`）、同名版本双栏 Diff 冲突对比（覆盖/重命名/跳过）。 |
 | **多设备跨端同步与网络代理** | 多台开发机之间 Skills 难以同步，国内环境访问 GitHub 经常遭遇直连 reset 或代理配置繁琐。 | **同步中心 (Sync Center) + 代理自动探测**：<br>以 `%APPDATA%\AgentHub` 为 Git 根同步 `skills/` 与 `dsh/` 镜像，自动探测 Windows WinINET 系统代理（如 `127.0.0.1:7897`），支持快照自检与 Fast-forward 安全拉取。 |
-| **DSH 插件管理排障困难** | DeepSeek HARNESS (DSH) 插件分散在 `package.json` 与 `cordis.patch.yml` 中，启动崩溃堆栈难以排查，多设备依赖与 patch 容易漂移。 | **DSH 插件中心 (DSH Plugin Manager)**：<br>提供本地插件可视化扫描（Bundle/依赖/Patch/可移植性标记）、启动崩溃 stderr 自动诊断修复、文本级安全 Patch 写入，以及与技能库共用 Git 仓库的配置同步与对账。 |
+| **DSH 插件管理排障困难** | DeepSeek HARNESS (DSH) 插件分散在 `package.json` 与 `cordis.patch.yml` 中，启动崩溃堆栈难以排查，多设备依赖与 patch 容易漂移。 | **DSH 插件中心 (DSH Plugin Manager)**：<br>提供本地插件可视化扫描（Bundle/依赖/Patch/可移植性标记）、启动崩溃 stderr 自动诊断修复、文本级安全 Patch 写入、安装状态三方对账 + 四大模式安装器 + 单包检查更新，以及与技能库共用 Git 仓库的配置同步与对账。 |
 
 ---
 
@@ -91,8 +91,9 @@ flowchart TD
         JunctionBus["NTFS Junction 总线 / Hardlink Tree 引擎"]
         GitGuard["智能 Git Hook 守卫 (.git/hooks & .git/info/exclude)"]
         CentralRepo["%APPDATA%/AgentHub/skills/ (中央单例库)"]
-        DshManager["DSH 插件引擎 (扫描 / 诊断 / 文本安全 Patch / 对账)"]
+        DshManager["DSH 插件引擎 (扫描 / 诊断 / 文本安全 Patch / 对账 / 安装)"]
         ProxyDetector["WinINET 系统代理自动探测 (127.0.0.1:7897)"]
+        AppUpdater["应用在线更新引擎 (GitHub Releases 检查 / 下载 / 安装)"]
     end
 
     UI --> CoreEngine
@@ -101,6 +102,7 @@ flowchart TD
     CoreEngine --> CentralRepo
     CoreEngine --> DshManager
     CoreEngine --> ProxyDetector
+    CoreEngine --> AppUpdater
 ```
 
 ### 1. Agent Hub (Agent 状态大厅)
@@ -137,18 +139,21 @@ flowchart TD
 - **安全快照与 Fast-forward**：内置 `ls-remote` 连通性测试与纯快进（fast-forward）安全拉取，冲突全流程预警。
 
 ### 6. DSH 插件中心 (DSH Plugin Manager)
-- **本地可视化扫描 (Plugin Panel)**：扫描 `~/.dsh/profiles/*`，精准识别内置 Bundle（`@deepseek-ai/dsh-*`）、用户 Bundle、纯依赖与 Patch 行，标注可移植性（`link:` / `file:` / `git+` 警告）；
+- **本地可视化扫描 (Plugin Panel)**：扫描 `~/.dsh/profiles/*`，精准识别内置 Bundle（`@deepseek-ai/dsh-*`）、用户 Bundle、纯依赖与 Patch 行，标注可移植性（`link:` / `file:` / `git+` 警告）；支持按来源 / 按状态分组、健康胶囊筛选、列表 / 卡片双视图与分页；
 - **启动失败诊断与一键修复 (Diagnose & Recovery)**：捕获 `dsh web` 启动崩溃 stderr（15s 超时 + 强制杀进程树），智能解析失败插件名与推荐动作，精准辨别 `EADDRINUSE` 端口占用；
+- **安装状态对账 + 四大模式安装器 (Install & Reconcile)**：条目 = 配置声明 ∪ 本机 `node_modules` ∪ 持久化安装状态，五态徽章（`ok` / `pending` / `orphan` / `version-mismatch` / `failed`），支持增量 / 更新 / 全量重装 / 仅失败重装四种安装模式，L3 入口逐包校验并持久化失败堆栈；孤儿包支持「纳入配置 / 移除」；
+- **单包检查更新 (Update Check)**：对 `git+https` / `github:` 规格插件执行 `git ls-remote` 检查远端 commit，一键 `pnpm update <pkg>` 升级；
+- **实时流式安装终端 (Streaming Terminal)**：Tauri `Channel<String>` / Web SSE 双端实时输出安装日志；
 - **配置同步与对账 (Sync & Reconcile)**：将 `package.json` + `cordis.patch.yml` + `pnpm-lock.yaml` 镜像至同步仓库（`dsh/profiles/<name>`），提供差异对比与「一键对齐 + 自动 pnpm install」；
 - **文本级安全 Patch 写入**：`cordis.patch.yml` 纯文本级追加/删除，保留所有注释与 `!!js` 标签，绝不使用破坏性的全文件 `yaml.dump`。
 
 ---
 
-## ⚡ 即将实施：DSH 插件面板 V2 演进方案
+## ⚡ DSH 插件面板 V2：安装状态对账与全功能安装器
 
-> 📌 **方案详见**：[**PLAN_DSH_PLUGIN_PANEL_V2.md**](PLAN_DSH_PLUGIN_PANEL_V2.md)
+> 📌 **已实施**，架构详见：[**PLAN_DSH_PLUGIN_PANEL_V2.md**](PLAN_DSH_PLUGIN_PANEL_V2.md)
 
-为了将 DSH 插件面板从「只读配置声明展示」升级为**「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账与全功能安装器**，AgentHub 规划了四大核心增强：
+DSH 插件面板已从「只读配置声明展示」升级为**「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账与全功能安装器**，四大核心增强如下：
 
 ```mermaid
 flowchart LR
@@ -169,6 +174,18 @@ flowchart LR
 | **P2. 四大模式安装器 (Multi-Mode Installer)** | 🔹 **增量安装 (`incremental`)**：执行 `pnpm install`，只安装缺失与变更项（默认安全推荐）；<br>🔹 **按 Spec 更新 (`update`)**：执行 `pnpm update`，在 spec 声明范围内升级至最新版本；<br>🔹 **全量重新安装 (`reinstall-all`)**：执行 `pnpm install --force` 全量重拉（支持二次确认模态）；<br>🔹 **仅失败重装 (`reinstall-failed`)**：针对上次持久化失败的包执行精准强制重装。 |
 | **P3. 失败持久化与 L3 逐包深度校验** | 🔹 **L3 深度校验**：安装完成后逐包检查 `node_modules/<pkg>/package.json` 中的 `main` / `exports` 与 `dsh.bundle.patch` 入口文件是否存在，精准捕获“pnpm 退出码 0 但安装的是源码残包”的隐蔽故障；<br>🔹 **状态持久化**：失败原因与截断堆栈持久化至 `%APPDATA%\AgentHub\dsh_install_state.json`，自动加入 `.gitignore` 避免污染 Git 同步，UI 支持一键呼出查看完整堆栈。 |
 | **P4. 实时流式安装终端 (Streaming Terminal)** | 🔹 **双端流式输出**：Tauri 桌面端采用 `Channel<String>`，Web 浏览器开发模式采用 Server-Sent Events (SSE)；<br>🔹 **`DshInstallTerminal.vue` 终端组件**：macOS 极简暗灰浮层、等宽字体实时输出、运行状态指示与自动滚动。 |
+
+---
+
+## ⚡ 应用本体在线更新 (App Auto-Updater)
+
+AgentHub 内置 **cc-switch 风格**的 GitHub Releases 在线自更新能力（无需 Tauri Updater 签名链路）：
+
+- **检查更新**：调用 GitHub Releases API（`releases/latest`）拉取最新版本 tag / release notes / 安装包资产，语义化版本比较后提示「可更新」；
+- **下载安装包**：优先下载 Windows NSIS `.exe`（其次 `.msi`），流式下载并实时展示进度条，自动注入系统代理（复用 WinINET 代理探测）；
+- **一键安装**：下载完成后启动安装程序（NSIS `/S` 静默 / MSI `msiexec /qn`）并退出应用完成覆盖安装；
+- **启动自动检查**：可在全局设置开启「启动时自动检查更新」，版本徽章有更新时显示琥珀色圆点；
+- **双端对齐**：Tauri 桌面端 `app_update.rs`（`ureq` + `Channel` 进度）与 Web 模式 `appUpdate.ts`（HTTPS CONNECT 代理隧道 + SSE）行为一致。
 
 ---
 
@@ -214,6 +231,7 @@ AgentHub 的核心数据与技能库独立保存在系统本地目录中，**绝
 │       ├── package.json     # 已清洗的配置 (剔除内置与不可移植项)
 │       ├── cordis.patch.yml # 纯文本 Patch 镜像
 │       └── pnpm-lock.yaml   # 依赖锁文件
+├── updates\                  # 在线更新下载的安装包临时目录
 └── backups\                  # 项目原版规则安全镜像备份
     └── <project-id>\
         ├── AGENTS.md.orig
@@ -270,8 +288,10 @@ npm run tauri build
 │   ├── services/api.ts               # Dual-Mode IPC 适配层 (Tauri ↔ Web API)
 │   ├── server/
 │   │   ├── localApi.ts               # Web 模式下的 Node 原生系统操作层 (NTFS/Hardlink/Git)
-│   │   ├── dshPlugins.ts             # DSH 插件扫描 / 诊断 / 安全 Patch / 同步
-│   │   └── gitSyncUtil.ts            # Git 同步与 WinINET 代理自动探测
+│   │   ├── dshPlugins.ts             # DSH 插件扫描 / 诊断 / 安全 Patch / 同步 / 安装
+│   │   ├── gitSyncUtil.ts            # Git 同步与 WinINET 代理自动探测
+│   │   ├── syncRepo.ts               # 全局同步仓库配置 (校验 / 保存 / 解绑)
+│   │   └── appUpdate.ts              # 应用本体在线更新 (GitHub Releases 检查 / 下载 / 安装)
 │   ├── assets/style.css              # 全局 macOS Vibrancy 样式与自定义滚动条
 │   └── components/
 │       ├── Header.vue                # 顶部状态条 (状态统计、环境重扫、主题切换)
@@ -279,6 +299,7 @@ npm run tauri build
 │       ├── AgentBrandIcon.vue        # 16 大 Agent 官方高精度矢量 SVG 图标体系
 │       ├── AgentCard.vue             # Agent 状态卡片 (已启用 / 未启用双模卡片)
 │       ├── AgentsView.vue            # Agent Hub 视图 (分组展示与关键词检索)
+│       ├── AddAgentModal.vue         # 自定义 Agent 注册弹窗
 │       ├── SkillsMatrix.vue          # Skills Matrix (全维度检索/来源筛选/卡片画廊/表格视图)
 │       ├── SyncView.vue              # 同步中心 (技能 + DSH 插件，同仓库按功能分开同步/拉取/推送)
 │       ├── UnmanagedGroupSection.vue # 存量技能归类卡片区 (支持批量纳管与私有忽略)
@@ -287,14 +308,18 @@ npm run tauri build
 │       ├── SkillDrawer.vue           # 技能右侧 Markdown 详情抽屉
 │       ├── SkillEditorModal.vue      # SKILL.md 编辑与创建弹窗
 │       ├── ProjectsView.vue          # 纳管项目列表与规则状态指示
+│       ├── AddProjectModal.vue       # 纳管新项目弹窗
 │       ├── ProjectEditor.vue         # 双栏规则编辑器 (追加/覆盖双模式 + Git Hook 修复)
 │       ├── DiffModal.vue             # Diff 语法高亮冲突决策弹窗
 │       ├── PluginsView.vue           # DSH 插件中心容器 (插件面板 / 诊断修复 / 同步对账)
 │       ├── DshPluginList.vue         # DSH 本地插件可视化扫描面板
+│       ├── DshPluginRow.vue          # DSH 插件统一条目 (列表 / 卡片双形态)
+│       ├── DshInstallTerminal.vue    # DSH 实时流式安装终端
 │       ├── DshDiagnose.vue           # DSH 启动失败诊断修复面板 (崩溃堆栈一键自愈)
 │       ├── DshPluginSync.vue         # DSH 插件配置同步与对账面板（同步中心内嵌）
 │       ├── DshPluginDiffModal.vue    # DSH 插件对账差异详情弹窗
-│       ├── SettingsModal.vue         # 全局偏好设置 (深色/浅色/跟随系统三态切换)
+│       ├── SettingsModal.vue         # 全局偏好设置 (深色/浅色/跟随系统三态切换 + 自动检查更新)
+│       ├── UpdateModal.vue           # 应用在线更新弹窗 (检查 / 下载进度 / 安装重启)
 │       └── ToastContainer.vue        # 全局浮动操作通知
 │
 └── src-tauri/                        # Rust 桌面端源码 (Tauri 2.0)
@@ -308,10 +333,12 @@ npm run tauri build
         ├── git_guard.rs              # 智能 Git Hook 注入、pre-commit 拦截与多基线安全还原
         ├── skills_sync.rs            # 中央技能库 Git 同步 (init/pull/push/status)
         ├── git_sync.rs               # Windows WinINET 代理自动探测与 Git 命令参数注入
-        ├── dsh_plugins.rs            # DSH 插件扫描 / 诊断 / 文本 Patch / 卸载
+        ├── sync_repo.rs              # 全局同步仓库配置校验与保存
+        ├── dsh_plugins.rs            # DSH 插件扫描 / 诊断 / 文本 Patch / 安装 / 卸载
         ├── dsh_plugins_sync.rs       # DSH 插件配置同步 / 镜像 / 对账 / 一键对齐
         ├── agent_detector.rs         # 16 大 Agent 探测与路径校验引擎
         ├── storage.rs                # %APPDATA%\AgentHub 本地持久化存储
+        ├── app_update.rs             # 应用本体在线更新 (GitHub Releases 检查 / 下载 / 安装)
         └── watcher.rs                # Notify 内核级文件监听后台线程
 ```
 
@@ -319,8 +346,6 @@ npm run tauri build
 
 ## 🗺️ 演进路线图 (Roadmap)
 
-- [ ] **DSH 插件面板 V2 (状态对账 + 四大模式安装器 + L3 校验 + 实时终端)** `[设计已锁定 / 待实施]`
-- [ ] **应用本体在线更新**：接入 Tauri Updater，支持检测 GitHub Releases 并一键下载安装；
 - [ ] **MCP Server 统一总线**：集中管理与跨 Agent 共享 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp` 等）；
 - [ ] **Skills 市场生态接入**：支持从 GitHub / npm 官方 skills 市场一键检索并安装到中央库；
 - [ ] **CodeMirror 6 嵌入双栏 Diff**：在 ProjectEditor 与 DiffModal 中引入实时行级代码对比与合并；
