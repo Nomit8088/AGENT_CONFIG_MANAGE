@@ -250,18 +250,44 @@ export interface DshPluginsConfig {
   sync?: DshPluginsSyncConfig;
 }
 
+// ==================== 应用本体在线更新 (cc-switch 风格) ====================
+
+export interface AppUpdateCheck {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  releaseNotes: string;
+  publishedAt?: string;
+  downloadUrl?: string;
+  assetName?: string;
+  assetSize?: number;
+  error?: string;
+}
+
+export interface AppUpdateDownload {
+  ok: boolean;
+  path?: string;
+  fileName?: string;
+  size?: number;
+  error?: string;
+}
+
 export interface AppConfig {
   auto_start: boolean;
   theme: 'dark' | 'light' | 'system';
   default_rule_mode: 'append' | 'overwrite';
   auto_capture_skills: boolean;
   toast_notifications: boolean;
+  auto_check_update?: boolean;
   ignored_skills?: IgnoredSkill[];
   system_theme?: 'dark' | 'light';
   skills_sync?: SkillsSyncConfig;
   dsh_plugins?: DshPluginsConfig;
   sync_repo?: SyncRepoConfig;
 }
+
+/** 当前客户端版本，供前端展示使用（需与 package.json / Cargo.toml / tauri.conf.json 保持一致）。 */
+export const APP_VERSION = '1.0.0';
 
 export interface ValidationResult {
   valid: boolean;
