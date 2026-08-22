@@ -1,7 +1,7 @@
 # AgentHub (AGENT_CONFIG_MANAGE)
 
 <p align="center">
-  <strong>Unified Cross-Agent AI Configuration Hub · Central Skills NTFS Junction Matrix · Zero-Git-Conflict Project Rules Engine · Full DSH Plugin Lifecycle Management</strong>
+  <strong>Unified Cross-Agent AI Configuration Hub · Central Skills NTFS Junction Matrix · Zero-Git-Conflict Project Rules Engine · Full DSH Plugin Lifecycle Management · Online Auto-Updater</strong>
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases"><img src="https://img.shields.io/badge/release-v1.0.0-emerald.svg" alt="Release"></a>
+  <a href="https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases"><img src="https://img.shields.io/badge/release-v1.0.1-emerald.svg" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/backend-Tauri%202.0%20(Rust)-orange.svg" alt="Tauri">
   <img src="https://img.shields.io/badge/frontend-Vue%203%20%2B%20TypeScript%20%2B%20Tailwind-38bdf8.svg" alt="Frontend">
@@ -28,7 +28,7 @@ In modern AI-assisted software engineering, developers commonly combine multiple
 - **Silent Directory Junction Failures**: Google Antigravity on Windows silently skips NTFS Directory Junctions (`FILE_ATTRIBUTE_REPARSE_POINT`) due to sandbox isolation policies;
 - **Unmanaged DSH Plugin Lifecycle**: DeepSeek HARNESS (DSH) plugins are scattered across `package.json` and `cordis.patch.yml`, making `dsh web` startup crash troubleshooting difficult and multi-device config sync prone to version drift.
 
-**AgentHub** is a high-aesthetics, lightweight, instant-response desktop configuration station. Built on **Tauri 2.0 (Rust) + Vue 3 / TypeScript**, AgentHub features a **Dual-Mode execution architecture** (Tauri Desktop & Web Browser dev mode) powered by **Windows NTFS Junction / Symlinks**, a **file-level Hardlink Tree two-way sync engine**, **intelligent Git Hook guards**, and a **DSH Plugin Manager**. It delivers instant cross-agent rule switching, single-source-of-truth skill distribution, and zero Git conflict repository isolation.
+**AgentHub** is a high-aesthetics, lightweight, instant-response desktop configuration station. Built on **Tauri 2.0 (Rust) + Vue 3 / TypeScript**, AgentHub features a **Dual-Mode execution architecture** (Tauri Desktop & Web Browser dev mode) powered by **Windows NTFS Junction / Symlinks**, a **file-level Hardlink Tree two-way sync engine**, **intelligent Git Hook guards**, a **DSH Plugin Manager**, and an **app auto-updater**. It delivers instant cross-agent rule switching, single-source-of-truth skill distribution, zero Git conflict repository isolation, and GitHub Releases check / download / one-click install.
 
 ---
 
@@ -41,7 +41,7 @@ In modern AI-assisted software engineering, developers commonly combine multiple
 | **Sandbox Directory Link Failure** | Google Antigravity on Windows silently skips directory junctions (`FILE_ATTRIBUTE_REPARSE_POINT`) due to sandbox loop prevention. | **File-Level Hardlink Tree Engine**:<br>Creates a physical directory for Antigravity containing file-level NTFS Hardlinks (`mklink /H`) sharing MFT Inodes — 0 disk overhead, 0 latency, 100% native detection, and 2-way real-time sync. |
 | **Unmanaged Local Standalone Skills** | Dispersed physical skill folders from past manual creation or npx installs lack central visibility and conflict management. | **Unmanaged Detection & Side-by-Side Diff Modal**:<br>Automatically discovers untracked physical folders, supports one-click adoption, private ignore lists (`ignored_skills`), and side-by-side Diff resolution (Overwrite/Rename/Skip). |
 | **Multi-Device Sync & Network Proxy** | Synchronizing skills across machines is tricky, and direct connections to GitHub in restricted networks often trigger connection resets. | **Sync Center & Auto Proxy Detection**:<br>Syncs `skills/` and `dsh/` mirrors with `%APPDATA%\AgentHub` as Git root. Automatically detects Windows WinINET system proxy (`127.0.0.1:7897`), injects Git proxy configs, and provides fast-forward safe pulling. |
-| **DSH Plugin Management Difficulties** | DSH plugins are split between `package.json` and `cordis.patch.yml`. Debugging startup crash logs is tedious and manual patch editing is error-prone. | **DSH Plugin Manager**:<br>Visual plugin scanner (Bundle / Plain Dep / Patch row / portability tags), automatic stderr crash diagnosis & one-click recovery, safe text-level patch mutations, and Git config sync & reconciliation. |
+| **DSH Plugin Management Difficulties** | DSH plugins are split between `package.json` and `cordis.patch.yml`. Debugging startup crash logs is tedious and manual patch editing is error-prone. | **DSH Plugin Manager**:<br>Visual plugin scanner (Bundle / Plain Dep / Patch row / portability tags), automatic stderr crash diagnosis & one-click recovery, safe text-level patch mutations, 3-way install-state reconciliation + 4-mode installer + per-package update check, and Git config sync & reconciliation. |
 
 ---
 
@@ -91,8 +91,9 @@ flowchart TD
         JunctionBus["NTFS Junction Bus / Hardlink Tree Engine"]
         GitGuard["Intelligent Git Hook Guard (.git/hooks & .git/info/exclude)"]
         CentralRepo["%APPDATA%/AgentHub/skills/ (Central Repository)"]
-        DshManager["DSH Plugin Engine (Scan / Diagnose / Text Patch / Reconcile)"]
+        DshManager["DSH Plugin Engine (Scan / Diagnose / Text Patch / Reconcile / Install)"]
         ProxyDetector["WinINET System Proxy Auto-Detection (127.0.0.1:7897)"]
+        AppUpdater["App Auto-Updater Engine (GitHub Releases Check / Download / Install)"]
     end
 
     UI --> CoreEngine
@@ -101,6 +102,7 @@ flowchart TD
     CoreEngine --> CentralRepo
     CoreEngine --> DshManager
     CoreEngine --> ProxyDetector
+    CoreEngine --> AppUpdater
 ```
 
 ### 1. Agent Hub
@@ -130,18 +132,21 @@ flowchart TD
 - **Safe Pulling**: Fast-forward only pulls with connection pre-checks to protect local work.
 
 ### 6. DSH Plugin Manager
-- **Visual Scanner**: Inspects `~/.dsh/profiles/*` for bundles (`@deepseek-ai/dsh-*`), user bundles, dependencies, and patch rows with portability warnings;
+- **Visual Scanner**: Inspects `~/.dsh/profiles/*` for bundles (`@deepseek-ai/dsh-*`), user bundles, dependencies, and patch rows with portability warnings; supports source/status grouping, health-capsule filters, and list / card dual views with pagination;
 - **Crash Diagnosis & Auto-Recovery**: Captures `dsh web` stderr on startup (15s timeout with process tree termination), parses failed plugins, suggests recovery actions, and detects `EADDRINUSE` port conflicts;
-- **Sync & Reconcile**: Mirrors configs into Git sync repo and aligns them with one-click `pnpm install`;
+- **Install-State Reconciliation & 4-Mode Installer**: Items = config declarations ∪ local `node_modules` ∪ persistent install state, with five status badges (`ok` / `pending` / `orphan` / `version-mismatch` / `failed`); supports incremental / update / reinstall-all / reinstall-failed modes, L3 per-package entry verification, and persistent failure stacks; orphan packages can be adopted or removed;
+- **Per-Package Update Check**: Runs `git ls-remote` against `git+https` / `github:` specs and one-click `pnpm update <pkg>`;
+- **Streaming Install Terminal**: Real-time install logs via Tauri `Channel<String>` / Web SSE;
+- **Sync & Reconcile**: Mirrors `package.json` + `cordis.patch.yml` + `pnpm-lock.yaml` into the Git sync repo and aligns them with one-click `pnpm install`;
 - **Safe Text-Level Patch Engine**: Pure text-level patch modifications preserving comments and `!!js` tags without destructive full `yaml.dump`.
 
 ---
 
-## ⚡ Upcoming: DSH Plugin Panel V2 Architecture
+## ⚡ DSH Plugin Panel V2: Install-State Reconciliation & Full-Featured Installer
 
-> 📌 **Design Plan**: [**PLAN_DSH_PLUGIN_PANEL_V2.md**](PLAN_DSH_PLUGIN_PANEL_V2.md)
+> 📌 **Implemented**, architecture plan: [**PLAN_DSH_PLUGIN_PANEL_V2.md**](PLAN_DSH_PLUGIN_PANEL_V2.md)
 
-Upgrades the DSH plugin panel from a read-only configuration view into a **3-Way Reconciliation View ("Config ↔ Local Disk ↔ Installation Result") & Full-Featured Installer**:
+The DSH plugin panel has been upgraded from a read-only configuration view into a **3-Way Reconciliation View ("Config ↔ Local Disk ↔ Installation Result") & Full-Featured Installer**:
 
 ```mermaid
 flowchart LR
@@ -162,6 +167,18 @@ flowchart LR
 | **P2. 4-Mode Installer** | 🔹 **Incremental (`incremental`)**: Runs `pnpm install` for missing/changed dependencies (safe default);<br>🔹 **Update (`update`)**: Runs `pnpm update` within spec constraints;<br>🔹 **Reinstall All (`reinstall-all`)**: Runs `pnpm install --force` (with confirmation dialog);<br>🔹 **Reinstall Failed (`reinstall-failed`)**: Targeted forced reinstall of failed packages. |
 | **P3. Persistent State & L3 Entry Check** | 🔹 **L3 Verification**: Validates `main`, `exports`, and `dsh.bundle.patch` entries in `node_modules/<pkg>/package.json` to catch zero-exit source code packages;<br>🔹 **Failure Persistence**: Stores failure stack traces in `%APPDATA%\AgentHub\dsh_install_state.json` (in `.gitignore`), with UI modal inspection. |
 | **P4. Streaming Terminal** | 🔹 **Dual Streaming Pipeline**: Tauri desktop uses `Channel<String>`, Web browser mode uses Server-Sent Events (SSE);<br>🔹 **`DshInstallTerminal.vue`**: macOS Vibrancy dark surface, monospace streaming logs, and auto-scrolling. |
+
+---
+
+## ⚡ App Auto-Updater (cc-switch Style)
+
+AgentHub ships with **cc-switch style** GitHub Releases self-updating (no Tauri Updater signing chain required):
+
+- **Check for Updates**: Queries the GitHub Releases API (`releases/latest`) for the latest tag / release notes / installer assets, then compares versions semantically and shows "Update available";
+- **Download Installer**: Prefers the Windows NSIS `.exe` (falls back to `.msi`), streams the download with a live progress bar, and auto-injects the system proxy (reusing WinINET proxy detection);
+- **One-Click Install**: Launches the installer after download (NSIS `/S` silent / MSI `msiexec /qn`) and exits the app to complete the overwrite install;
+- **Startup Auto-Check**: Optional "check for updates on startup" in global settings; the version badge shows an amber dot when an update is available;
+- **Dual-End Alignment**: Tauri desktop `app_update.rs` (`ureq` + `Channel` progress) and Web mode `appUpdate.ts` (HTTPS CONNECT proxy tunnel + SSE) behave identically.
 
 ---
 
@@ -207,6 +224,7 @@ AgentHub data is stored independently from user project repositories:
 │       ├── package.json     # Sanitized package configuration
 │       ├── cordis.patch.yml # Text-level patch mirror
 │       └── pnpm-lock.yaml   # Dependency lockfile
+├── updates\                  # Downloaded installer temp directory for online updates
 └── backups\                  # Project baseline safety backups
     └── <project-id>\
         ├── AGENTS.md.orig
@@ -263,8 +281,10 @@ npm run tauri build
 │   ├── services/api.ts               # Dual-Mode IPC adapter (Tauri ↔ Web API)
 │   ├── server/
 │   │   ├── localApi.ts               # Web mode Node OS layer (NTFS/Hardlink/Git)
-│   │   ├── dshPlugins.ts             # DSH plugin scanner / diagnostics / patch / sync
-│   │   └── gitSyncUtil.ts            # Git sync & WinINET proxy auto-detection
+│   │   ├── dshPlugins.ts             # DSH plugin scanner / diagnostics / patch / sync / install
+│   │   ├── gitSyncUtil.ts            # Git sync & WinINET proxy auto-detection
+│   │   ├── syncRepo.ts               # Global sync repo config (validate / save / unbind)
+│   │   └── appUpdate.ts              # App auto-updater (GitHub Releases check / download / install)
 │   ├── assets/style.css              # macOS Vibrancy styling & custom scrollbars
 │   └── components/
 │       ├── Header.vue                # Top header bar (stats, rescan, theme switch)
@@ -272,6 +292,7 @@ npm run tauri build
 │       ├── AgentBrandIcon.vue        # 16 Agent vector SVG brand icons
 │       ├── AgentCard.vue             # Agent status card (Active / Inactive)
 │       ├── AgentsView.vue            # Agent Hub view
+│       ├── AddAgentModal.vue         # Custom Agent registration modal
 │       ├── SkillsMatrix.vue          # Skills Matrix (Search / Filter / Card / Table)
 │       ├── SyncView.vue              # Sync Center (skills + DSH plugins, shared repo with per-function sync/pull/push)
 │       ├── UnmanagedGroupSection.vue # Unmanaged skills card section
@@ -280,14 +301,18 @@ npm run tauri build
 │       ├── SkillDrawer.vue           # Skill Markdown detail drawer
 │       ├── SkillEditorModal.vue      # SKILL.md editor & creator modal
 │       ├── ProjectsView.vue          # Managed projects view
+│       ├── AddProjectModal.vue       # Add managed project modal
 │       ├── ProjectEditor.vue         # Dual-column rule editor (Append/Overwrite + Hook repair)
 │       ├── DiffModal.vue             # Syntax-highlighted Diff conflict modal
 │       ├── PluginsView.vue           # DSH Plugin Center container
 │       ├── DshPluginList.vue         # DSH local plugin scanner panel
+│       ├── DshPluginRow.vue          # DSH plugin unified row (list / card dual layouts)
+│       ├── DshInstallTerminal.vue    # DSH streaming install terminal
 │       ├── DshDiagnose.vue           # DSH crash diagnosis & recovery panel
 │       ├── DshPluginSync.vue         # DSH plugin sync & reconciliation panel (embedded in Sync Center)
 │       ├── DshPluginDiffModal.vue    # DSH plugin diff inspection modal
-│       ├── SettingsModal.vue         # Preferences modal
+│       ├── SettingsModal.vue         # Preferences modal (theme + auto check update)
+│       ├── UpdateModal.vue           # App update modal (check / download progress / install restart)
 │       └── ToastContainer.vue        # Floating toast notification container
 │
 └── src-tauri/                        # Tauri 2.0 Rust backend
@@ -301,10 +326,12 @@ npm run tauri build
         ├── git_guard.rs              # Git Hook injector, pre-commit interceptor & multi-baseline restoration
         ├── skills_sync.rs            # Central skills library Git sync
         ├── git_sync.rs               # WinINET proxy auto-detection & Git arg injection
-        ├── dsh_plugins.rs            # DSH plugin scan / diagnose / text patch / uninstall
+        ├── sync_repo.rs              # Global sync repo config validation & saving
+        ├── dsh_plugins.rs            # DSH plugin scan / diagnose / text patch / install / uninstall
         ├── dsh_plugins_sync.rs       # DSH plugin sync / mirror / reconcile / alignment
         ├── agent_detector.rs         # 16 Agent auto-discovery engine
         ├── storage.rs                # %APPDATA%\AgentHub local persistence
+        ├── app_update.rs             # App auto-updater (GitHub Releases check / download / install)
         └── watcher.rs                # Notify file watcher background thread
 ```
 
@@ -312,8 +339,6 @@ npm run tauri build
 
 ## 🗺️ Roadmap
 
-- [ ] **DSH Plugin Panel V2 (Reconciliation + 4-Mode Installer + L3 Check + Streaming Terminal)** `[Design Locked / Pending Implementation]`
-- [ ] **Application Auto-Updater**: Integrate Tauri Updater for GitHub Releases auto-update;
 - [ ] **Unified MCP Server Bus**: Centralized management and cross-agent sharing for MCP servers (`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp`, etc.);
 - [ ] **Skills Marketplace Integration**: One-click skill discovery and installation from GitHub/npm registries;
 - [ ] **CodeMirror 6 In-App Merge View**: Real-time line-by-line diff editing in ProjectEditor and DiffModal;
