@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
+use crate::process::spawn_cmd;
 use std::sync::OnceLock;
 
 use crate::models::SyncDiffEntry;
@@ -8,7 +8,7 @@ use crate::models::SyncDiffEntry;
 /// 读取 Windows WinINET 注册表值（HKCU）。输出形如:
 /// `    ProxyServer    REG_SZ    127.0.0.1:7897`
 fn query_reg_value(name: &str) -> Option<String> {
-    let out = Command::new("reg")
+    let out = spawn_cmd("reg")
         .args([
             "query",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
@@ -114,7 +114,7 @@ pub fn proxy_args() -> Vec<String> {
 
 /// 非抛错的只读 git 输出（失败返回 None），用于本地差异计算，不做网络 fetch。
 fn git_out_opt(cwd: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
+    let output = spawn_cmd("git")
         .args(proxy_args())
         .args(args)
         .current_dir(cwd)
