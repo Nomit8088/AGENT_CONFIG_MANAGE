@@ -1,6 +1,8 @@
 import {
   AgentInfo,
   AppConfig,
+  AppUpdateCheck,
+  AppUpdateDownload,
   DshDiagnoseResult,
   DshInstallMode,
   DshInstallReport,
@@ -477,6 +479,66 @@ export const api = {
       return invokeTauri('align_dsh_plugins', { profile });
     }
     return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile });
+  },
+
+  // ==================== 应用本体在线更新 (cc-switch 风格) ====================
+
+  async checkAppUpdate(): Promise<AppUpdateCheck> {
+    if (isTauri()) {
+      return invokeTauri<AppUpdateCheck>('check_app_update');
+    }
+    return requestApi<AppUpdateCheck>('/api/app/update/check');
+  },
+
+  async downloadAppUpdate(
+    onProgress: (downloaded: number, total: number, percent: number) => void,
+  ): Promise<AppUpdateDownload> {
+    if (isTauri()) {
+      const { Channel, invoke } = await import('@tauri-apps/api/core');
+      const onEvent = new Channel<string>();
+      onEvent.onmessage = (line: string) => {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'progress') {
+            onProgress(msg.downloaded, msg.total, msg.percent);
+          }
+        } catch {
+          // 忽略非 JSON 进度行
+        }
+      };
+      return invoke<AppUpdateDownload>('download_app_update', { onEvent });
+    }
+    return new Promise<AppUpdateDownload>((resolve, reject) => {
+      const es = new EventSource('/api/app/update/download/stream');
+      es.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'progress') {
+            onProgress(msg.downloaded, msg.total, msg.percent);
+          } else if (msg.type === 'done') {
+            es.close();
+            resolve(msg.report as AppUpdateDownload);
+          } else if (msg.type === 'error') {
+            es.close();
+            reject(new Error(msg.error || '下载失败'));
+          }
+        } catch (e) {
+          es.close();
+          reject(e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error('下载连接中断（SSE 流不可用）'));
+      };
+    });
+  },
+
+  async installAppUpdate(installPath: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('install_app_update', { path: installPath });
+    }
+    return requestApi<void>('/api/app/update/install', 'POST', { path: installPath });
   },
 
   onExternalSkillCreated(callback: (path: string) => void): void {

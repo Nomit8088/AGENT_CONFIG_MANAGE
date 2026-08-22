@@ -7,7 +7,19 @@
           <Layers class="w-3.5 h-3.5 text-slate-800 dark:text-white/90" />
         </div>
         <span class="font-serif font-semibold text-sm tracking-wide text-slate-900 dark:text-white/95">AgentHub</span>
-        <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 font-mono">v1.0</span>
+        <button
+          @click="store.openUpdateModal()"
+          title="检查更新"
+          :class="[
+            'hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-mono border transition-colors duration-200',
+            store.appUpdate?.updateAvailable
+              ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border-[#ff9f0a]/30'
+              : 'bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border-black/8 dark:border-white/8 hover:text-slate-800 dark:hover:text-white/90'
+          ]"
+        >
+          <span v-if="store.appUpdate?.updateAvailable" class="w-1.5 h-1.5 rounded-sm bg-[#ff9f0a]"></span>
+          <span>v{{ versionShort }}</span>
+        </button>
       </div>
 
       <!-- Quick Status Badges (仅大窗展示，小窗自动隐藏避免拥挤) -->
@@ -66,6 +78,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { APP_VERSION } from '../types';
 import {
   Layers,
   ShieldCheck,
@@ -77,6 +90,11 @@ import {
 } from 'lucide-vue-next';
 
 const store = useAppStore();
+
+const versionShort = computed(() => {
+  const v = store.appUpdate?.currentVersion || APP_VERSION;
+  return v.split('.').slice(0, 2).join('.');
+});
 
 const themeTitle = computed(() => {
   if (store.config.theme === 'dark') return '当前: 深色模式 (点击切换浅色)';

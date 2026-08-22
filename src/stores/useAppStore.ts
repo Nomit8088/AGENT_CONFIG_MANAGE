@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import {
   AgentInfo,
   AppConfig,
+  AppUpdateCheck,
   DshDiagnoseResult,
   DshInstallMode,
   DshInstallReport,
@@ -47,6 +48,7 @@ export const useAppStore = defineStore('app', {
       default_rule_mode: 'append' as const,
       auto_capture_skills: true,
       toast_notifications: true,
+      auto_check_update: false,
       ignored_skills: [] as IgnoredSkill[],
     } as AppConfig,
     activeSkillId: null as string | null,
@@ -142,6 +144,17 @@ export const useAppStore = defineStore('app', {
       visible: false,
       lines: [] as string[],
       running: false,
+    },
+
+    // 应用本体在线更新 (cc-switch 风格)
+    appUpdate: null as AppUpdateCheck | null,
+    appUpdateChecking: false,
+    appUpdateDownloading: false,
+    appUpdateProgress: 0,
+    appUpdateDownloadedPath: null as string | null,
+    appUpdateError: null as string | null,
+    updateModal: {
+      visible: false,
     },
 
     // Agent Unmanaged Details Modal/Drawer
@@ -265,6 +278,11 @@ export const useAppStore = defineStore('app', {
           this.loadSkills();
           this.scanUnmanaged();
         });
+
+        // 应用本体在线更新：启动时静默检查（可在全局设置中开启）
+        if (this.config.auto_check_update) {
+          this.checkAppUpdate(false).catch(() => {});
+        }
       } finally {
         this.isLoading = false;
       }
@@ -814,6 +832,94 @@ export const useAppStore = defineStore('app', {
 
     async loadDshPluginsSyncStatus() {
       this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus();
+    },
+
+    // ==================== 应用本体在线更新 (cc-switch 风格) ====================
+
+    openUpdateModal() {
+      this.updateModal.visible = true;
+    },
+
+    closeUpdateModal() {
+      this.updateModal.visible = false;
+      if (!this.appUpdateDownloading) {
+        this.appUpdateError = null;
+      }
+    },
+
+    async checkAppUpdate(showToast = true) {
+      this.appUpdateChecking = true;
+      try {
+        this.appUpdate = await api.checkAppUpdate();
+        if (this.appUpdate.error) {
+          if (showToast) {
+            this.showToast({
+              title: '检查更新失败',
+              message: this.appUpdate.error,
+              type: 'error',
+            });
+          }
+        } else if (this.appUpdate.updateAvailable) {
+          if (showToast) {
+            this.showToast({
+              title: '发现新版本',
+              message: `AgentHub ${this.appUpdate.latestVersion} 已发布`,
+              type: 'info',
+            });
+          }
+        } else if (showToast) {
+          this.showToast({
+            title: '已是最新版本',
+            message: `当前版本 ${this.appUpdate.currentVersion} 已是最新`,
+            type: 'success',
+          });
+        }
+        return this.appUpdate;
+      } catch (e: any) {
+        if (showToast) {
+          this.showToast({
+            title: '检查更新失败',
+            message: e?.message || '无法连接更新服务器',
+            type: 'error',
+          });
+        }
+        throw e;
+      } finally {
+        this.appUpdateChecking = false;
+      }
+    },
+
+    async downloadAppUpdate() {
+      if (this.appUpdateDownloading) return;
+      this.appUpdateDownloading = true;
+      this.appUpdateProgress = 0;
+      this.appUpdateError = null;
+      this.appUpdateDownloadedPath = null;
+      try {
+        const report = await api.downloadAppUpdate((_downloaded, _total, percent) => {
+          this.appUpdateProgress = percent;
+        });
+        this.appUpdateProgress = 100;
+        this.appUpdateDownloadedPath = report.path || null;
+        return report;
+      } catch (e: any) {
+        this.appUpdateError = e?.message || '下载更新失败';
+        throw e;
+      } finally {
+        this.appUpdateDownloading = false;
+      }
+    },
+
+    async installAppUpdate() {
+      if (!this.appUpdateDownloadedPath) {
+        throw new Error('尚未下载更新安装包');
+      }
+      await api.installAppUpdate(this.appUpdateDownloadedPath);
+      this.showToast({
+        title: '正在安装更新',
+        message: '安装程序已启动，AgentHub 即将退出以完成更新',
+        type: 'info',
+      });
     },
 
     async loadDshPluginsSyncDiff() {

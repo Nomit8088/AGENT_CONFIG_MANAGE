@@ -1,0 +1,316 @@
+//! 应用本体在线更新（cc-switch 风格）：
+//! 检查 GitHub Releases 最新版本 → 下载安装包（实时进度）→ 启动安装程序并退出应用。
+//!
+//! 说明：采用「GitHub Releases API + 安装包直装」的轻量自更新方案，无需 Tauri Updater
+//! 的签名私钥 / pubkey / latest.json 链路，安装包由 `release.yml`（tauri-action）在打 tag
+//! 时自动产出 NSIS `.exe` 与 MSI `.msi`。
+//!
+//! 双端对齐：Web 开发模式对应 `src/server/appUpdate.ts`，路由 `/api/app/update/*`。
+
+use std::fs;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+
+use crate::models::{AppUpdateCheck, AppUpdateDownload};
+use crate::storage::get_app_data_dir;
+
+/// 更新源仓库（owner/repo），与 GitHub Release 工作流保持一致。
+const UPDATE_REPO: &str = "Nomit8088/AGENT_CONFIG_MANAGE";
+const USER_AGENT: &str = "AgentHub";
+
+fn update_api_url() -> String {
+    format!("https://api.github.com/repos/{}/releases/latest", UPDATE_REPO)
+}
+
+fn current_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+fn build_agent() -> ureq::Agent {
+    let builder = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(60))
+        .redirects(5)
+        .user_agent(USER_AGENT);
+
+    if let Some(proxy) = crate::git_sync::system_proxy() {
+        if let Ok(p) = ureq::Proxy::new(proxy) {
+            return builder.proxy(p).build();
+        }
+    }
+    builder.build()
+}
+
+fn fetch_latest_release(agent: &ureq::Agent) -> Result<serde_json::Value, String> {
+    let resp = agent
+        .get(&update_api_url())
+        .set("Accept", "application/vnd.github+json")
+        .call()
+        .map_err(|e| format!("请求 GitHub Releases 失败: {}", e))?;
+
+    if resp.status() != 200 {
+        return Err(format!("GitHub Releases 返回 HTTP {}", resp.status()));
+    }
+
+    let body = resp.into_string().map_err(|e| format!("读取响应失败: {}", e))?;
+    serde_json::from_str(&body).map_err(|e| format!("解析 GitHub 响应失败: {}", e))
+}
+
+fn release_tag(release: &serde_json::Value) -> String {
+    release
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .trim_start_matches('v')
+        .to_string()
+}
+
+/// 候选安装包扩展名（Windows 优先 NSIS .exe，其次 .msi）。
+fn candidate_extensions() -> Vec<&'static str> {
+    if cfg!(windows) {
+        vec![".exe", ".msi"]
+    } else if cfg!(target_os = "macos") {
+        vec![".dmg", ".app.tar.gz"]
+    } else {
+        vec![".deb", ".AppImage", ".rpm"]
+    }
+}
+
+fn pick_asset(release: &serde_json::Value) -> Option<(String, String, u64)> {
+    let assets = release.get("assets")?.as_array()?;
+    for ext in candidate_extensions() {
+        if let Some(a) = assets.iter().find(|a| {
+            a.get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n.to_ascii_lowercase().ends_with(ext))
+                .unwrap_or(false)
+        }) {
+            let name = a
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+            let url = a
+                .get("browser_download_url")
+                .and_then(|u| u.as_str())
+                .unwrap_or("")
+                .to_string();
+            let size = a.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
+            if !name.is_empty() && !url.is_empty() {
+                return Some((name, url, size));
+            }
+        }
+    }
+    None
+}
+
+fn version_parts(v: &str) -> Vec<u64> {
+    v.trim()
+        .trim_start_matches('v')
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|p| !p.is_empty())
+        .map(|p| p.parse::<u64>().unwrap_or(0))
+        .collect()
+}
+
+fn version_newer(latest: &str, current: &str) -> bool {
+    let a = version_parts(latest);
+    let b = version_parts(current);
+    for i in 0..a.len().max(b.len()) {
+        let av = a.get(i).copied().unwrap_or(0);
+        let bv = b.get(i).copied().unwrap_or(0);
+        if av != bv {
+            return av > bv;
+        }
+    }
+    false
+}
+
+fn check_inner() -> AppUpdateCheck {
+    let current = current_version().to_string();
+    let agent = build_agent();
+    match fetch_latest_release(&agent) {
+        Ok(release) => {
+            let latest = release_tag(&release);
+            let asset = pick_asset(&release);
+            let update_available = !latest.is_empty() && version_newer(&latest, &current);
+            AppUpdateCheck {
+                current_version: current.clone(),
+                latest_version: if latest.is_empty() { current } else { latest },
+                update_available,
+                release_notes: release
+                    .get("body")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                published_at: release
+                    .get("published_at")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                download_url: asset.as_ref().map(|a| a.1.clone()),
+                asset_name: asset.as_ref().map(|a| a.0.clone()),
+                asset_size: asset.as_ref().map(|a| a.2).unwrap_or(0),
+                error: None,
+            }
+        }
+        Err(e) => AppUpdateCheck {
+            current_version: current,
+            latest_version: String::new(),
+            update_available: false,
+            release_notes: String::new(),
+            published_at: None,
+            download_url: None,
+            asset_name: None,
+            asset_size: 0,
+            error: Some(e),
+        },
+    }
+}
+
+#[tauri::command]
+pub async fn check_app_update() -> AppUpdateCheck {
+    tauri::async_runtime::spawn_blocking(check_inner)
+        .await
+        .unwrap_or_else(|_| AppUpdateCheck {
+            current_version: current_version().to_string(),
+            latest_version: String::new(),
+            update_available: false,
+            release_notes: String::new(),
+            published_at: None,
+            download_url: None,
+            asset_name: None,
+            asset_size: 0,
+            error: Some("检查更新执行失败".to_string()),
+        })
+}
+
+fn download_to_file(
+    agent: &ureq::Agent,
+    url: &str,
+    dest: &Path,
+    on_progress: &mut dyn FnMut(u64, u64),
+) -> Result<(), String> {
+    let resp = agent
+        .get(url)
+        .call()
+        .map_err(|e| format!("下载失败: {}", e))?;
+
+    if resp.status() != 200 {
+        return Err(format!("下载返回 HTTP {}", resp.status()));
+    }
+
+    let total = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+
+    let mut reader = resp.into_reader();
+    let mut file = fs::File::create(dest).map_err(|e| format!("创建下载文件失败: {}", e))?;
+    let mut buf = [0u8; 64 * 1024];
+    let mut downloaded = 0u64;
+
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| format!("读取下载流失败: {}", e))?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n]).map_err(|e| format!("写入下载文件失败: {}", e))?;
+        downloaded += n as u64;
+        on_progress(downloaded, total);
+    }
+    file.flush().map_err(|e| format!("刷新下载文件失败: {}", e))?;
+    Ok(())
+}
+
+fn download_inner(on_progress: &mut dyn FnMut(u64, u64)) -> Result<AppUpdateDownload, String> {
+    let agent = build_agent();
+    let release = fetch_latest_release(&agent)?;
+    let (name, url, size) = pick_asset(&release).ok_or("未找到可下载的安装包资产")?;
+
+    let dir = get_app_data_dir().join("updates");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建更新目录失败: {}", e))?;
+    let dest = dir.join(&name);
+
+    download_to_file(&agent, &url, &dest, on_progress)?;
+
+    Ok(AppUpdateDownload {
+        ok: true,
+        path: Some(dest.to_string_lossy().to_string()),
+        file_name: Some(name),
+        size,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn download_app_update(
+    on_event: tauri::ipc::Channel<String>,
+) -> Result<AppUpdateDownload, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut on_progress = |downloaded: u64, total: u64| {
+            let percent = if total > 0 { (downloaded * 100 / total) as u64 } else { 0 };
+            let line = serde_json::json!({
+                "type": "progress",
+                "downloaded": downloaded,
+                "total": total,
+                "percent": percent,
+            })
+            .to_string();
+            let _ = on_event.send(line);
+        };
+        download_inner(&mut on_progress)
+    })
+    .await
+    .map_err(|e| format!("下载执行失败: {}", e))?
+}
+
+#[cfg(windows)]
+fn launch_installer(path: &Path) -> Result<(), String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    let path_str = path.to_string_lossy().to_string();
+    if ext == "msi" {
+        // MSI：静默安装 + 不自动重启
+        std::process::Command::new("msiexec")
+            .arg("/i")
+            .arg(&path_str)
+            .arg("/qn")
+            .arg("/norestart")
+            .spawn()
+            .map_err(|e| format!("无法启动 MSI 安装: {}", e))?;
+    } else {
+        // NSIS 安装包：/S 静默安装（仍会触发 UAC 提权）
+        std::process::Command::new(&path_str)
+            .arg("/S")
+            .spawn()
+            .map_err(|e| format!("无法启动安装程序: {}", e))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn launch_installer(path: &Path) -> Result<(), String> {
+    std::process::Command::new(path)
+        .spawn()
+        .map_err(|e| format!("无法启动安装程序: {}", e))?;
+    Ok(())
+}
+
+/// 启动安装程序并退出当前应用。启动后稍作等待，让安装程序的 UAC 提权 / 进程先就位，
+/// 再关闭 AgentHub 释放可执行文件锁，安装程序随后完成覆盖安装。
+#[tauri::command]
+pub fn install_app_update(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err("安装包不存在，请先重新下载".to_string());
+    }
+
+    launch_installer(&p)?;
+    std::thread::sleep(std::time::Duration::from_millis(800));
+    app.exit(0);
+    Ok(())
+}

@@ -326,6 +326,43 @@ impl Default for DshPluginsConfig {
     }
 }
 
+// ==================== 应用本体在线更新 (cc-switch 风格) ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUpdateCheck {
+    #[serde(rename = "currentVersion")]
+    pub current_version: String,
+    #[serde(rename = "latestVersion")]
+    pub latest_version: String,
+    #[serde(rename = "updateAvailable")]
+    pub update_available: bool,
+    #[serde(rename = "releaseNotes")]
+    pub release_notes: String,
+    #[serde(rename = "publishedAt", default, skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
+    #[serde(rename = "downloadUrl", default, skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    #[serde(rename = "assetName", default, skip_serializing_if = "Option::is_none")]
+    pub asset_name: Option<String>,
+    #[serde(rename = "assetSize", default)]
+    pub asset_size: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUpdateDownload {
+    pub ok: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(rename = "fileName", default, skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub auto_start: bool,
@@ -333,6 +370,8 @@ pub struct AppConfig {
     pub default_rule_mode: String, // "append" or "overwrite"
     pub auto_capture_skills: bool,
     pub toast_notifications: bool,
+    #[serde(default, rename = "auto_check_update")]
+    pub auto_check_update: bool,
     #[serde(default, rename = "ignored_skills")]
     pub ignored_skills: Option<Vec<IgnoredSkill>>,
     #[serde(default, rename = "system_theme")]
@@ -353,6 +392,7 @@ impl Default for AppConfig {
             default_rule_mode: "append".to_string(),
             auto_capture_skills: true,
             toast_notifications: true,
+            auto_check_update: false,
             ignored_skills: Some(Vec::new()),
             system_theme: Some("light".to_string()),
             skills_sync: None,

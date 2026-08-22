@@ -28,6 +28,7 @@ chrono = "0.4"
 which = "6.0"
 regex = "1.10"
 uuid = { version = "1.8", features = ["v4"] }
+ureq = "2.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }

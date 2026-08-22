@@ -184,6 +184,56 @@
           </div>
         </div>
 
+        <!-- Auto Check Update -->
+        <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动时自动检查更新</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">每次启动静默检测 GitHub Releases 新版本</div>
+          </div>
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+            <button
+              type="button"
+              @click="form.auto_check_update = true"
+              :class="[
+                'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+                form.auto_check_update
+                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+              ]"
+            >
+              <span>开启</span>
+            </button>
+            <button
+              type="button"
+              @click="form.auto_check_update = false"
+              :class="[
+                'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+                !form.auto_check_update
+                  ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+              ]"
+            >
+              <span>关闭</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Check Update Manually -->
+        <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">检查更新</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">手动检查并下载安装最新版本</div>
+          </div>
+          <button
+            type="button"
+            @click="openUpdate"
+            class="px-2.5 py-1 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+          >
+            <PackageOpen class="w-3.5 h-3.5" />
+            <span>检查更新</span>
+          </button>
+        </div>
+
         <!-- Sync Repo Config (Global) -->
         <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 space-y-3">
           <div>
@@ -287,7 +337,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, onBeforeUnmount } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink } from 'lucide-vue-next';
+import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink, PackageOpen } from 'lucide-vue-next';
 
 const store = useAppStore();
 
@@ -297,6 +347,7 @@ const form = reactive({
   default_rule_mode: store.config.default_rule_mode,
   auto_capture_skills: store.config.auto_capture_skills,
   toast_notifications: store.config.toast_notifications,
+  auto_check_update: store.config.auto_check_update ?? false,
 });
 
 function parseValidatedKey(key: string): { remoteUrl: string; branch: string } {
@@ -320,6 +371,7 @@ watch(
     form.default_rule_mode = cfg.default_rule_mode;
     form.auto_capture_skills = cfg.auto_capture_skills;
     form.toast_notifications = cfg.toast_notifications;
+    form.auto_check_update = cfg.auto_check_update ?? false;
   },
   { deep: true }
 );
@@ -362,6 +414,13 @@ function setTheme(theme: 'dark' | 'light' | 'system') {
   store.applyTheme(theme);
 }
 
+function openUpdate() {
+  store.openUpdateModal();
+  if (!store.appUpdate && !store.appUpdateChecking) {
+    store.checkAppUpdate(false);
+  }
+}
+
 function close() {
   // Revert preview to saved config
   store.applyTheme(store.config.theme);
@@ -376,6 +435,7 @@ async function save() {
     default_rule_mode: form.default_rule_mode,
     auto_capture_skills: form.auto_capture_skills,
     toast_notifications: form.toast_notifications,
+    auto_check_update: form.auto_check_update,
   });
   close();
 }
