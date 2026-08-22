@@ -4,11 +4,11 @@
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
     @click.self="store.closeUpdateModal()"
   >
-    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-md rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200 max-h-[85vh] overflow-y-auto">
+    <div class="bg-white dark:bg-[#121316] w-full max-w-md rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none space-y-5 text-slate-900 dark:text-white transition-colors duration-200 max-h-[85vh] overflow-y-auto">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20 flex items-center justify-center text-[#0a84ff]">
+          <div class="w-8 h-8 rounded-lg bg-[#3b82f6]/10 border border-[#3b82f6]/20 flex items-center justify-center text-[#3b82f6]">
             <PackageOpen class="w-4 h-4" />
           </div>
           <div>
@@ -37,7 +37,7 @@
         </div>
         <button
           @click="store.checkAppUpdate()"
-          class="w-full px-3 py-2 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
+          class="w-full px-3 py-2 rounded-lg bg-[#3b82f6]/10 hover:bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
         >
           <RefreshCw class="w-3.5 h-3.5" />
           <span>检查更新</span>
@@ -46,19 +46,19 @@
 
       <!-- 已是最新 -->
       <div v-else-if="!store.appUpdate.updateAvailable" class="space-y-4">
-        <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#30d158]/10 border border-[#30d158]/20 text-[#30d158] text-xs">
+        <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20 text-[#22c55e] text-xs">
           <CheckCircle2 class="w-4 h-4 flex-shrink-0" />
           <span>当前已是最新版本</span>
         </div>
         <div class="font-mono text-[11px] text-slate-500 dark:text-white/60 px-1">
           v{{ store.appUpdate.currentVersion }}
         </div>
-        <div v-if="store.appUpdate.error" class="px-3 py-2 rounded-lg bg-[#ff9f0a]/10 border border-[#ff9f0a]/30 text-[#ff9f0a] text-[11px] font-mono whitespace-pre-wrap">
+        <div v-if="store.appUpdate.error" class="px-3 py-2 rounded-lg bg-[#f59e0b]/10 border border-[#f59e0b]/30 text-[#f59e0b] text-[11px] font-mono whitespace-pre-wrap">
           {{ store.appUpdate.error }}
         </div>
         <button
           @click="store.checkAppUpdate()"
-          class="w-full px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#2c2c2e] dark:hover:bg-white/10 text-slate-700 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5"
+          class="w-full px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#1c1d22] dark:hover:bg-white/10 text-slate-700 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5"
         >
           <RefreshCw class="w-3.5 h-3.5" />
           <span>重新检查</span>
@@ -68,13 +68,13 @@
       <!-- 有更新 -->
       <div v-else class="space-y-4">
         <!-- 版本对比 -->
-        <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20">
+        <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#3b82f6]/10 border border-[#3b82f6]/20">
           <div class="flex items-center gap-2 text-xs">
             <span class="font-mono text-slate-500 dark:text-white/60 line-through">v{{ store.appUpdate.currentVersion }}</span>
             <ArrowRight class="w-3.5 h-3.5 text-slate-400 dark:text-white/40" />
-            <span class="font-mono font-semibold text-[#0a84ff]">v{{ store.appUpdate.latestVersion }}</span>
+            <span class="font-mono font-semibold text-[#3b82f6]">v{{ store.appUpdate.latestVersion }}</span>
           </div>
-          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 font-medium">
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 font-medium">
             可更新
           </span>
         </div>
@@ -82,7 +82,7 @@
         <!-- 更新日志 -->
         <div v-if="store.appUpdate.releaseNotes" class="space-y-1.5">
           <div class="text-[11px] text-slate-500 dark:text-white/50 font-medium">更新说明</div>
-          <div class="max-h-40 overflow-y-auto p-3 rounded-lg bg-black/[0.03] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 font-mono text-[11px] leading-relaxed text-slate-600 dark:text-white/70 whitespace-pre-wrap">
+          <div class="max-h-40 overflow-y-auto p-3 rounded-lg bg-black/[0.03] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 font-mono text-[11px] leading-relaxed text-slate-600 dark:text-white/70 whitespace-pre-wrap">
             {{ store.appUpdate.releaseNotes }}
           </div>
         </div>
@@ -95,14 +95,14 @@
           </div>
           <div class="h-1.5 rounded-full bg-black/8 dark:bg-white/8 overflow-hidden">
             <div
-              class="h-full rounded-full bg-[#0a84ff] transition-all duration-200 ease-out"
+              class="h-full rounded-full bg-[#3b82f6] transition-all duration-200 ease-out"
               :style="{ width: store.appUpdateProgress + '%' }"
             />
           </div>
         </div>
 
         <!-- 下载错误 -->
-        <div v-if="store.appUpdateError" class="px-3 py-2 rounded-lg bg-[#ff453a]/10 border border-[#ff453a]/30 text-[#ff453a] text-[11px] font-mono whitespace-pre-wrap">
+        <div v-if="store.appUpdateError" class="px-3 py-2 rounded-lg bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444] text-[11px] font-mono whitespace-pre-wrap">
           {{ store.appUpdateError }}
         </div>
 
@@ -111,7 +111,7 @@
           <button
             v-if="!store.appUpdateDownloadedPath"
             @click="onDownload"
-            class="w-full px-3 py-2 rounded-lg bg-[#0a84ff] hover:bg-[#0a84ff]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
+            class="w-full px-3 py-2 rounded-lg bg-[#3b82f6] hover:bg-[#3b82f6]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
           >
             <Download class="w-3.5 h-3.5" />
             <span>下载更新</span>
@@ -119,7 +119,7 @@
           <button
             v-else
             @click="onInstall"
-            class="w-full px-3 py-2 rounded-lg bg-[#30d158] hover:bg-[#30d158]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
+            class="w-full px-3 py-2 rounded-lg bg-[#22c55e] hover:bg-[#22c55e]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
           >
             <Rocket class="w-3.5 h-3.5" />
             <span>安装并重启</span>

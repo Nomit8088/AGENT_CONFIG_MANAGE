@@ -3,11 +3,11 @@
     v-if="store.agentDetailModal.visible && store.activeDetailAgent"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl transition-colors duration-200"
   >
-    <div class="bg-white dark:bg-[#1c1c1e] w-full max-w-2xl rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none flex flex-col max-h-[85vh] text-slate-900 dark:text-white transition-colors duration-200">
+    <div class="bg-white dark:bg-[#121316] w-full max-w-2xl rounded-xl p-6 border border-black/10 dark:border-white/12 shadow-2xl dark:shadow-none flex flex-col max-h-[85vh] text-slate-900 dark:text-white transition-colors duration-200">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-3 flex-shrink-0">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center">
+          <div class="w-10 h-10 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center">
             <AgentBrandIcon :agentId="store.activeDetailAgent.id" size="lg" />
           </div>
           <div>
@@ -42,7 +42,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <AlertTriangle class="w-3.5 h-3.5 text-[#ff9f0a]" />
+              <AlertTriangle class="w-3.5 h-3.5 text-[#f59e0b]" />
               <span>待纳管技能</span>
               <span class="px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/10 text-[10px] font-mono">
                 {{ rawUnmanaged.length }}
@@ -74,7 +74,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <Layers class="w-3.5 h-3.5 text-[#0a84ff]" />
+              <Layers class="w-3.5 h-3.5 text-[#3b82f6]" />
               <span>中央技能分发</span>
               <span class="px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/10 text-[10px] font-mono">
                 {{ mountedSkillsCount }}
@@ -93,9 +93,9 @@
               </button>
               <button
                 @click="store.takeoverAllForAgent(store.activeDetailAgent.id)"
-                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200 flex items-center gap-1"
+                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200 flex items-center gap-1"
               >
-                <PackageCheck class="w-3 h-3 text-[#30d158]" />
+                <PackageCheck class="w-3 h-3 text-[#22c55e]" />
                 <span>一键全部纳管</span>
               </button>
             </template>
@@ -103,7 +103,7 @@
             <template v-if="store.agentDetailModal.activeTab === 'ignored' && filteredIgnored.length > 0">
               <button
                 @click="store.unignoreAllForAgent(store.activeDetailAgent.id)"
-                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
+                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
               >
                 全部恢复提示
               </button>
@@ -112,7 +112,7 @@
             <template v-if="store.agentDetailModal.activeTab === 'skills'">
               <button
                 @click="mountAllSkills"
-                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
+                class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-[11px] font-medium transition-colors duration-200"
               >
                 全部挂载
               </button>
@@ -133,7 +133,7 @@
             v-model="modalSearch"
             type="text"
             placeholder="在当前列表中快速检索技能名称..."
-            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            class="w-full bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="modalSearch"
@@ -152,12 +152,12 @@
           <div
             v-for="item in filteredUnmanaged"
             :key="item.skillName"
-            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 flex items-center justify-between gap-3 transition-colors duration-200"
+            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 flex items-center justify-between gap-3 transition-colors duration-200"
           >
             <div class="truncate">
               <div class="flex items-center gap-2">
                 <span class="font-mono text-slate-900 dark:text-white/90 font-bold text-xs">{{ item.skillName }}</span>
-                <span v-if="item.hasConflict" class="px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-[#ff453a] border border-black/8 dark:border-white/8 text-[10px] font-mono">
+                <span v-if="item.hasConflict" class="px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-[#ef4444] border border-black/8 dark:border-white/8 text-[10px] font-mono">
                   同名冲突
                 </span>
               </div>
@@ -176,16 +176,16 @@
               </button>
               <button
                 @click="handleSingleTakeover(item)"
-                class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200 flex items-center gap-1"
+                class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200 flex items-center gap-1"
               >
-                <PackageCheck class="w-3 h-3 text-[#30d158]" />
+                <PackageCheck class="w-3 h-3 text-[#22c55e]" />
                 <span>纳管至中央库</span>
               </button>
             </div>
           </div>
 
           <div v-if="filteredUnmanaged.length === 0" class="py-12 text-center text-slate-400 dark:text-white/40">
-            <CheckCircle2 v-if="!modalSearch" class="w-8 h-8 mx-auto text-[#30d158] mb-2" />
+            <CheckCircle2 v-if="!modalSearch" class="w-8 h-8 mx-auto text-[#22c55e] mb-2" />
             <p class="text-xs">
               {{ modalSearch ? '未搜索到匹配的待纳管技能' : '该 Agent 下所有技能已全部由中央库软链受控纳管！' }}
             </p>
@@ -197,7 +197,7 @@
           <div
             v-for="item in filteredIgnored"
             :key="item.skillName"
-            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 flex items-center justify-between gap-3 transition-colors duration-200"
+            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 flex items-center justify-between gap-3 transition-colors duration-200"
           >
             <div class="truncate">
               <div class="font-mono text-slate-900 dark:text-white/90 font-bold text-xs">{{ item.skillName }}</div>
@@ -208,7 +208,7 @@
 
             <button
               @click="store.unignoreSkill(item.agentId, item.skillName)"
-              class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
+              class="px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
             >
               恢复纳管提示
             </button>
@@ -227,7 +227,7 @@
           <div
             v-for="skill in filteredSkills"
             :key="skill.id"
-            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 flex items-center justify-between gap-3 transition-colors duration-200"
+            class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 flex items-center justify-between gap-3 transition-colors duration-200"
           >
             <div class="flex items-center gap-2 min-w-0">
               <input
@@ -251,7 +251,7 @@
               :class="[
                 'px-1.5 py-0.5 rounded-md font-mono text-[10px] border flex-shrink-0',
                 isSkillMounted(skill.id)
-                  ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
+                  ? 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/30'
                   : 'bg-black/5 dark:bg-white/10 text-slate-500 dark:text-white/50 border-black/8 dark:border-white/10'
               ]"
             >
@@ -275,7 +275,7 @@
         </span>
         <button
           @click="store.closeAgentDetailModal()"
-          class="px-4 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 font-medium transition-colors duration-200 border border-black/8 dark:border-white/8"
+          class="px-4 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 font-medium transition-colors duration-200 border border-black/8 dark:border-white/8"
         >
           关闭
         </button>

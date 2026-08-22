@@ -1,12 +1,12 @@
 <template>
   <div
     v-if="store.activeSkillId && store.activeSkill"
-    class="fixed inset-y-0 right-0 w-full max-w-xl z-40 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border-l border-black/8 dark:border-white/8 shadow-2xl dark:shadow-none flex flex-col transition-all duration-200 animate-slide-right select-text text-slate-900 dark:text-white"
+    class="fixed inset-y-0 right-0 w-full max-w-xl z-40 bg-white/95 dark:bg-[#121316]/95 backdrop-blur-xl border-l border-black/8 dark:border-white/8 shadow-2xl dark:shadow-none flex flex-col transition-all duration-200 animate-slide-right select-text text-slate-900 dark:text-white"
   >
     <!-- Drawer Header -->
     <div class="h-14 px-5 border-b border-black/8 dark:border-white/8 flex items-center justify-between flex-shrink-0 select-none">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
+        <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-white/80">
           <Layers class="w-4 h-4" />
         </div>
         <div>
@@ -17,8 +17,17 @@
 
       <div class="flex items-center gap-2">
         <button
+          @click="copyContent"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
+          title="复制 SKILL.md 内容"
+        >
+          <Copy class="w-3.5 h-3.5" />
+          <span>{{ copied ? '已复制' : '复制' }}</span>
+        </button>
+
+        <button
           @click="openEditor"
-          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
+          class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
         >
           <Edit class="w-3.5 h-3.5" />
           <span>编辑</span>
@@ -36,7 +45,7 @@
     <!-- Drawer Content (Scrollable) -->
     <div class="flex-1 overflow-y-auto p-6 space-y-5">
       <!-- Frontmatter & Metadata Card -->
-      <div class="bg-black/[0.02] dark:bg-[#2c2c2e] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-3">
+      <div class="bg-black/[0.02] dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-3">
         <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">元数据 (Frontmatter)</div>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div>
@@ -67,8 +76,8 @@
       </div>
 
       <!-- Agent Mount Status -->
-      <div class="bg-black/[0.02] dark:bg-[#2c2c2e] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-2">
-        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">Agent 挂载状态 (NTFS Junction)</div>
+      <div class="bg-black/[0.02] dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-2">
+        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">Agent 挂载状态 (NTFS Hardlink / Junction)</div>
         <div class="flex flex-wrap gap-2">
           <div
             v-for="agent in store.agents"
@@ -77,13 +86,13 @@
               'px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 border transition-colors duration-200',
               store.activeSkill.mountedAgents.includes(agent.id)
                 ? 'bg-black/5 dark:bg-white/8 text-slate-900 dark:text-white/90 border-black/10 dark:border-white/12'
-                : 'bg-transparent dark:bg-[#1c1c1e] text-slate-400 dark:text-white/40 border-black/6 dark:border-white/6'
+                : 'bg-transparent dark:bg-[#121316] text-slate-400 dark:text-white/40 border-black/6 dark:border-white/6'
             ]"
           >
             <span
               :class="[
                 'w-1.5 h-1.5 rounded-sm',
-                store.activeSkill.mountedAgents.includes(agent.id) ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
+                store.activeSkill.mountedAgents.includes(agent.id) ? 'bg-[#22c55e] ring-2 ring-[#22c55e]/20' : 'bg-slate-300 dark:bg-white/30'
               ]"
             ></span>
             <span>{{ agent.name }}</span>
@@ -94,7 +103,7 @@
       <!-- Raw Markdown Content Preview -->
       <div class="space-y-2">
         <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">SKILL.md 原始内容</div>
-        <div class="rounded-xl bg-black/[0.02] dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 p-4 font-mono text-xs text-slate-800 dark:text-white/80 whitespace-pre-wrap leading-relaxed overflow-x-auto select-text">
+        <div class="rounded-xl bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 p-4 font-mono text-xs text-slate-800 dark:text-white/80 whitespace-pre-wrap leading-relaxed overflow-x-auto select-text">
           {{ store.activeSkill.content }}
         </div>
       </div>
@@ -103,10 +112,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Layers, Edit, X } from 'lucide-vue-next';
+import { Layers, Edit, X, Copy } from 'lucide-vue-next';
 
 const store = useAppStore();
+const copied = ref(false);
 
 function openEditor() {
   if (!store.activeSkill) return;
@@ -116,6 +127,15 @@ function openEditor() {
     content: store.activeSkill.content,
     isNew: false,
   };
+}
+
+async function copyContent() {
+  if (!store.activeSkill?.content) return;
+  try {
+    await navigator.clipboard.writeText(store.activeSkill.content);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  } catch (e) {}
 }
 </script>
 

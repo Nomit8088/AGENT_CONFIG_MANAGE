@@ -1,11 +1,11 @@
 <template>
   <div class="h-full overflow-y-auto p-4 space-y-4 pb-24">
     <!-- Central Skills Library (技能页签只保留中央技能库) -->
-    <div class="bg-white dark:bg-[#2c2c2e] rounded-xl border border-black/8 dark:border-white/8 border-t-[#0a84ff]/60 shadow-sm dark:shadow-none overflow-hidden space-y-0 transition-colors duration-200">
+    <div class="bg-white dark:bg-[#1c1d22] rounded-xl border border-black/8 dark:border-white/8 border-t-[#3b82f6]/60 shadow-sm dark:shadow-none overflow-hidden space-y-0 transition-colors duration-200">
       <!-- Top Title & View Switcher Bar -->
-      <div class="p-4 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#1c1c1e]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="p-4 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#121316]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20 flex items-center justify-center text-[#0a84ff]">
+          <div class="w-8 h-8 rounded-lg bg-[#3b82f6]/10 border border-[#3b82f6]/20 flex items-center justify-center text-[#3b82f6]">
             <Layers class="w-4 h-4" />
           </div>
           <div>
@@ -21,12 +21,12 @@
 
         <div class="flex items-center gap-2">
           <!-- View Switcher -->
-          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
               @click="setViewMode('table')"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
-                viewMode === 'table' ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs' : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+                viewMode === 'table' ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs' : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
               title="表格紧凑视图"
             >
@@ -37,7 +37,7 @@
               @click="setViewMode('card')"
               :class="[
                 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
-                viewMode === 'card' ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs' : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+                viewMode === 'card' ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs' : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
               title="卡片画廊视图"
             >
@@ -48,16 +48,16 @@
 
           <button
             @click="openNewModal"
-            class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
+            class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 shadow-sm shadow-indigo-500/20 transition-all duration-200"
           >
-            <Plus class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" />
+            <Plus class="w-3.5 h-3.5" />
             <span>新建 Skill</span>
           </button>
         </div>
       </div>
 
       <!-- Filter & Search Toolbar -->
-      <div class="p-3 bg-black/[0.01] dark:bg-[#1c1c1e]/60 border-b border-black/8 dark:border-white/8 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+      <div class="p-3 bg-black/[0.01] dark:bg-[#121316]/60 border-b border-black/8 dark:border-white/8 flex flex-wrap items-center justify-between gap-2.5 text-xs">
         <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
           <!-- Keyword Search -->
           <div class="relative flex-1 max-w-sm">
@@ -66,12 +66,12 @@
               v-model="searchQuery"
               type="text"
               placeholder="搜索技能名称、描述、Tag、斜杠命令..."
-              class="w-full bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-[#3b82f6]/40 dark:focus:border-[#3b82f6]/40 transition-colors duration-200"
             />
             <button
               v-if="searchQuery"
               @click="searchQuery = ''"
-              class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80 p-0.5"
             >
               <X class="w-3 h-3" />
             </button>
@@ -82,7 +82,7 @@
             <span class="text-slate-400 dark:text-white/40 text-[11px]">来源:</span>
             <select
               v-model="sourceFilter"
-              class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 font-sans focus:outline-none focus:border-[#3b82f6]/40 dark:focus:border-[#3b82f6]/40 transition-colors duration-200"
             >
               <option value="all">全部来源</option>
               <option value="builtin">内置模板</option>
@@ -97,7 +97,7 @@
             <span class="text-slate-400 dark:text-white/40 text-[11px]">分发状态:</span>
             <select
               v-model="mountFilter"
-              class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 font-sans focus:outline-none focus:border-[#3b82f6]/40 dark:focus:border-[#3b82f6]/40 transition-colors duration-200"
             >
               <option value="all">全部状态</option>
               <option value="all_active">已全部分发 (全活跃)</option>
@@ -111,7 +111,7 @@
             <span class="text-slate-400 dark:text-white/40 text-[11px]">排序:</span>
             <select
               v-model="sortKey"
-              class="bg-white dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 font-sans focus:outline-none focus:border-[#3b82f6]/40 dark:focus:border-[#3b82f6]/40 transition-colors duration-200"
             >
               <option value="name_asc">名称 (A → Z)</option>
               <option value="name_desc">名称 (Z → A)</option>
@@ -123,7 +123,7 @@
 
         <!-- Clear Filters Button -->
         <div v-if="isFiltered" class="flex items-center gap-2">
-          <span class="text-[11px] text-[#ff9f0a] font-medium">已应用过滤</span>
+          <span class="text-[11px] text-[#f59e0b] font-medium">已应用过滤</span>
           <button
             @click="resetFilters"
             class="px-2 py-1 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 border border-black/10 dark:border-white/12 text-xs transition-colors duration-200 flex items-center gap-1"
@@ -138,7 +138,7 @@
       <div v-if="viewMode === 'table'" class="overflow-x-auto">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <tr class="border-b border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#1c1c1e] text-slate-600 dark:text-white/60 uppercase tracking-wider font-semibold">
+            <tr class="border-b border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#121316] text-slate-600 dark:text-white/60 uppercase tracking-wider font-semibold">
               <th class="py-3 px-3 w-10 text-center">
                 <input
                   type="checkbox"
@@ -147,9 +147,9 @@
                   class="custom-checkbox"
                 />
               </th>
-              <th class="py-2.5 px-3 min-w-[160px]">Skill 技能名称 / 描述</th>
+              <th class="py-2.5 px-3 min-w-[180px]">Skill 技能名称 / 描述</th>
               <th class="py-2.5 px-2 text-center min-w-[72px]">版本 / 来源</th>
-              <th class="py-2.5 px-2 text-center min-w-[110px]">全局分发状态</th>
+              <th class="py-2.5 px-2 text-center min-w-[120px]">全局分发状态</th>
               <th class="py-2.5 px-3 text-right min-w-[72px]">操作</th>
             </tr>
           </thead>
@@ -159,7 +159,9 @@
               :key="skill.id"
               :class="[
                 'hover:bg-black/[0.02] dark:hover:bg-white/5 transition-colors duration-200 cursor-pointer',
-                store.activeSkillId === skill.id ? 'bg-black/[0.03] dark:bg-white/8' : ''
+                store.activeSkillId === skill.id
+                  ? 'bg-[#3b82f6]/5 dark:bg-[#3b82f6]/10 border-l-2 border-l-[#3b82f6]'
+                  : 'border-l-2 border-l-transparent'
               ]"
               @click="store.activeSkillId = skill.id"
             >
@@ -179,13 +181,30 @@
                   <div class="w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 mt-0.5" :class="SOURCE_TILE[sourceMeta(skill).tone]">
                     <FileCode class="w-3.5 h-3.5" />
                   </div>
-                  <div>
+                  <div class="min-w-0">
                     <div class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95 flex items-center gap-1.5">
                       <span>{{ skill.name }}</span>
                     </div>
                     <p class="text-[11px] text-slate-500 dark:text-white/50 line-clamp-1 mt-0.5" :title="skill.description">
                       {{ skill.description }}
                     </p>
+                    <!-- Slash commands & tags micro chips -->
+                    <div v-if="skill.metadata?.slash_commands?.length || skill.metadata?.tags?.length" class="flex flex-wrap items-center gap-1 mt-1">
+                      <span
+                        v-for="cmd in skill.metadata?.slash_commands"
+                        :key="cmd"
+                        class="px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/6 font-mono text-[10px] text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8"
+                      >
+                        {{ cmd }}
+                      </span>
+                      <span
+                        v-for="tag in skill.metadata?.tags"
+                        :key="tag"
+                        class="px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/6 font-mono text-[10px] text-slate-500 dark:text-white/50 border border-black/8 dark:border-white/8"
+                      >
+                        #{{ tag }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -202,19 +221,19 @@
 
               <!-- Global Toggle Segmented Control -->
               <td class="py-2.5 px-2 text-center" @click.stop>
-                <div class="inline-flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-xs">
+                <div class="inline-flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
                   <button
                     type="button"
                     @click="handleGlobalToggle(skill.id, true)"
                     :class="[
                       'px-2 py-0.5 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                       skill.enabled
-                        ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                        ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                         : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                     ]"
                     title="一键分发至全部活跃 Agent"
                   >
-                    <span v-if="skill.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+                    <span v-if="skill.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
                     <span>启用 ({{ skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length }})</span>
                   </button>
                   <button
@@ -223,7 +242,7 @@
                     :class="[
                       'px-2 py-0.5 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                       !skill.enabled
-                        ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                        ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                         : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                     ]"
                     title="从所有 Agent 一键解绑"
@@ -253,7 +272,7 @@
                     v-if="skill.id !== 'agenthub-sync'"
                     @click="deleteSkill(skill)"
                     title="删除技能"
-                    class="p-1.5 rounded-lg text-slate-500 hover:text-[#ff453a] dark:text-white/50 dark:hover:text-[#ff453a] hover:bg-black/5 dark:hover:bg-white/8 transition-colors duration-200"
+                    class="p-1.5 rounded-lg text-slate-500 hover:text-[#ef4444] dark:text-white/50 dark:hover:text-[#ef4444] hover:bg-black/5 dark:hover:bg-white/8 transition-colors duration-200"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
                   </button>
@@ -279,7 +298,8 @@
           v-for="skill in displaySkills"
           :key="skill.id"
           @click="store.activeSkillId = skill.id"
-          class="bg-white dark:bg-[#2c2c2e] rounded-xl p-4 border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/12 shadow-sm dark:shadow-none transition-colors duration-200 flex flex-col justify-between cursor-pointer space-y-3"
+          class="bg-white dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 hover:border-black/15 dark:hover:border-white/14 shadow-sm dark:shadow-none transition-colors duration-200 flex flex-col justify-between cursor-pointer space-y-3 relative overflow-hidden macos-vibrancy-card"
+          :class="cardAccentBorder(skill)"
         >
           <div>
             <div class="flex items-start justify-between gap-2">
@@ -294,19 +314,19 @@
               </div>
 
               <!-- Segmented Slider in Card View -->
-              <div class="inline-flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 text-[11px] flex-shrink-0">
+              <div class="inline-flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-[11px] flex-shrink-0">
                 <button
                   type="button"
                   @click.stop="handleGlobalToggle(skill.id, true)"
                   :class="[
                     'px-2 py-0.5 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                     skill.enabled
-                      ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                      ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                       : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                   ]"
                   title="一键分发至全部活跃 Agent"
                 >
-                  <span v-if="skill.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#30d158]"></span>
+                  <span v-if="skill.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
                   <span>启用</span>
                 </button>
                 <button
@@ -315,7 +335,7 @@
                   :class="[
                     'px-2 py-0.5 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
                     !skill.enabled
-                      ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                      ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                       : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                   ]"
                   title="从所有 Agent 一键解绑"
@@ -328,6 +348,24 @@
             <p class="text-[11px] text-slate-500 dark:text-white/50 line-clamp-2 mt-2 leading-relaxed">
               {{ skill.description }}
             </p>
+
+            <!-- Slash commands & tags in card view -->
+            <div v-if="skill.metadata?.slash_commands?.length || skill.metadata?.tags?.length" class="flex flex-wrap items-center gap-1 mt-2">
+              <span
+                v-for="cmd in skill.metadata?.slash_commands"
+                :key="cmd"
+                class="px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/6 font-mono text-[10px] text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8"
+              >
+                {{ cmd }}
+              </span>
+              <span
+                v-for="tag in skill.metadata?.tags"
+                :key="tag"
+                class="px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/6 font-mono text-[10px] text-slate-500 dark:text-white/50 border border-black/8 dark:border-white/8"
+              >
+                #{{ tag }}
+              </span>
+            </div>
           </div>
 
           <!-- 分 Agent 管理入口（重新开放 Agent 多选分发器） -->
@@ -349,10 +387,10 @@
     <transition name="fade">
       <div
         v-if="store.selectedSkillIds.length > 0"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-xl bg-white/95 dark:bg-[#1c1c1e]/90 border border-black/10 dark:border-white/12 backdrop-blur-xl flex items-center gap-4 text-xs text-slate-900 dark:text-white shadow-xl dark:shadow-none"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-xl bg-white/95 dark:bg-[#121316]/90 border border-black/10 dark:border-white/12 backdrop-blur-xl flex items-center gap-4 text-xs text-slate-900 dark:text-white shadow-xl dark:shadow-none"
       >
         <div class="flex items-center gap-2 font-medium text-slate-900 dark:text-white/90">
-          <span class="w-2 h-2 rounded-sm bg-[#0a84ff]"></span>
+          <span class="w-2 h-2 rounded-sm bg-[#3b82f6]"></span>
           <span>已选中 {{ store.selectedSkillIds.length }} 个技能</span>
         </div>
 
@@ -361,9 +399,9 @@
         <div class="flex items-center gap-2">
           <button
             @click="batchMountToActive"
-            class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#3a3a3c] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 font-medium flex items-center gap-1 transition-colors duration-200"
+            class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 font-medium flex items-center gap-1 transition-colors duration-200"
           >
-            <Zap class="w-3.5 h-3.5 text-[#ff9f0a]" />
+            <Zap class="w-3.5 h-3.5 text-[#f59e0b]" />
             <span>一键分发至全部活跃 Agent</span>
           </button>
           <button
@@ -412,44 +450,51 @@ const store = useAppStore();
 
 // 来源语义色：内置=蓝 / 中央自建=绿 / NPX 捕获=琥珀 / 存量纳管=紫 / 其他=灰
 const SOURCE_TILE: Record<string, string> = {
-  blue: 'bg-[#0a84ff]/10 border-[#0a84ff]/20 text-[#0a84ff]',
-  green: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
-  amber: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
-  purple: 'bg-[#bf5af2]/10 border-[#bf5af2]/20 text-[#bf5af2]',
-  gray: 'bg-black/5 dark:bg-[#1c1c1e] border-black/10 dark:border-white/10 text-slate-700 dark:text-white/80',
+  blue: 'bg-[#3b82f6]/10 border-[#3b82f6]/20 text-[#3b82f6]',
+  green: 'bg-[#22c55e]/10 border-[#22c55e]/20 text-[#22c55e]',
+  amber: 'bg-[#f59e0b]/10 border-[#f59e0b]/20 text-[#f59e0b]',
+  purple: 'bg-[#8b5cf6]/10 border-[#8b5cf6]/20 text-[#8b5cf6]',
+  gray: 'bg-black/5 dark:bg-[#121316] border-black/10 dark:border-white/10 text-slate-700 dark:text-white/80',
 };
 const SOURCE_BADGE: Record<string, string> = {
-  blue: 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30',
-  green: 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30',
-  amber: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30',
-  purple: 'bg-[#bf5af2]/10 text-[#bf5af2] border-[#bf5af2]/30',
+  blue: 'bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30',
+  green: 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/30',
+  amber: 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30',
+  purple: 'bg-[#8b5cf6]/10 text-[#8b5cf6] border-[#8b5cf6]/30',
   gray: 'bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border-black/8 dark:border-white/8',
 };
 const SOURCE_TEXT: Record<string, string> = {
-  blue: 'text-[#0a84ff]',
-  green: 'text-[#30d158]',
-  amber: 'text-[#ff9f0a]',
-  purple: 'text-[#bf5af2]',
+  blue: 'text-[#3b82f6]',
+  green: 'text-[#22c55e]',
+  amber: 'text-[#f59e0b]',
+  purple: 'text-[#8b5cf6]',
   gray: 'text-slate-400 dark:text-white/50',
 };
 
 function sourceMeta(skill: SkillItem): { tone: string; label: string } {
   if (skill.id === 'agenthub-sync') return { tone: 'blue', label: '内置' };
   switch (skill.source) {
-    case 'central': return { tone: 'green', label: '中央自建' };
+    case 'central': return { tone: 'blue', label: '中央自建' };
     case 'npx': return { tone: 'amber', label: 'NPX 捕获' };
     case 'imported': return { tone: 'purple', label: '存量纳管' };
     default: return { tone: 'gray', label: skill.source || '手动' };
   }
 }
 
-// 分发状态着色：全部分发=绿 / 部分分发=琥珀 / 未分发=灰
+// 分发状态着色：全部分发=蓝 / 部分分发=琥珀 / 未分发=灰
 function mountCountClass(skill: SkillItem): string {
   const count = skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length;
   const active = store.agents.filter(a => a.detected && a.enabled).length;
-  if (active > 0 && count === active) return 'text-[#30d158]';
-  if (count > 0) return 'text-[#ff9f0a]';
+  if (active > 0 && count === active) return 'text-[#3b82f6]';
+  if (count > 0) return 'text-[#f59e0b]';
   return 'text-slate-400 dark:text-white/40';
+}
+
+// 卡片顶部发丝强调线（保持素雅统一）
+function cardAccentBorder(skill: SkillItem): string {
+  const count = skill.mountedAgents.filter(id => store.isAgentEnabled(id)).length;
+  if (count === 0) return 'border-t-black/10 dark:border-t-white/10';
+  return '';
 }
 
 const viewMode = ref<'table' | 'card'>(

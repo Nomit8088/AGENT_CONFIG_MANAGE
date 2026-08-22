@@ -405,6 +405,41 @@ fn sanitize_lock_for_mirror(text: &str) -> String {
     out.join("\n")
 }
 
+/// 常见公共 GitHub 镜像前缀 → 原始 github.com（机器无关）。
+const GITHUB_MIRROR_PREFIXES: &[&str] = &[
+    "https://gh-proxy.com/",
+    "https://ghproxy.net/",
+    "http://gh-proxy.com/",
+    "http://ghproxy.net/",
+];
+
+/// 归一化单个依赖 spec（可带 git+ 前缀）：git+https://<镜像>/https://github.com/… → git+https://github.com/…
+fn normalize_spec_for_mirror(spec: &str) -> String {
+    let s = spec.trim();
+    let (proto, rest) = match s.strip_prefix("git+") {
+        Some(r) => ("git+", r),
+        None => ("", s),
+    };
+    for m in GITHUB_MIRROR_PREFIXES {
+        if let Some(inner) = rest.strip_prefix(m) {
+            if inner.starts_with("https://github.com/") || inner.starts_with("http://github.com/") {
+                return format!("{}{}", proto, inner);
+            }
+        }
+    }
+    s.to_string()
+}
+
+/// 归一化 lockfile / workspace 等文本中的镜像前缀（覆盖 importer version / package key / resolution.repo / allowBuilds）。
+fn normalize_mirror_text(text: &str) -> String {
+    let mut out = text.to_string();
+    for m in GITHUB_MIRROR_PREFIXES {
+        out = out.replace(&format!("{}{}", m, "https://github.com/"), "https://github.com/");
+        out = out.replace(&format!("{}{}", m, "http://github.com/"), "http://github.com/");
+    }
+    out
+}
+
 /// 本地 ~/.dsh → 镜像（剔除内置 bundle 与不可移植依赖）。返回警告列表。
 fn snapshot_local_to_mirror() -> Vec<String> {
     let mut warnings = Vec::new();
@@ -434,7 +469,7 @@ fn snapshot_local_to_mirror() -> Vec<String> {
                     ));
                     continue;
                 }
-                new_deps.insert(dep.clone(), spec.clone());
+                new_deps.insert(dep.clone(), JsonValue::String(normalize_spec_for_mirror(spec_s)));
             }
             port_pkg["dependencies"] = JsonValue::Object(new_deps);
         }
@@ -471,13 +506,14 @@ fn snapshot_local_to_mirror() -> Vec<String> {
                 continue;
             }
             let dest = mirror_dir.join(f);
-            if f == "pnpm-lock.yaml" {
-                // lock 里可能残留 link:/file: 等本机路径，进入镜像前清洗
-                if let Some(text) = read_text_opt(&src) {
-                    let _ = fs::write(&dest, sanitize_lock_for_mirror(&text));
-                }
-            } else {
-                let _ = fs::copy(&src, &dest);
+            if let Some(text) = read_text_opt(&src) {
+                let normalized = if f == "pnpm-lock.yaml" {
+                    // lock 里可能残留 link:/file: 等本机路径，进入镜像前清洗
+                    normalize_mirror_text(&sanitize_lock_for_mirror(&text))
+                } else {
+                    normalize_mirror_text(&text)
+                };
+                let _ = fs::write(&dest, normalized);
             }
         }
     }

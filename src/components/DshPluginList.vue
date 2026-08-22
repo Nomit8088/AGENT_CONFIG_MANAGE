@@ -3,9 +3,9 @@
     <!-- Empty state -->
     <div
       v-if="!store.dshPluginsScan || store.dshPluginsScan.profiles.length === 0"
-      class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-8 text-center transition-colors duration-200"
+      class="rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 p-8 text-center transition-colors duration-200"
     >
-      <div class="mx-auto w-10 h-10 rounded-lg bg-black/5 dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-white/50">
+      <div class="mx-auto w-10 h-10 rounded-lg bg-black/5 dark:bg-[#282a32] border border-black/10 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-white/50">
         <Puzzle class="w-5 h-5" />
       </div>
       <p class="mt-3 font-serif text-sm text-slate-900 dark:text-white/90">未发现 DSH profile</p>
@@ -17,11 +17,11 @@
     <template v-else>
       <!-- 单条 sticky 操作栏：profile + 搜索 + 视图切换 + 安装 + 终端 -->
       <div
-        class="sticky top-0 z-10 rounded-xl bg-[#f5f5f7]/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl border border-black/8 dark:border-white/8 px-3 py-2 flex flex-wrap items-center gap-2"
+        class="sticky top-0 z-10 rounded-xl bg-[#f4f4f5]/90 dark:bg-[#121316]/90 backdrop-blur-xl border border-black/8 dark:border-white/8 px-3 py-2 flex flex-wrap items-center gap-2"
       >
         <select
           v-model="selectedProfile"
-          class="bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-6 py-1.5 text-xs font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          class="bg-white dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-6 py-1.5 text-xs font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
           <option v-for="p in store.dshPluginsScan.profiles" :key="p.name" :value="p.name">{{ p.name }}</option>
         </select>
@@ -32,7 +32,7 @@
             v-model="searchQuery"
             type="text"
             placeholder="搜索插件名 / spec..."
-            class="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+            class="w-full bg-white dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
             v-if="searchQuery"
@@ -43,13 +43,13 @@
           </button>
         </div>
 
-        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs shrink-0">
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 text-xs shrink-0">
           <button
             @click="view = 'source'"
             :class="[
               'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
               view === 'source'
-                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                 : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
             ]"
           >按来源</button>
@@ -58,20 +58,20 @@
             :class="[
               'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
               view === 'status'
-                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                 : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
             ]"
           >按状态</button>
         </div>
 
-        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs shrink-0">
+        <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 text-xs shrink-0">
           <button
             @click="setViewMode('list')"
             :title="'列表视图'"
             :class="[
               'px-2 py-1 rounded-md transition-colors duration-200 flex items-center justify-center',
               viewMode === 'list'
-                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 shadow-xs'
+                ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 shadow-xs'
                 : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
             ]"
           >
@@ -83,7 +83,7 @@
             :class="[
               'px-2 py-1 rounded-md transition-colors duration-200 flex items-center justify-center',
               viewMode === 'card'
-                ? 'bg-white dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 shadow-xs'
+                ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 shadow-xs'
                 : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
             ]"
           >
@@ -95,7 +95,7 @@
           <button
             @click="installMenuOpen = !installMenuOpen"
             :disabled="store.dshInstalling"
-            class="px-2.5 py-1.5 rounded-lg bg-[#bf5af2]/10 hover:bg-[#bf5af2]/15 text-[#bf5af2] border border-[#bf5af2]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
+            class="px-2.5 py-1.5 rounded-lg bg-[#8b5cf6]/10 hover:bg-[#8b5cf6]/15 text-[#8b5cf6] border border-[#8b5cf6]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
           >
             <Download class="w-3.5 h-3.5" />
             <span>安装</span>
@@ -108,7 +108,7 @@
           ></div>
           <div
             v-if="installMenuOpen"
-            class="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 shadow-md dark:shadow-none p-1"
+            class="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 shadow-md dark:shadow-none p-1"
           >
             <button
               v-for="btn in installButtons"
@@ -131,8 +131,8 @@
           :class="[
             'p-1.5 rounded-lg border transition-colors duration-200 flex items-center gap-1.5 shrink-0',
             store.installTerminal.visible
-              ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
-              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
+              ? 'bg-black/5 dark:bg-[#282a32] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
+              : 'bg-white dark:bg-[#1c1d22] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
           ]"
         >
           <Terminal class="w-3.5 h-3.5" />
@@ -149,7 +149,7 @@
             'px-2.5 py-1 rounded-lg text-[11px] font-medium border flex items-center gap-1.5 transition-colors duration-200',
             statusFilter === c.value
               ? c.activeCls
-              : 'bg-white dark:bg-[#2c2c2e] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
+              : 'bg-white dark:bg-[#1c1d22] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
           ]"
         >
           <span v-if="c.dot" class="w-1.5 h-1.5 rounded-sm shrink-0" :class="c.dot"></span>
@@ -187,7 +187,7 @@
         </div>
         <div
           v-if="viewMode === 'list'"
-          class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 transition-colors duration-200"
+          class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5 shadow-xs overflow-hidden transition-colors duration-200"
           :class="sec.accentClass"
         >
           <DshPluginRow
@@ -252,7 +252,7 @@
                 :class="[
                   'min-w-[1.75rem] h-7 px-1.5 rounded-md text-[11px] font-medium border transition-colors duration-200',
                   n === pageOf(sec)
-                    ? 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20 font-semibold'
+                    ? 'bg-black/5 dark:bg-[#282a32] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20 font-semibold'
                     : 'border-transparent text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-900 dark:hover:text-white/95'
                 ]"
               >{{ n }}</button>
@@ -281,7 +281,7 @@
             <span class="text-[11px] text-slate-400 dark:text-white/40">每页</span>
             <select
               v-model.number="pageSize"
-              class="bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-5 py-1 text-[11px] font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              class="bg-white dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-5 py-1 text-[11px] font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
             >
               <option :value="5">5</option>
               <option :value="10">10</option>
@@ -297,13 +297,13 @@
       <!-- 无匹配 / 空态 -->
       <div
         v-if="entries.length > 0 && hasActiveFilters && filtered.length === 0 && !store.dshInstallEntriesLoading"
-        class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
+        class="rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
       >
         无匹配当前筛选条件的插件，可点击「重置」清空筛选
       </div>
       <div
         v-if="entries.length === 0 && !store.dshInstallEntriesLoading"
-        class="rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
+        class="rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 p-6 text-center text-xs text-slate-500 dark:text-white/50"
       >
         该 profile 暂无任何配置声明或本机安装的插件
       </div>
@@ -312,7 +312,7 @@
         <button
           type="button"
           @click="clearFailed"
-          class="text-[11px] text-[#ff9f0a] hover:text-[#ff453a] transition-colors duration-200"
+          class="text-[11px] text-[#f59e0b] hover:text-[#ef4444] transition-colors duration-200"
         >
           清除本 profile 失败状态
         </button>
@@ -325,25 +325,25 @@
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-colors duration-200"
       @click.self="showError = ''"
     >
-      <div class="w-[min(720px,90vw)] max-h-[70vh] rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none p-4 flex flex-col">
+      <div class="w-[min(720px,90vw)] max-h-[70vh] rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none p-4 flex flex-col">
         <div class="flex items-center justify-between">
           <h3 class="font-serif text-sm text-slate-900 dark:text-white/95">安装失败堆栈</h3>
           <button
             type="button"
             @click="showError = ''"
-            class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-[#3a3a3c] text-slate-500 dark:text-white/50 transition-colors duration-200"
+            class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-[#282a32] text-slate-500 dark:text-white/50 transition-colors duration-200"
           >
             <X class="w-4 h-4" />
           </button>
         </div>
-        <pre class="mt-3 flex-1 overflow-auto rounded-lg bg-black/5 dark:bg-[#1c1c1e] border border-black/8 dark:border-white/8 p-3 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/80 whitespace-pre-wrap break-all">{{ showError }}</pre>
+        <pre class="mt-3 flex-1 overflow-auto rounded-lg bg-black/5 dark:bg-[#121316] border border-black/8 dark:border-white/8 p-3 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/80 whitespace-pre-wrap break-all">{{ showError }}</pre>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import {
   Puzzle,
@@ -388,7 +388,7 @@ interface SectionDef {
 }
 
 const store = useAppStore();
-const selectedProfile = ref('');
+const selectedProfile = ref(store.dshPluginsScan?.profiles[0]?.name || 'web');
 const showError = ref('');
 const view = ref<'source' | 'status'>('source');
 const installMenuOpen = ref(false);
@@ -450,6 +450,15 @@ function setPage(secId: string, page: number) {
 const searchQuery = ref('');
 const statusFilter = ref<'all' | DshPluginInstallStatus>('all');
 
+onMounted(async () => {
+  if (!store.dshPluginsScan) {
+    await store.loadDshPlugins().catch(() => {});
+  }
+  const prof = selectedProfile.value || store.dshPluginsScan?.profiles[0]?.name || 'web';
+  selectedProfile.value = prof;
+  await store.loadDshInstallEntries(prof).catch(() => {});
+});
+
 // 切换 profile / 搜索 / 状态筛选 / 每页条数时重置分页，避免停留在越界页
 watch([selectedProfile, searchQuery, statusFilter, pageSize], () => {
   for (const k of Object.keys(currentPage)) delete currentPage[k];
@@ -465,7 +474,7 @@ watch(selectedProfile, (profile) => {
 watch(
   () => store.dshPluginsScan?.profiles,
   (profiles) => {
-    if (profiles && profiles.length > 0 && !profiles.some(p => p.name === selectedProfile.value)) {
+    if (profiles && profiles.length > 0 && (!selectedProfile.value || !profiles.some(p => p.name === selectedProfile.value))) {
       selectedProfile.value = profiles[0].name;
     }
   },
@@ -520,10 +529,10 @@ const activeSections = computed<SectionDef[]>(() => {
         id: 'portable',
         title: '用户插件 · 可移植',
         subtitle: '可跨机复现安装 · 参与配置同步',
-        subtitleClass: 'text-[#30d158]',
+        subtitleClass: 'text-indigo-600 dark:text-indigo-400 font-medium',
         icon: Globe,
-        iconClass: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
-        accentClass: 'border-t-[#30d158]/60',
+        iconClass: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400',
+        accentClass: '',
         entries: groups.value.portable,
         total: totals.value.portable.length,
         paginated: true,
@@ -532,10 +541,10 @@ const activeSections = computed<SectionDef[]>(() => {
         id: 'unportable',
         title: '用户插件 · 本地开发',
         subtitle: 'link:/file: 本机路径 · 不参与同步',
-        subtitleClass: 'text-[#ff9f0a]',
+        subtitleClass: 'text-amber-600 dark:text-amber-400 font-medium',
         icon: Wrench,
-        iconClass: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
-        accentClass: 'border-t-[#ff9f0a]/60',
+        iconClass: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+        accentClass: 'border-t-amber-500/60',
         entries: groups.value.unportable,
         total: totals.value.unportable.length,
         paginated: true,
@@ -544,10 +553,10 @@ const activeSections = computed<SectionDef[]>(() => {
         id: 'inbox',
         title: '官方插件',
         subtitle: '@deepseek-ai/dsh-* · Harness 运行时解析 · 只读',
-        subtitleClass: 'text-[#0a84ff]',
+        subtitleClass: 'text-blue-600 dark:text-blue-400 font-medium',
         icon: Shield,
-        iconClass: 'bg-[#0a84ff]/10 border-[#0a84ff]/20 text-[#0a84ff]',
-        accentClass: 'border-t-[#0a84ff]/60',
+        iconClass: 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400',
+        accentClass: 'border-t-blue-500/60',
         entries: groups.value.inbox,
         total: totals.value.inbox.length,
       },
@@ -555,10 +564,10 @@ const activeSections = computed<SectionDef[]>(() => {
         id: 'row',
         title: 'Patch 配置行',
         subtitle: 'cordis.patch.yml 顶层条目 · 非 npm 包',
-        subtitleClass: 'text-[#bf5af2]',
+        subtitleClass: 'text-purple-600 dark:text-purple-400 font-medium',
         icon: ListTree,
-        iconClass: 'bg-[#bf5af2]/10 border-[#bf5af2]/20 text-[#bf5af2]',
-        accentClass: 'border-t-[#bf5af2]/60',
+        iconClass: 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400',
+        accentClass: 'border-t-purple-500/60',
         entries: groups.value.row,
         total: totals.value.row.length,
       },
@@ -566,10 +575,10 @@ const activeSections = computed<SectionDef[]>(() => {
         id: 'orphan',
         title: '孤儿安装',
         subtitle: '本机已装但未声明 · 可纳入配置或移除',
-        subtitleClass: 'text-[#ff453a]',
+        subtitleClass: 'text-red-600 dark:text-red-400 font-medium',
         icon: Unlink,
-        iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
-        accentClass: 'border-t-[#ff453a]/60',
+        iconClass: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400',
+        accentClass: 'border-t-red-500/60',
         entries: groups.value.orphan,
         total: totals.value.orphan.length,
       },
@@ -580,10 +589,10 @@ const activeSections = computed<SectionDef[]>(() => {
       id: 'ok',
       title: '正常',
       subtitle: '配置声明与磁盘安装一致',
-      subtitleClass: 'text-[#30d158]',
+      subtitleClass: 'text-slate-500 dark:text-white/50',
       icon: CheckCircle2,
-      iconClass: 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]',
-      accentClass: 'border-t-[#30d158]/60',
+      iconClass: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+      accentClass: '',
       entries: groups.value.ok,
       total: totals.value.ok.length,
     },
@@ -591,10 +600,10 @@ const activeSections = computed<SectionDef[]>(() => {
       id: 'pending',
       title: '待装',
       subtitle: '配置已声明 · 本机未安装',
-      subtitleClass: 'text-[#ff9f0a]',
+      subtitleClass: 'text-amber-600 dark:text-amber-400 font-medium',
       icon: Clock,
-      iconClass: 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ff9f0a]',
-      accentClass: 'border-t-[#ff9f0a]/60',
+      iconClass: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+      accentClass: 'border-t-amber-500/60',
       entries: groups.value.pending,
       total: totals.value.pending.length,
     },
@@ -602,10 +611,10 @@ const activeSections = computed<SectionDef[]>(() => {
       id: 'mismatch',
       title: '版本冲突',
       subtitle: '本机版本与配置 / lock 不一致',
-      subtitleClass: 'text-[#ff453a]',
+      subtitleClass: 'text-red-600 dark:text-red-400 font-medium',
       icon: AlertTriangle,
-      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
-      accentClass: 'border-t-[#ff453a]/60',
+      iconClass: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400',
+      accentClass: 'border-t-red-500/60',
       entries: groups.value.mismatch,
       total: totals.value.mismatch.length,
     },
@@ -613,10 +622,10 @@ const activeSections = computed<SectionDef[]>(() => {
       id: 'failed',
       title: '失败',
       subtitle: '上次安装失败',
-      subtitleClass: 'text-[#ff453a]',
+      subtitleClass: 'text-red-600 dark:text-red-400 font-medium',
       icon: XCircle,
-      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
-      accentClass: 'border-t-[#ff453a]/60',
+      iconClass: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400',
+      accentClass: 'border-t-red-500/60',
       entries: groups.value.failed,
       total: totals.value.failed.length,
     },
@@ -624,10 +633,10 @@ const activeSections = computed<SectionDef[]>(() => {
       id: 'orphan',
       title: '孤儿安装',
       subtitle: '本机已装但未声明 · 可纳入配置或移除',
-      subtitleClass: 'text-[#ff453a]',
+      subtitleClass: 'text-red-600 dark:text-red-400 font-medium',
       icon: Unlink,
-      iconClass: 'bg-[#ff453a]/10 border-[#ff453a]/20 text-[#ff453a]',
-      accentClass: 'border-t-[#ff453a]/60',
+      iconClass: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400',
+      accentClass: 'border-t-red-500/60',
       entries: groups.value.orphan,
       total: totals.value.orphan.length,
     },
@@ -637,31 +646,32 @@ const activeSections = computed<SectionDef[]>(() => {
 function sectionTint(id: string): string {
   switch (id) {
     case 'portable':
+      return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
     case 'ok':
-      return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
+      return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
     case 'unportable':
     case 'pending':
     case 'orphan':
-      return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
+      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
     case 'inbox':
-      return 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30';
+      return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
     case 'row':
-      return 'bg-[#bf5af2]/10 text-[#bf5af2] border-[#bf5af2]/30';
+      return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
     case 'mismatch':
     case 'failed':
-      return 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30';
+      return 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20';
     default:
       return 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10';
   }
 }
 
 const capsules = computed(() => [
-  { value: 'all' as const, label: '全部', count: entries.value.length, dot: '', activeCls: 'bg-black/5 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20' },
-  { value: 'ok' as const, label: '正常', count: totals.value.ok.length, dot: 'bg-[#30d158]', activeCls: 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30' },
-  { value: 'pending' as const, label: '待装', count: totals.value.pending.length, dot: 'bg-[#ff9f0a]', activeCls: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30' },
-  { value: 'version-mismatch' as const, label: '版本冲突', count: totals.value.mismatch.length, dot: 'bg-[#ff453a]', activeCls: 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30' },
-  { value: 'failed' as const, label: '失败', count: totals.value.failed.length, dot: 'bg-[#ff453a]', activeCls: 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30' },
-  { value: 'orphan' as const, label: '孤儿', count: totals.value.orphan.length, dot: 'bg-[#ff9f0a]', activeCls: 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30' },
+  { value: 'all' as const, label: '全部', count: entries.value.length, dot: '', activeCls: 'bg-black/5 dark:bg-[#282a32] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20' },
+  { value: 'ok' as const, label: '正常', count: totals.value.ok.length, dot: 'bg-[#3b82f6] ring-2 ring-[#3b82f6]/20', activeCls: 'bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30' },
+  { value: 'pending' as const, label: '待装', count: totals.value.pending.length, dot: 'bg-[#f59e0b] ring-2 ring-[#f59e0b]/20', activeCls: 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30' },
+  { value: 'version-mismatch' as const, label: '版本冲突', count: totals.value.mismatch.length, dot: 'bg-[#ef4444] ring-2 ring-[#ef4444]/20', activeCls: 'bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30' },
+  { value: 'failed' as const, label: '失败', count: totals.value.failed.length, dot: 'bg-[#ef4444] ring-2 ring-[#ef4444]/20', activeCls: 'bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30' },
+  { value: 'orphan' as const, label: '孤儿', count: totals.value.orphan.length, dot: 'bg-[#f59e0b] ring-2 ring-[#f59e0b]/20', activeCls: 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30' },
 ]);
 
 const hasFailedState = computed(() => entries.value.some(e => e.status === 'failed'));
