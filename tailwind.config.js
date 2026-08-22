@@ -9,13 +9,13 @@ export default {
     extend: {
       colors: {
         vibrancy: {
-          deep: '#1c1c1e',
-          mid: '#2c2c2e',
-          surface: '#3a3a3c',
-          accent: '#0a84ff',
-          green: '#30d158',
-          orange: '#ff9f0a',
-          red: '#ff453a',
+          deep: '#121316',
+          mid: '#1c1d22',
+          surface: '#282a32',
+          accent: '#3b82f6',
+          green: '#22c55e',
+          orange: '#f59e0b',
+          red: '#ef4444',
         },
       },
       fontFamily: {

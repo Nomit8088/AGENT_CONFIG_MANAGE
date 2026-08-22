@@ -8,8 +8,8 @@
       :class="[
         'px-2 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors duration-200',
         isOpen
-          ? 'bg-black/10 dark:bg-[#3a3a3c] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
-          : 'bg-black/5 dark:bg-[#2c2c2e] hover:bg-black/10 dark:hover:bg-[#343437] text-slate-700 dark:text-white/80 border-black/8 dark:border-white/10'
+          ? 'bg-black/10 dark:bg-[#282a32] text-slate-900 dark:text-white/95 border-black/15 dark:border-white/20'
+          : 'bg-black/5 dark:bg-[#1c1d22] hover:bg-black/10 dark:hover:bg-[#343437] text-slate-700 dark:text-white/80 border-black/8 dark:border-white/10'
       ]"
     >
       <Plus class="w-3 h-3 text-slate-600 dark:text-white/80" />
@@ -26,7 +26,7 @@
         ref="popoverRef"
         @click.stop
         :style="popoverStyle"
-        class="fixed w-72 rounded-xl bg-white/95 dark:bg-[#1c1c1e]/95 border border-black/10 dark:border-white/12 z-[9999] p-3 space-y-2.5 backdrop-blur-xl select-none text-xs text-slate-900 dark:text-white/90 shadow-lg dark:shadow-none"
+        class="fixed w-72 rounded-xl bg-white/95 dark:bg-[#121316]/95 border border-black/10 dark:border-white/12 z-[9999] p-3 space-y-2.5 backdrop-blur-xl select-none text-xs text-slate-900 dark:text-white/90 shadow-lg dark:shadow-none"
       >
         <!-- Popover Top Header: Quick Actions -->
         <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-2">
@@ -58,7 +58,7 @@
             v-model="search"
             type="text"
             placeholder="搜索/过滤 Agent..."
-            class="w-full bg-black/5 dark:bg-[#1c1c1e] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 placeholder-slate-400 dark:placeholder-white/30 transition-colors duration-200"
+            class="w-full bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 placeholder-slate-400 dark:placeholder-white/30 transition-colors duration-200"
           />
         </div>
 
@@ -83,7 +83,7 @@
                 @change="handleRowClick(agent.id)"
                 class="custom-checkbox flex-shrink-0"
               />
-              <div class="w-5 h-5 rounded-md bg-black/5 dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
+              <div class="w-5 h-5 rounded-md bg-black/5 dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 flex items-center justify-center flex-shrink-0">
                 <AgentBrandIcon :agentId="agent.id" size="sm" />
               </div>
               <div class="truncate">
@@ -92,7 +92,7 @@
                   <span
                     :class="[
                       'w-1.5 h-1.5 rounded-sm flex-shrink-0',
-                      agent.detected ? 'bg-[#30d158]' : 'bg-slate-300 dark:bg-white/30'
+                      agent.detected ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30'
                     ]"
                   ></span>
                 </div>

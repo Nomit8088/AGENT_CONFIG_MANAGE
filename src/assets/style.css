@@ -3,29 +3,39 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
-  --mv-bg-deep: #f5f5f7;
+  color-scheme: light;
+  --mv-bg-deep: #f1f5f9;
   --mv-bg-mid: #ffffff;
-  --mv-bg-surface: #e5e5ea;
-  --mv-border: rgba(0, 0, 0, 0.08);
-  --mv-border-strong: rgba(0, 0, 0, 0.16);
-  --mv-text: #1d1d1f;
-  --mv-text-secondary: rgba(0, 0, 0, 0.65);
-  --mv-text-muted: rgba(0, 0, 0, 0.45);
-  --mv-accent: #0071e3;
+  --mv-bg-surface: #e2e8f0;
+  --mv-border: rgba(15, 23, 42, 0.09);
+  --mv-border-strong: rgba(15, 23, 42, 0.18);
+  --mv-text: #0f172a;
+  --mv-text-secondary: rgba(15, 23, 42, 0.75);
+  --mv-text-muted: rgba(15, 23, 42, 0.45);
+  --mv-accent: #4f46e5;
+  --mv-accent-blue: #2563eb;
+  --mv-accent-green: #16a34a;
+  --mv-accent-amber: #d97706;
+  --mv-accent-red: #dc2626;
+  --mv-accent-purple: #7c3aed;
 }
 
 .dark {
   color-scheme: dark;
-  --mv-bg-deep: #1c1c1e;
-  --mv-bg-mid: #2c2c2e;
-  --mv-bg-surface: #3a3a3c;
+  --mv-bg-deep: #0c0d12;
+  --mv-bg-mid: #14161f;
+  --mv-bg-surface: #1d202d;
   --mv-border: rgba(255, 255, 255, 0.08);
-  --mv-border-strong: rgba(255, 255, 255, 0.14);
-  --mv-text: rgba(255, 255, 255, 0.95);
-  --mv-text-secondary: rgba(255, 255, 255, 0.7);
-  --mv-text-muted: rgba(255, 255, 255, 0.4);
-  --mv-accent: #0a84ff;
+  --mv-border-strong: rgba(255, 255, 255, 0.16);
+  --mv-text: #f8fafc;
+  --mv-text-secondary: rgba(248, 250, 252, 0.75);
+  --mv-text-muted: rgba(248, 250, 252, 0.45);
+  --mv-accent: #6366f1;
+  --mv-accent-blue: #3b82f6;
+  --mv-accent-green: #22c55e;
+  --mv-accent-amber: #f59e0b;
+  --mv-accent-red: #ef4444;
+  --mv-accent-purple: #8b5cf6;
 }
 
 body {
@@ -91,8 +101,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .custom-checkbox:checked {
-  background-color: #0a84ff !important;
-  border-color: #0a84ff !important;
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
 }
 
 .custom-checkbox:checked::after {
@@ -125,5 +135,18 @@ h1, h2, h3, h4, h5, h6 {
 .slide-right-leave-to {
   transform: translateX(100%);
   opacity: 0;
+}
+
+/* macOS Vibrancy Card & Subtle Effects */
+.macos-vibrancy-card {
+  transition: border-color 200ms ease-out, background-color 200ms ease-out;
+}
+
+.macos-vibrancy-card:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.dark .macos-vibrancy-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
