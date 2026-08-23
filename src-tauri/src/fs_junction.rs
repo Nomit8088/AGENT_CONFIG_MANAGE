@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
 use crate::process::spawn_cmd;
 
 pub fn expand_tilde(path_str: &str) -> PathBuf {
@@ -239,5 +240,38 @@ mod tests {
             let _ = std::fs::create_dir_all(parent);
         }
         std::fs::write(&out, lines.join("\n") + "\n").unwrap();
+    }
+
+    #[test]
+    fn mount_skill_structure() {
+        // B-M2.1/B-M2.3：Default 产生链接（junction/symlink），HardlinkTree 产生物理目录+硬链，
+        // 两者分发后内容与中央库一致、可被 fs::read 读取。
+        let base = std::env::temp_dir().join(format!("agenthub-mount-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let central = base.join("central");
+        let default_target = base.join("mount-default");
+        let hardlink_target = base.join("mount-hardlink");
+        std::fs::create_dir_all(&central).unwrap();
+        std::fs::write(central.join("SKILL.md"), "# test\n").unwrap();
+
+        // Default（claude-code）：应产生 junction/symlink，内容一致
+        mount_skill("claude-code", &central, &default_target).unwrap();
+        assert!(default_target.exists());
+        assert!(is_junction_or_symlink(&default_target), "Default 策略应产生链接");
+        assert_eq!(
+            std::fs::read_to_string(default_target.join("SKILL.md")).unwrap(),
+            "# test\n"
+        );
+
+        // HardlinkTree（antigravity）：应产生物理目录（非链接），内容一致
+        mount_skill("antigravity", &central, &hardlink_target).unwrap();
+        assert!(hardlink_target.is_dir());
+        assert!(!is_junction_or_symlink(&hardlink_target), "HardlinkTree 策略应产生物理目录");
+        assert_eq!(
+            std::fs::read_to_string(hardlink_target.join("SKILL.md")).unwrap(),
+            "# test\n"
+        );
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

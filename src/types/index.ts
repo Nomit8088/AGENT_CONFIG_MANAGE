@@ -288,7 +288,7 @@ export interface AppConfig {
 }
 
 /** 当前客户端版本，供前端展示使用（需与 package.json / Cargo.toml / tauri.conf.json 保持一致）。 */
-export const APP_VERSION = '1.0.3';
+export const APP_VERSION = '1.0.5';
 
 export interface ValidationResult {
   valid: boolean;

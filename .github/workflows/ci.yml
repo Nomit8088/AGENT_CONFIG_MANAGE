@@ -26,6 +26,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Run Node CI-A assertions (B-M9.1 + B-M2.2)
+        run: npx tsx scripts/ci-a-test.ts
+
       - name: TypeScript Typecheck
         run: npx tsc --noEmit
 
@@ -70,9 +73,9 @@ jobs:
       - name: Cargo check
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      # B-M2.2 跨语言对拍：Rust 与 Node 各自 dump 链接策略决策表并 diff，锁死双端漂移。
-      - name: Dump Rust link strategy table
-        run: cargo test --manifest-path src-tauri/Cargo.toml dump_link_strategy
+      # CI-A 验收测试 + B-M2.2 对拍：cargo test 跑全部 Rust 单测（链接结构/进程树/数据目录/链接策略矩阵）
+      - name: Run Rust tests (CI-A + B-M2.2 dump)
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Dump Node link strategy table
         run: npx tsx scripts/dump-link-strategy.ts

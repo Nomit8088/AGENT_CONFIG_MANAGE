@@ -16,10 +16,8 @@ jobs:
         include:
           - platform: 'windows-latest'
             args: '--bundles nsis,msi'
-          - platform: 'macos-latest'   # arm64
-            args: '--bundles app,dmg'
-          - platform: 'macos-13'       # x86_64（Intel Mac）
-            args: '--bundles app,dmg'
+          - platform: 'macos-latest'   # universal：arm64 上交叉编译 x86_64，摆脱对已淘汰的 macos-13 Intel runner 依赖
+            args: '--target universal-apple-darwin --bundles app,dmg'
           - platform: 'ubuntu-latest'
             args: '--bundles deb,appimage'
 
@@ -49,6 +47,10 @@ jobs:
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust targets (macOS universal)
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Install Frontend Dependencies
         run: npm ci

@@ -23,14 +23,18 @@ pub const NETWORK_CMD_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// 构造一个不会弹出控制台窗口的 `Command`（Windows 下追加 CREATE_NO_WINDOW）。
 pub fn spawn_cmd<S: AsRef<OsStr>>(program: S) -> Command {
-    let mut cmd = Command::new(program);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut cmd = Command::new(program);
         cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
     }
-    cmd
+    #[cfg(not(windows))]
+    {
+        Command::new(program)
+    }
 }
 
 /// 结束整个进程树（Windows 用 taskkill /T /F；Unix 递归 pgrep -P 自底向上 + kill -9）。
@@ -184,4 +188,55 @@ where
         });
     }
     Ok(out)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{direct_children, kill_tree};
+
+    /// 进程是否仍在运行（僵尸 Z 与不存在均视为已死）。
+    fn is_alive(pid: u32) -> bool {
+        let out = std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", &pid.to_string()])
+            .output();
+        match out {
+            Ok(o) if o.status.success() => {
+                let state = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                !state.is_empty() && !state.starts_with('Z')
+            }
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn kill_tree_unix_kills_descendants() {
+        // B-M4.6：spawn 一个带子进程的 sh，kill_tree 后整棵树（根 + 子进程）消失。
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", "sleep 300 & sleep 300"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let root = child.id();
+
+        // 等子进程就位（最多 2s）
+        let mut child_pids = Vec::new();
+        for _ in 0..20 {
+            child_pids = direct_children(root);
+            if !child_pids.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(!child_pids.is_empty(), "应能探测到子进程");
+
+        kill_tree(root);
+        let _ = child.wait(); // 回收根进程，避免僵尸被误判为存活
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        assert!(!is_alive(root), "根进程应已被杀");
+        for p in child_pids {
+            assert!(!is_alive(p), "子进程 {p} 应已被杀（递归杀树）");
+        }
+    }
 }
