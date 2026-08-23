@@ -279,6 +279,7 @@ flowchart TD
 │       ├── DshPluginSync.vue           # DSH 插件配置对账卡片（本地 ~/.dsh ↔ 同步镜像 dsh/；对账/一键对齐/差异详情）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
 │       ├── DshConfigSnapshots.vue      # DSH 配置快照时间线（手动创建 + 触发来源/备注 + 一键回滚 + 永久保留）
+│       ├── DshVersionManager.vue       # DSH 版本管理（当前/远端版本 + 升级/回滚 + 版本历史 + 指定版本安装）
 │       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器 + 自动检查更新开关)
 │       ├── UpdateModal.vue             # 应用在线更新弹窗 (检查/下载进度/安装重启)
 │       └── ToastContainer.vue          # 全局浮动操作提示
@@ -507,6 +508,32 @@ npm run tauri build
 
 ---
 
+## 8D. DSH 版本升级与版本管理（WI-009）
+
+在插件中心新增「DSH 版本」分段页签，把 DSH 本体当作全局 npm 包（`@deepseek-ai/dsh`）管理：查看当前版本、检测远端最新、升级、回滚与版本历史，防止 DSH 升级后插件大面积失效。
+
+### 能力与关键决策
+- 当前版本：优先 `dsh --version`（实测），回退 npm 全局包 `package.json`（`npm root -g` + `@deepseek-ai/dsh/package.json`）交叉验证。
+- 远端最新：npm registry（Rust 复用 `query_npm_latest`；Node 用 `npm view @deepseek-ai/dsh version`）。
+- 升级 / 指定版本安装：`npm install -g @deepseek-ai/dsh@<version|latest>`；升级前对**所有 profile** 自动创建配置快照（复用 WI-006 `create_dsh_config_snapshot`，`trigger=upgrade`）。
+- 「插件大面积失效」判定：升级前后各跑一次 `diagnose_dsh_web`（逐 profile），对比失败插件条目数，`after > before` 判定为大面积失效。
+- 一键回滚：同时覆盖两层 —— `npm install -g` 装回旧版 + 复用 `rollback_dsh_config_snapshot` 回滚升级前快照。
+- 版本历史：`dsh_version_history.json`（App 数据目录，最多 50 条，已入共享 `.gitignore`），记录版本 / 动作（升级/安装/回滚）/ 时间 / 来源版本。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `get_dsh_version_info` | `GET /api/dsh/version` | 当前版本 + dsh/npm 命令 |
+| `check_dsh_version_update` | `GET /api/dsh/version/check` | 检测远端最新版本 |
+| `list_dsh_versions` | `GET /api/dsh/version/history` | 版本历史 |
+| `upgrade_dsh_version` | `POST /api/dsh/version/upgrade` | 升级（快照 → 安装 → 诊断对比） |
+| `install_dsh_version` | `POST /api/dsh/version/install` | 指定版本安装 / 降级 / 切换 |
+| `rollback_dsh_version` | `POST /api/dsh/version/rollback` | 一键回滚（版本 + 配置快照） |
+
+> 升级/降级是全局操作、影响所有 profile，UI 二次确认；诊断对比基于 `diagnose_dsh_web` 的失败插件数。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -528,6 +555,8 @@ npm run tauri build
 
 ### 变更记录 (Changelog)
 
+- **2026-08-24 (Session — WI-009)**:
+  - **DSH 版本升级与版本管理**：新增 §8D 版本管理模块；`DshVersionManager.vue` 版本页签 UI（当前/远端版本 + 升级 + 一键回滚 + 版本历史 + 指定版本安装）；升级前自动快照（`trigger=upgrade`）+ 升级后诊断对比失败插件数；回滚覆盖版本 + 配置两层。Rust 6 命令 + Node 6 路由 + 前端 store 动作双端对齐，版本保持 v1.0.6（与 WI-006 同版发布）。
 - **2026-08-24 (Session — WI-006)**:
   - **DSH 配置快照与回滚**：新增 §8C 快照模块；`DshConfigSnapshots.vue` 时间线 UI（手动创建 + 触发来源/备注 + 一键回滚 + 永久保留）；安装/对齐前自动快照；保留策略最近 20 份 + 永久保留；`backups/` 入 `.gitignore`。Rust 5 命令 + Node 5 路由 + 前端 store 动作双端对齐，版本升 v1.0.6。
 - **2026-08-18 (Session 5)**:

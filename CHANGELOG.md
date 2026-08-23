@@ -11,6 +11,11 @@ All notable changes to AgentHub are documented in this file.
 - 一键回滚：只覆盖 `package.json` / `cordis.patch.yml` / `pnpm-lock.yaml` / `pnpm-workspace.yaml`，不覆盖 `node_modules`，回滚后提示是否需 `pnpm install` 对齐。
 - 保留策略：最近 20 份自动快照 + 手动标记「永久保留」，超出自动清理；快照目录加入同步仓库 `.gitignore`。
 - 双端对齐：Rust 新增 `create_dsh_config_snapshot` / `list_dsh_config_snapshots` / `rollback_dsh_config_snapshot` / `set_dsh_config_snapshot_permanent` / `delete_dsh_config_snapshot` 命令，Node 同步新增对应 Web 路由与前端 store 动作。
+- DSH 版本升级与版本管理（WI-009）：插件中心新增「DSH 版本」分段页签，展示当前版本（`dsh --version` / npm 全局包实测）并检测 npm registry 远端最新版本。
+- 升级：升级前自动创建配置快照（`trigger=upgrade`）→ `npm install -g @deepseek-ai/dsh@<version>` → 升级后跑诊断对比 before/after 失败插件数，判定「插件大面积失效」。
+- 失败 / 大面积失效一键回滚：同时覆盖两层（装回旧版本 + 回滚升级前配置快照）。
+- 版本历史：本地记录装过的版本（`dsh_version_history.json`，最多 50 条），支持指定版本安装 / 降级 / 切换。
+- 双端对齐：Rust 新增 `get_dsh_version_info` / `check_dsh_version_update` / `list_dsh_versions` / `upgrade_dsh_version` / `install_dsh_version` / `rollback_dsh_version` 命令，Node 同步新增对应 Web 路由与前端 store 动作。
 
 ## [1.0.5] - 2026-08-23
 

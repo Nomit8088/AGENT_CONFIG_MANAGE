@@ -253,12 +253,12 @@ export interface DshPluginsConfig {
 
 // ==================== DSH 配置快照与回滚 (WI-006) ====================
 
-export type DshSnapshotTrigger = 'manual' | 'install' | 'align';
+export type DshSnapshotTrigger = 'manual' | 'install' | 'align' | 'upgrade';
 
 export interface DshConfigSnapshot {
   id: string;                 // dsh-snap-<ms>，全局唯一
   createdAt: number;          // ms 时间戳
-  trigger: DshSnapshotTrigger; // manual=手动 / install=安装前自动 / align=对齐前自动
+  trigger: DshSnapshotTrigger; // manual=手动 / install=安装前自动 / align=对齐前自动 / upgrade=DSH 升级前自动
   note?: string;              // 备注（手动创建可填）
   permanent: boolean;         // 是否永久保留（不参与「最近 20 份」自动清理）
   profileName: string;
@@ -269,6 +269,58 @@ export interface DshSnapshotRollbackResult {
   profile: string;
   restored: string[];         // 本次实际覆盖/删除的文件名
   needsInstall: boolean;      // 回滚只覆盖配置文件，不覆盖 node_modules
+}
+
+// ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+export interface DshVersionInfo {
+  packageName: string;        // @deepseek-ai/dsh
+  current: string | null;     // 当前安装版本（dsh --version / npm 全局包实测）
+  dshCommand: string | null;
+  npmCommand: string | null;
+  checkedAt: number;
+}
+
+export interface DshVersionCheck {
+  packageName: string;
+  current: string | null;
+  latest: string | null;      // npm registry 最新版本
+  updateAvailable: boolean;
+  checkedAt: number;
+  error?: string;
+}
+
+export type DshVersionAction = 'upgrade' | 'install' | 'rollback';
+
+export interface DshVersionHistoryEntry {
+  version: string;
+  action: DshVersionAction;
+  installedAt: number;        // ms 时间戳
+  fromVersion?: string;       // 变更前版本
+  note?: string;
+}
+
+export interface DshVersionUpgradeResult {
+  ok: boolean;
+  action: 'upgrade' | 'install';
+  beforeVersion: string | null;
+  afterVersion: string | null;
+  targetVersion: string;      // 'latest' 或具体版本号
+  snapshotIds: string[];      // 升级前自动创建的快照 id
+  diagnosisBefore: number;    // 升级前诊断失败条目数
+  diagnosisAfter: number;     // 升级后诊断失败条目数
+  massFailure: boolean;       // 插件大面积失效判定（after > before）
+  output: string;             // npm install -g 日志
+  warnings: string[];
+  error?: string;
+}
+
+export interface DshVersionRollbackResult {
+  ok: boolean;
+  version: string | null;     // 回滚后的版本
+  restoredSnapshots: DshSnapshotRollbackResult[];
+  output: string;
+  error?: string;
 }
 
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================

@@ -337,7 +337,7 @@ pub struct DshConfigSnapshot {
     pub id: String,
     #[serde(rename = "createdAt")]
     pub created_at: u64,
-    pub trigger: String, // "manual" | "install" | "align"
+    pub trigger: String, // "manual" | "install" | "align" | "upgrade"
     #[serde(default, rename = "note", skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     pub permanent: bool,
@@ -352,6 +352,86 @@ pub struct DshSnapshotRollbackResult {
     pub restored: Vec<String>,
     #[serde(rename = "needsInstall")]
     pub needs_install: bool,
+}
+
+// ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshVersionInfo {
+    #[serde(rename = "packageName")]
+    pub package_name: String,
+    #[serde(default)]
+    pub current: Option<String>,
+    #[serde(rename = "dshCommand", default)]
+    pub dsh_command: Option<String>,
+    #[serde(rename = "npmCommand", default)]
+    pub npm_command: Option<String>,
+    #[serde(rename = "checkedAt")]
+    pub checked_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshVersionCheck {
+    #[serde(rename = "packageName")]
+    pub package_name: String,
+    #[serde(default)]
+    pub current: Option<String>,
+    #[serde(default)]
+    pub latest: Option<String>,
+    #[serde(rename = "updateAvailable")]
+    pub update_available: bool,
+    #[serde(rename = "checkedAt")]
+    pub checked_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshVersionHistoryEntry {
+    pub version: String,
+    pub action: String, // "upgrade" | "install" | "rollback"
+    #[serde(rename = "installedAt")]
+    pub installed_at: u64,
+    #[serde(rename = "fromVersion", default, skip_serializing_if = "Option::is_none")]
+    pub from_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshVersionUpgradeResult {
+    pub ok: bool,
+    pub action: String, // "upgrade" | "install"
+    #[serde(rename = "beforeVersion", default)]
+    pub before_version: Option<String>,
+    #[serde(rename = "afterVersion", default)]
+    pub after_version: Option<String>,
+    #[serde(rename = "targetVersion")]
+    pub target_version: String,
+    #[serde(rename = "snapshotIds")]
+    pub snapshot_ids: Vec<String>,
+    #[serde(rename = "diagnosisBefore")]
+    pub diagnosis_before: u32,
+    #[serde(rename = "diagnosisAfter")]
+    pub diagnosis_after: u32,
+    #[serde(rename = "massFailure")]
+    pub mass_failure: bool,
+    pub output: String,
+    pub warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshVersionRollbackResult {
+    pub ok: bool,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(rename = "restoredSnapshots")]
+    pub restored_snapshots: Vec<DshSnapshotRollbackResult>,
+    pub output: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================

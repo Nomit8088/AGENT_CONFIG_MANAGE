@@ -24,6 +24,11 @@ import type {
   DshRecoveryAction,
   DshSnapshotRollbackResult,
   DshSnapshotTrigger,
+  DshVersionCheck,
+  DshVersionHistoryEntry,
+  DshVersionInfo,
+  DshVersionRollbackResult,
+  DshVersionUpgradeResult,
   SkillsSyncStatus,
 } from '../types';
 
@@ -106,6 +111,11 @@ export function resolvePnpmCommand(cfg?: any): string | null {
   const configured = c?.dsh_plugins?.pnpmCommand;
   if (configured && configured.trim()) return configured.trim();
   return whichCmd('pnpm') || npmDirCmd('pnpm');
+}
+
+/** npm 命令探测（DSH 本体是全局 npm 包，升级/版本管理走 npm，与 pnpm 的插件安装分属两条链）。 */
+export function resolveNpmCommand(_cfg?: any): string | null {
+  return whichCmd('npm') || npmDirCmd('npm');
 }
 
 // ==================== 扫描 ====================
@@ -1828,6 +1838,7 @@ config.json
 agents.json
 projects.json
 dsh_install_state.json
+dsh_version_history.json
 backups/
 *.log
 .DS_Store
@@ -2573,4 +2584,333 @@ export function deleteDshConfigSnapshot(snapshotId: string): void {
   const found = findSnapshotById(snapshotId);
   if (!found) throw new Error(`未找到快照: ${snapshotId}`);
   fs.rmSync(found.dir, { recursive: true, force: true });
+}
+
+// ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+const DSH_PACKAGE_NAME = '@deepseek-ai/dsh';
+const MAX_VERSION_HISTORY = 50;
+const VERSION_TARGET_RE = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/** 同步执行一次 npm 子命令（cross-platform：Windows 走 shell 以兼容 npm.cmd，注入系统代理）。 */
+function runNpmSync(npmCmd: string, args: string[]): { status: number | null; stdout: string; stderr: string } {
+  try {
+    const r = spawnSync(npmCmd, args, {
+      encoding: 'utf-8',
+      shell: process.platform === 'win32',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...pnpmProxyEnv() },
+      timeout: 30000,
+    });
+    return {
+      status: r.status,
+      stdout: (r.stdout || '').trim(),
+      stderr: (r.stderr || '').trim(),
+    };
+  } catch (e: any) {
+    return { status: null, stdout: '', stderr: e?.message || String(e) };
+  }
+}
+
+function parseVersionToken(text: string): string | null {
+  const m = text.match(/v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/);
+  return m ? m[0].replace(/^v/, '') : null;
+}
+
+function readGlobalNpmPackageVersion(npmCmd: string, pkgName: string): string | null {
+  const root = runNpmSync(npmCmd, ['root', '-g']);
+  if (root.status !== 0 || !root.stdout) return null;
+  const base = root.stdout.split(/\r?\n/)[0].trim();
+  if (!base) return null;
+  const pkgFile = path.join(base, ...pkgName.split('/'), 'package.json');
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'));
+    if (typeof pkg.version === 'string') return pkg.version;
+  } catch {}
+  return null;
+}
+
+/** 当前 DSH 版本：优先 `dsh --version`，回退 npm 全局包 package.json（两者交叉验证，实测为准）。 */
+export function getCurrentDshVersion(): string | null {
+  const cfg = readConfigFile();
+  const dshCmd = resolveDshCommand(cfg);
+  if (dshCmd) {
+    try {
+      const r = spawnSync(dshCmd, ['--version'], {
+        encoding: 'utf-8',
+        shell: process.platform === 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 10000,
+      });
+      const v = parseVersionToken(`${r.stdout || ''}\n${r.stderr || ''}`);
+      if (v) return v;
+    } catch {}
+  }
+
+  const npmCmd = resolveNpmCommand();
+  if (npmCmd) {
+    const v = readGlobalNpmPackageVersion(npmCmd, DSH_PACKAGE_NAME);
+    if (v) return v;
+  }
+  return null;
+}
+
+export function getDshVersionInfo(): DshVersionInfo {
+  return {
+    packageName: DSH_PACKAGE_NAME,
+    current: getCurrentDshVersion(),
+    dshCommand: resolveDshCommand(),
+    npmCommand: resolveNpmCommand(),
+    checkedAt: Date.now(),
+  };
+}
+
+function semverParts(v: string): number[] {
+  return v
+    .trim()
+    .replace(/^v/, '')
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .map(n => parseInt(n, 10) || 0);
+}
+
+function semverNewer(latest: string, current: string): boolean {
+  const a = semverParts(latest);
+  const b = semverParts(current);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av !== bv) return av > bv;
+  }
+  return false;
+}
+
+export function checkDshVersionUpdate(): DshVersionCheck {
+  const current = getCurrentDshVersion();
+  const npmCmd = resolveNpmCommand();
+  const checkedAt = Date.now();
+
+  if (!npmCmd) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      updateAvailable: false,
+      checkedAt,
+      error: '未找到 npm 命令，请先安装 Node.js / npm',
+    };
+  }
+
+  const r = runNpmSync(npmCmd, ['view', DSH_PACKAGE_NAME, 'version']);
+  const latest = (r.stdout || '').split(/\r?\n/).map(s => s.trim()).find(Boolean) || null;
+  if (r.status !== 0) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      updateAvailable: false,
+      checkedAt,
+      error: r.stderr || '查询 npm registry 失败',
+    };
+  }
+  if (!latest) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      updateAvailable: false,
+      checkedAt,
+      error: r.stderr || '查询 npm registry 失败',
+    };
+  }
+
+  return {
+    packageName: DSH_PACKAGE_NAME,
+    current,
+    latest,
+    updateAvailable: current ? semverNewer(latest, current) : false,
+    checkedAt,
+  };
+}
+
+function versionHistoryFile(): string {
+  return path.join(appDataDir(), 'dsh_version_history.json');
+}
+
+function readVersionHistory(): DshVersionHistoryEntry[] {
+  const f = versionHistoryFile();
+  if (!fs.existsSync(f)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(f, 'utf-8'));
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (e): e is DshVersionHistoryEntry => !!e && typeof (e as any).version === 'string',
+      );
+    }
+  } catch {}
+  return [];
+}
+
+function appendVersionHistory(entry: DshVersionHistoryEntry): void {
+  const list = readVersionHistory();
+  list.unshift(entry);
+  fs.mkdirSync(appDataDir(), { recursive: true });
+  fs.writeFileSync(versionHistoryFile(), JSON.stringify(list.slice(0, MAX_VERSION_HISTORY), null, 2) + '\n', 'utf-8');
+}
+
+export function listDshVersions(): DshVersionHistoryEntry[] {
+  return readVersionHistory();
+}
+
+/** 升级前后诊断对比：对每个 profile 跑一次 `diagnose_dsh_web`，累计失败插件条目数。 */
+async function countDshFailures(): Promise<number> {
+  const profiles = listProfileDirs(path.join(resolveDshHome(), 'profiles'));
+  const targets = profiles.length > 0 ? profiles : ['web'];
+  let total = 0;
+  for (const p of targets) {
+    try {
+      const r = await diagnoseDshWeb(p);
+      total += r.failedPlugins.length;
+    } catch {}
+  }
+  return total;
+}
+
+async function runDshVersionChange(
+  target: string,
+  action: 'upgrade' | 'install',
+  onLine?: (line: string) => void,
+): Promise<DshVersionUpgradeResult> {
+  const beforeVersion = getCurrentDshVersion();
+  const npmCmd = resolveNpmCommand();
+  const safeTarget = (target || '').trim() || 'latest';
+
+  const base = (): DshVersionUpgradeResult => ({
+    ok: false,
+    action,
+    beforeVersion,
+    afterVersion: beforeVersion,
+    targetVersion: safeTarget,
+    snapshotIds: [],
+    diagnosisBefore: 0,
+    diagnosisAfter: 0,
+    massFailure: false,
+    output: '',
+    warnings: [],
+  });
+
+  if (!npmCmd) {
+    return { ...base(), error: '未找到 npm 命令，请先安装 Node.js / npm' };
+  }
+  if (safeTarget !== 'latest' && !VERSION_TARGET_RE.test(safeTarget)) {
+    return { ...base(), error: `非法版本号: ${safeTarget}` };
+  }
+
+  // 1) 升级前诊断基准
+  const diagnosisBefore = await countDshFailures();
+
+  // 2) 升级前自动快照（所有 profile，复用 WI-006 create_dsh_config_snapshot）
+  const snapshotIds: string[] = [];
+  const profiles = listProfileDirs(path.join(resolveDshHome(), 'profiles'));
+  const snapshotTargets = profiles.length > 0 ? profiles : ['web'];
+  for (const p of snapshotTargets) {
+    try {
+      const snap = createDshConfigSnapshot(p, 'upgrade', 'DSH 升级前自动快照');
+      snapshotIds.push(snap.id);
+    } catch {}
+  }
+
+  // 3) npm install -g（复用 runPnpmStream 的 spawn + 代理注入 + 超时能力）
+  const spec = safeTarget === 'latest' ? `${DSH_PACKAGE_NAME}@latest` : `${DSH_PACKAGE_NAME}@${safeTarget}`;
+  const collect = onLine || (() => {});
+  const run = await runPnpmStream(npmCmd, ['install', '-g', spec], os.homedir(), collect, 600000);
+
+  const afterVersion = getCurrentDshVersion();
+  const diagnosisAfter = await countDshFailures();
+  const massFailure = diagnosisAfter > diagnosisBefore;
+  const installOk = run.exitCode === 0 && !run.timedOut;
+  const ok = installOk && !massFailure;
+
+  const warnings: string[] = [];
+  if (run.timedOut) warnings.push('npm install -g 执行超过 10 分钟，已强制终止（timeout）');
+  if (!installOk) warnings.push(`npm install -g 退出码为 ${run.exitCode ?? 'timeout'}`);
+  if (massFailure) {
+    warnings.push(`升级后失败插件数 ${diagnosisBefore} → ${diagnosisAfter}，疑似插件大面积失效，建议一键回滚`);
+  }
+
+  appendVersionHistory({
+    version: afterVersion || safeTarget,
+    action,
+    installedAt: Date.now(),
+    fromVersion: beforeVersion || undefined,
+    note: action === 'upgrade' ? '升级到最新版' : `安装指定版本 ${safeTarget}`,
+  });
+
+  return {
+    ok,
+    action,
+    beforeVersion,
+    afterVersion,
+    targetVersion: safeTarget,
+    snapshotIds,
+    diagnosisBefore,
+    diagnosisAfter,
+    massFailure,
+    output: run.output,
+    warnings,
+  };
+}
+
+export async function upgradeDshVersion(onLine?: (line: string) => void): Promise<DshVersionUpgradeResult> {
+  return runDshVersionChange('latest', 'upgrade', onLine);
+}
+
+export async function installDshVersion(targetVersion: string, onLine?: (line: string) => void): Promise<DshVersionUpgradeResult> {
+  return runDshVersionChange(targetVersion, 'install', onLine);
+}
+
+/** 一键回滚：同时覆盖两层 —— DSH 版本（装回旧版）+ 插件配置（复用 rollback_dsh_config_snapshot）。 */
+export async function rollbackDshVersion(
+  previousVersion: string,
+  snapshotIds: string[],
+  onLine?: (line: string) => void,
+): Promise<DshVersionRollbackResult> {
+  const npmCmd = resolveNpmCommand();
+  const prev = (previousVersion || '').trim();
+
+  if (!npmCmd) {
+    return { ok: false, version: null, restoredSnapshots: [], output: '', error: '未找到 npm 命令' };
+  }
+  if (!prev) {
+    return { ok: false, version: null, restoredSnapshots: [], output: '', error: '缺少回滚目标版本（previousVersion）' };
+  }
+
+  // 1) 回滚配置快照（复用 WI-006）
+  const restoredSnapshots: DshSnapshotRollbackResult[] = [];
+  for (const id of snapshotIds || []) {
+    try {
+      restoredSnapshots.push(rollbackDshConfigSnapshot(id));
+    } catch {}
+  }
+
+  // 2) 装回旧版本
+  const collect = onLine || (() => {});
+  const run = await runPnpmStream(npmCmd, ['install', '-g', `${DSH_PACKAGE_NAME}@${prev}`], os.homedir(), collect, 600000);
+  const version = getCurrentDshVersion();
+  const ok = run.exitCode === 0 && !run.timedOut;
+
+  appendVersionHistory({
+    version: version || prev,
+    action: 'rollback',
+    installedAt: Date.now(),
+    note: `回滚到 ${prev}`,
+  });
+
+  return {
+    ok,
+    version,
+    restoredSnapshots,
+    output: run.output,
+    error: ok ? undefined : (run.output || `npm install -g 回滚失败（退出码 ${run.exitCode ?? 'timeout'}）`),
+  };
 }

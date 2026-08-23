@@ -149,18 +149,23 @@ function formatTime(ts: number): string {
 }
 
 function triggerLabel(t: DshSnapshotTrigger): string {
-  return t === 'manual' ? '手动' : t === 'install' ? '安装' : '对齐';
+  if (t === 'manual') return '手动';
+  if (t === 'install') return '安装';
+  if (t === 'upgrade') return 'DSH 升级';
+  return '对齐';
 }
 
 function triggerBadge(t: DshSnapshotTrigger): string {
   if (t === 'manual') return 'bg-[#0a84ff]/10 text-[#0a84ff] border-[#0a84ff]/30';
   if (t === 'install') return 'bg-[#8b5cf6]/10 text-[#8b5cf6] border-[#8b5cf6]/30';
+  if (t === 'upgrade') return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
   return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
 }
 
 function triggerDot(t: DshSnapshotTrigger): string {
   if (t === 'manual') return 'bg-[#0a84ff]';
   if (t === 'install') return 'bg-[#8b5cf6]';
+  if (t === 'upgrade') return 'bg-[#30d158]';
   return 'bg-[#ff9f0a]';
 }
 

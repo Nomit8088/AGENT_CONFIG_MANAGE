@@ -12,6 +12,10 @@ import {
   DshPluginScanResult,
   DshPluginUpdateCheck,
   DshRecoveryAction,
+  DshVersionCheck,
+  DshVersionHistoryEntry,
+  DshVersionInfo,
+  DshVersionUpgradeResult,
   IgnoredSkill,
   ProjectInfo,
   SkillItem,
@@ -138,6 +142,15 @@ export const useAppStore = defineStore('app', {
     // DSH 配置快照与回滚 (WI-006)
     dshSnapshots: [] as DshConfigSnapshot[],
     dshSnapshotsLoading: false,
+
+    // DSH 版本升级与版本管理 (WI-009)
+    dshVersionInfo: null as DshVersionInfo | null,
+    dshVersionChecking: false,
+    dshVersionCheck: null as DshVersionCheck | null,
+    dshVersions: [] as DshVersionHistoryEntry[],
+    dshVersionUpgrading: false,
+    dshVersionResult: null as DshVersionUpgradeResult | null,
+    dshVersionRollingBack: false,
 
     // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
     dshInstallEntries: [] as DshPluginInstallEntry[],
@@ -1080,6 +1093,124 @@ export const useAppStore = defineStore('app', {
         message: snapshotId,
         type: 'info',
       });
+    },
+
+    // ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+    async loadDshVersion() {
+      try {
+        this.dshVersionInfo = await api.getDshVersionInfo();
+      } catch (e: any) {
+        this.dshVersionInfo = null;
+      }
+      await this.loadDshVersions();
+    },
+
+    async loadDshVersions() {
+      try {
+        this.dshVersions = await api.listDshVersions();
+      } catch {
+        this.dshVersions = [];
+      }
+    },
+
+    async checkDshVersionUpdate() {
+      this.dshVersionChecking = true;
+      try {
+        this.dshVersionCheck = await api.checkDshVersionUpdate();
+      } finally {
+        this.dshVersionChecking = false;
+      }
+      return this.dshVersionCheck;
+    },
+
+    async upgradeDsh() {
+      this.dshVersionUpgrading = true;
+      try {
+        const result = await api.upgradeDsh();
+        this.dshVersionResult = result;
+        await this.loadDshVersion();
+        await this.loadDshPlugins().catch(() => {});
+        if (result.massFailure) {
+          this.showToast({
+            title: '升级后疑似插件大面积失效',
+            message: `失败插件数 ${result.diagnosisBefore} → ${result.diagnosisAfter}，建议一键回滚版本 + 配置`,
+            type: 'error',
+          });
+        } else if (result.ok) {
+          this.showToast({
+            title: 'DSH 已升级',
+            message: `${result.beforeVersion || '未知'} → ${result.afterVersion || result.targetVersion}`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: 'DSH 升级未完成',
+            message: result.error || result.warnings.join('\n') || result.output,
+            type: 'error',
+          });
+        }
+        return result;
+      } finally {
+        this.dshVersionUpgrading = false;
+      }
+    },
+
+    async installDshVersion(version: string) {
+      this.dshVersionUpgrading = true;
+      try {
+        const result = await api.installDshVersion(version);
+        this.dshVersionResult = result;
+        await this.loadDshVersion();
+        await this.loadDshPlugins().catch(() => {});
+        if (result.massFailure) {
+          this.showToast({
+            title: '版本切换后疑似插件大面积失效',
+            message: `失败插件数 ${result.diagnosisBefore} → ${result.diagnosisAfter}，建议一键回滚`,
+            type: 'error',
+          });
+        } else if (result.ok) {
+          this.showToast({
+            title: 'DSH 版本已切换',
+            message: `${result.beforeVersion || '未知'} → ${result.afterVersion || result.targetVersion}`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: 'DSH 版本切换未完成',
+            message: result.error || result.warnings.join('\n') || result.output,
+            type: 'error',
+          });
+        }
+        return result;
+      } finally {
+        this.dshVersionUpgrading = false;
+      }
+    },
+
+    async rollbackDsh(previousVersion: string, snapshotIds: string[]) {
+      this.dshVersionRollingBack = true;
+      try {
+        const result = await api.rollbackDsh(previousVersion, snapshotIds);
+        await this.loadDshVersion();
+        await this.loadDshPlugins().catch(() => {});
+        if (result.ok) {
+          this.showToast({
+            title: 'DSH 已回滚',
+            message: `已装回 ${result.version || previousVersion}${result.restoredSnapshots.length ? `，并回滚 ${result.restoredSnapshots.length} 份配置快照` : ''}`,
+            type: 'success',
+          });
+        } else {
+          this.showToast({
+            title: 'DSH 回滚失败',
+            message: result.error || result.output,
+            type: 'error',
+          });
+        }
+        return result;
+      } finally {
+        this.dshVersionRollingBack = false;
+      }
     },
 
     async toggleSkillForAgent(skillName: string, agentId: string, enable: boolean) {
