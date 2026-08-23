@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { runGit } from './gitSyncUtil';
+import { getAppDataDir } from './appPaths';
 
 export interface SyncRepoConfig {
   remoteUrl: string;
@@ -19,8 +20,7 @@ export interface SyncRepoValidation {
 }
 
 export function syncRepoRoot(): string {
-  const appdata = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  return path.join(appdata, 'AgentHub');
+  return getAppDataDir();
 }
 
 const SYNC_GITIGNORE_CONTENT = `# AgentHub sync repo local-only files

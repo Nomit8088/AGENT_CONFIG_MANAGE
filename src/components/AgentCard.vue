@@ -89,7 +89,7 @@
     <!-- Footer: 统一管理入口 -->
     <div class="mt-3 pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between gap-2">
       <div class="min-w-0 flex items-center gap-2 text-[10px] font-mono text-slate-400 dark:text-white/40">
-        <span class="shrink-0">{{ agent.id === 'antigravity' ? 'Hardlink' : 'Junction' }}</span>
+        <span class="shrink-0">{{ linkStrategyFor(agent.id) === 'hardlinkTree' ? 'Hardlink' : 'Junction' }}</span>
         <span class="truncate" :title="agent.localRuleFilename">私有规则 {{ agent.localRuleFilename }}</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
@@ -175,6 +175,7 @@ import { computed } from 'vue';
 import { AgentInfo } from '../types';
 import { useAppStore } from '../stores/useAppStore';
 import AgentBrandIcon from './AgentBrandIcon.vue';
+import { linkStrategyFor } from '../shared/linkStrategy';
 import {
   FolderSearch,
   Trash2,

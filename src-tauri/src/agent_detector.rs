@@ -204,10 +204,16 @@ pub fn detect_agent(agent: &mut AgentInfo) {
             expand_tilde("~/.zcode/skills"),
             expand_tilde("~/AppData/Roaming/ZCode"),
             expand_tilde("~/AppData/Roaming/zcode"),
+            expand_tilde("~/Library/Application Support/ZCode"),
+            expand_tilde("~/Library/Application Support/zcode"),
+            expand_tilde("~/.config/ZCode"),
+            expand_tilde("~/.config/zcode"),
         ],
         "cursor" => vec![
             expand_tilde("~/.cursor"),
             expand_tilde("~/AppData/Roaming/Cursor"),
+            expand_tilde("~/Library/Application Support/Cursor"),
+            expand_tilde("~/.config/Cursor"),
             expand_tilde("~/.cursor/skills"),
         ],
         "dsh" => vec![
@@ -217,6 +223,8 @@ pub fn detect_agent(agent: &mut AgentInfo) {
         "windsurf" => vec![
             expand_tilde("~/.windsurf"),
             expand_tilde("~/AppData/Roaming/Windsurf"),
+            expand_tilde("~/Library/Application Support/Windsurf"),
+            expand_tilde("~/.config/Windsurf"),
             expand_tilde("~/.windsurf/skills"),
         ],
         "mimocode" => vec![
@@ -252,6 +260,8 @@ pub fn detect_agent(agent: &mut AgentInfo) {
             expand_tilde("~/.trae"),
             expand_tilde("~/.trae-cn"),
             expand_tilde("~/AppData/Roaming/Trae"),
+            expand_tilde("~/Library/Application Support/Trae"),
+            expand_tilde("~/.config/Trae"),
             expand_tilde("~/.trae/skills"),
         ],
         "workbuddy" => vec![
@@ -276,7 +286,6 @@ pub fn validate_custom_agent(skills_dir: &str, rule_filename: &str) -> Validatio
         return ValidationResult {
             valid: false,
             message: "规则文件名不合法，不能包含路径分隔符或 '..'".to_string(),
-            supports_junction: false,
         };
     }
 
@@ -284,6 +293,5 @@ pub fn validate_custom_agent(skills_dir: &str, rule_filename: &str) -> Validatio
     ValidationResult {
         valid: true,
         message: if dir_exists { "路径有效且已存在" } else { "路径格式有效（将在首次挂载时自动创建）" }.to_string(),
-        supports_junction: true,
     }
 }

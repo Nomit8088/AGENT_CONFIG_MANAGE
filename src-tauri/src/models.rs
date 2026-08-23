@@ -496,6 +496,4 @@ pub struct UnmanagedSkill {
 pub struct ValidationResult {
     pub valid: bool,
     pub message: String,
-    #[serde(rename = "supportsJunction")]
-    pub supports_junction: bool,
 }

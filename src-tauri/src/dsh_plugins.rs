@@ -45,6 +45,20 @@ fn which_cmd(name: &str) -> Option<String> {
         .map(|l| l.to_string())
 }
 
+/// 取 `npm prefix -g` 的全局 bin 目录（仅 Unix；Windows 的 npm 是 npm.cmd，Command 直跑不可靠）。
+#[cfg(not(windows))]
+fn npm_global_bin_dir() -> Option<PathBuf> {
+    let out = spawn_cmd("npm").args(["prefix", "-g"]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    let prefix = s.lines().map(|l| l.trim()).find(|l| !l.is_empty())?;
+    Some(PathBuf::from(prefix).join("bin"))
+}
+
+/// 全局 npm 安装的 CLI 兜底（`resolve_global_bin` 语义）：
+/// Windows 走 `~/AppData/Roaming/npm`（含 .cmd shim）；Unix 走 `which` 失效后的 `npm prefix -g`。
 fn npm_dir_cmd(name: &str) -> Option<String> {
     #[cfg(windows)]
     {
@@ -58,7 +72,12 @@ fn npm_dir_cmd(name: &str) -> Option<String> {
     }
     #[cfg(not(windows))]
     {
-        let _ = name;
+        if let Some(dir) = npm_global_bin_dir() {
+            let c = dir.join(name);
+            if c.exists() {
+                return Some(c.to_string_lossy().to_string());
+            }
+        }
     }
     None
 }

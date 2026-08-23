@@ -33,7 +33,7 @@ pub fn spawn_cmd<S: AsRef<OsStr>>(program: S) -> Command {
     cmd
 }
 
-/// 结束整个进程树（Windows 用 taskkill /T /F；其他平台 kill -9 单个进程）。
+/// 结束整个进程树（Windows 用 taskkill /T /F；Unix 递归 pgrep -P 自底向上 + kill -9）。
 pub fn kill_tree(pid: u32) {
     #[cfg(windows)]
     {
@@ -43,6 +43,37 @@ pub fn kill_tree(pid: u32) {
     }
     #[cfg(not(windows))]
     {
+        kill_tree_unix(pid);
+    }
+}
+
+/// 列出 `pid` 的直接子进程（`pgrep -P`）。macOS 与 Linux 均自带 pgrep。
+#[cfg(not(windows))]
+fn direct_children(pid: u32) -> Vec<u32> {
+    let out = spawn_cmd("pgrep").args(["-P", &pid.to_string()]).output();
+    match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter_map(|l| l.trim().parse::<u32>().ok())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// 后序收集整棵子树（子进程先入队、根最后），保证自底向上杀，避免父进程先死后子进程被 reparent 漏杀。
+#[cfg(not(windows))]
+fn collect_tree_bottom_up(pid: u32, acc: &mut Vec<u32>) {
+    for child in direct_children(pid) {
+        collect_tree_bottom_up(child, acc);
+    }
+    acc.push(pid);
+}
+
+#[cfg(not(windows))]
+fn kill_tree_unix(root: u32) {
+    let mut order = Vec::new();
+    collect_tree_bottom_up(root, &mut order);
+    for pid in order {
         let _ = spawn_cmd("kill").args(["-9", &pid.to_string()]).output();
     }
 }

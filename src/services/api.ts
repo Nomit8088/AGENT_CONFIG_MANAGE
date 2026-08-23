@@ -130,13 +130,11 @@ export const api = {
       return {
         valid: false,
         message: '规则文件名不合法，不能包含路径分隔符或 ".."',
-        supportsJunction: false,
       };
     }
     return {
       valid: true,
       message: '路径有效且支持 Windows NTFS Junction 挂载',
-      supportsJunction: true,
     };
   },
 

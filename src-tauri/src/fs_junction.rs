@@ -146,3 +146,58 @@ pub fn create_hardlink_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     }
     Ok(())
 }
+
+/// 链接策略（能力枚举 × 平台 → 具体操作 + fallback 链）。见 PLAN_WI011_MULTI_PLATFORM.md §4.2.2。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkStrategy {
+    /// 默认：Windows junction / Unix symlink → 回退 hardlink-tree → 回退 copy。
+    Default,
+    /// antigravity：三平台 hardlink-tree（物理目录 + 文件硬链）→ 回退 copy。
+    HardlinkTree,
+    /// 预留：copy（当前无 Agent 使用）。
+    Copy,
+}
+
+/// Agent 能力枚举 → 链接策略（当前唯一特例：antigravity 走 hardlink-tree）。
+pub fn link_strategy_for(agent_id: &str) -> LinkStrategy {
+    match agent_id {
+        "antigravity" => LinkStrategy::HardlinkTree,
+        _ => LinkStrategy::Default,
+    }
+}
+
+/// 是否走 hardlink-tree（不产生 junction/symlink）。
+pub fn uses_hardlink_tree(agent_id: &str) -> bool {
+    matches!(link_strategy_for(agent_id), LinkStrategy::HardlinkTree)
+}
+
+/// 按 Agent 链接策略把中央技能挂载到目标目录（双端对齐的挂载入口）。
+pub fn mount_skill(agent_id: &str, central: &Path, target: &Path) -> Result<(), String> {
+    let _ = remove_junction(target);
+    match link_strategy_for(agent_id) {
+        LinkStrategy::HardlinkTree => create_hardlink_dir_all(central, target).map_err(|e| e.to_string()),
+        LinkStrategy::Copy => copy_dir_all(central, target).map_err(|e| e.to_string()),
+        LinkStrategy::Default => create_junction(target, central),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_strategy_matrix() {
+        // B-M2.2 对拍锚点：策略矩阵决策必须与 Node 端 src/shared/linkStrategy.ts 完全一致。
+        assert_eq!(link_strategy_for("antigravity"), LinkStrategy::HardlinkTree);
+        assert_eq!(link_strategy_for("claude-code"), LinkStrategy::Default);
+        assert_eq!(link_strategy_for("cursor"), LinkStrategy::Default);
+        assert_eq!(link_strategy_for("windsurf"), LinkStrategy::Default);
+        assert_eq!(link_strategy_for("zcode"), LinkStrategy::Default);
+        assert_eq!(link_strategy_for("trae"), LinkStrategy::Default);
+        assert_eq!(link_strategy_for(""), LinkStrategy::Default);
+
+        assert!(uses_hardlink_tree("antigravity"));
+        assert!(!uses_hardlink_tree("cursor"));
+        assert!(!uses_hardlink_tree(""));
+    }
+}
