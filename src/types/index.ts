@@ -251,6 +251,26 @@ export interface DshPluginsConfig {
   sync?: DshPluginsSyncConfig;
 }
 
+// ==================== DSH 配置快照与回滚 (WI-006) ====================
+
+export type DshSnapshotTrigger = 'manual' | 'install' | 'align';
+
+export interface DshConfigSnapshot {
+  id: string;                 // dsh-snap-<ms>，全局唯一
+  createdAt: number;          // ms 时间戳
+  trigger: DshSnapshotTrigger; // manual=手动 / install=安装前自动 / align=对齐前自动
+  note?: string;              // 备注（手动创建可填）
+  permanent: boolean;         // 是否永久保留（不参与「最近 20 份」自动清理）
+  profileName: string;
+  files: string[];            // 快照时实际存在的配置文件名
+}
+
+export interface DshSnapshotRollbackResult {
+  profile: string;
+  restored: string[];         // 本次实际覆盖/删除的文件名
+  needsInstall: boolean;      // 回滚只覆盖配置文件，不覆盖 node_modules
+}
+
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================
 
 export interface AppUpdateCheck {
@@ -288,7 +308,7 @@ export interface AppConfig {
 }
 
 /** 当前客户端版本，供前端展示使用（需与 package.json / Cargo.toml / tauri.conf.json 保持一致）。 */
-export const APP_VERSION = '1.0.5';
+export const APP_VERSION = '1.0.6';
 
 export interface ValidationResult {
   valid: boolean;

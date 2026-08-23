@@ -7,6 +7,7 @@ import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './g
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as appDataDir } from './appPaths';
 import type {
+  DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallFailure,
   DshInstallMode,
@@ -21,6 +22,8 @@ import type {
   DshPluginUpdateCheck,
   DshProfileScan,
   DshRecoveryAction,
+  DshSnapshotRollbackResult,
+  DshSnapshotTrigger,
   SkillsSyncStatus,
 } from '../types';
 
@@ -946,6 +949,9 @@ export async function installDshPluginsV2(profile: string, mode: DshInstallMode,
   }
   const profileDir = ensureProfileDir(profileName);
   const safeMode: DshInstallMode = ['incremental', 'update', 'reinstall-all', 'reinstall-failed'].includes(mode) ? mode : 'incremental';
+
+  // 安装前自动快照（用户可见时间线；失败不阻塞安装）
+  try { createDshConfigSnapshot(profileName, 'install', '安装前自动快照'); } catch {}
 
   // 1. 快照备份：仅 package.json / cordis.patch.yml
   const pkgFile = path.join(profileDir, 'package.json');
@@ -2355,6 +2361,9 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
 
     fs.mkdirSync(localDir, { recursive: true });
 
+    // 对齐前自动快照（用户可见时间线；失败不阻塞对齐）
+    try { createDshConfigSnapshot(name, 'align', '对齐前自动快照'); } catch {}
+
     // 对齐前快照：失败时回滚本地配置（package.json / cordis.patch.yml / pnpm-lock.yaml / pnpm-workspace.yaml）
     const snapFiles = ['package.json', 'cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'];
     const snapshots: Record<string, string | null> = {};
@@ -2422,4 +2431,146 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
       throw e;
     }
   }
+}
+
+// ==================== 配置快照与回滚 (WI-006) ====================
+
+const DSH_SNAPSHOT_FILES = ['package.json', 'cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'];
+const MAX_AUTO_SNAPSHOTS = 20;
+
+function safeProfileName(name: string): string {
+  return name.replace(/[\\/]/g, '_');
+}
+
+function dshSnapshotsRoot(): string {
+  return path.join(appDataDir(), 'backups', 'dsh-profiles');
+}
+
+function snapshotProfileRoot(profile: string): string {
+  return path.join(dshSnapshotsRoot(), safeProfileName(profile));
+}
+
+function readSnapshotMeta(dir: string): DshConfigSnapshot | null {
+  const metaFile = path.join(dir, 'meta.json');
+  if (!fs.existsSync(metaFile)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(metaFile, 'utf-8')) as DshConfigSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function listSnapshotsOf(profile: string): DshConfigSnapshot[] {
+  const root = snapshotProfileRoot(profile);
+  if (!fs.existsSync(root)) return [];
+  const out: DshConfigSnapshot[] = [];
+  for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const meta = readSnapshotMeta(path.join(root, e.name));
+    if (meta) out.push(meta);
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+function findSnapshotById(snapshotId: string): { dir: string; meta: DshConfigSnapshot } | null {
+  const root = dshSnapshotsRoot();
+  if (!fs.existsSync(root)) return null;
+  for (const profileName of listProfileDirs(root)) {
+    const dir = path.join(root, profileName, snapshotId);
+    const meta = readSnapshotMeta(dir);
+    if (meta) return { dir, meta };
+  }
+  return null;
+}
+
+function pruneSnapshots(profile: string): void {
+  const root = snapshotProfileRoot(profile);
+  const snapshots = listSnapshotsOf(profile);
+  const keep = new Set<string>();
+  for (const s of snapshots.filter(s => !s.permanent).slice(0, MAX_AUTO_SNAPSHOTS)) {
+    keep.add(s.id);
+  }
+  for (const s of snapshots.filter(s => s.permanent)) {
+    keep.add(s.id);
+  }
+  for (const s of snapshots) {
+    if (!keep.has(s.id)) {
+      try { fs.rmSync(path.join(root, s.id), { recursive: true, force: true }); } catch {}
+    }
+  }
+}
+
+export function createDshConfigSnapshot(profile: string, trigger: DshSnapshotTrigger, note?: string): DshConfigSnapshot {
+  const profileName = (profile || '').trim() || 'web';
+  const profileDir = path.join(resolveDshHome(), 'profiles', profileName);
+  const now = Date.now();
+  const id = `dsh-snap-${now}`;
+  const snapDir = path.join(snapshotProfileRoot(profileName), id);
+  fs.mkdirSync(snapDir, { recursive: true });
+
+  const files: string[] = [];
+  for (const f of DSH_SNAPSHOT_FILES) {
+    const src = path.join(profileDir, f);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(snapDir, f));
+      files.push(f);
+    }
+  }
+
+  const meta: DshConfigSnapshot = {
+    id,
+    createdAt: now,
+    trigger,
+    note: note && note.trim() ? note.trim() : undefined,
+    permanent: false,
+    profileName,
+    files,
+  };
+  fs.writeFileSync(path.join(snapDir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+
+  pruneSnapshots(profileName);
+  return meta;
+}
+
+export function listDshConfigSnapshots(profile: string): DshConfigSnapshot[] {
+  const profileName = (profile || '').trim() || 'web';
+  return listSnapshotsOf(profileName);
+}
+
+export function rollbackDshConfigSnapshot(snapshotId: string): DshSnapshotRollbackResult {
+  const found = findSnapshotById(snapshotId);
+  if (!found) throw new Error(`未找到快照: ${snapshotId}`);
+  const profileName = found.meta.profileName || 'web';
+  const profileDir = path.join(resolveDshHome(), 'profiles', profileName);
+  fs.mkdirSync(profileDir, { recursive: true });
+
+  const restored: string[] = [];
+  for (const f of DSH_SNAPSHOT_FILES) {
+    const snapFile = path.join(found.dir, f);
+    const target = path.join(profileDir, f);
+    if (fs.existsSync(snapFile)) {
+      fs.copyFileSync(snapFile, target);
+      restored.push(f);
+    } else if (fs.existsSync(target)) {
+      try { fs.unlinkSync(target); } catch {}
+      restored.push(f);
+    }
+  }
+
+  return { profile: profileName, restored, needsInstall: true };
+}
+
+export function setDshConfigSnapshotPermanent(snapshotId: string, permanent: boolean): DshConfigSnapshot {
+  const found = findSnapshotById(snapshotId);
+  if (!found) throw new Error(`未找到快照: ${snapshotId}`);
+  const meta: DshConfigSnapshot = { ...found.meta, permanent };
+  fs.writeFileSync(path.join(found.dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+  return meta;
+}
+
+export function deleteDshConfigSnapshot(snapshotId: string): void {
+  const found = findSnapshotById(snapshotId);
+  if (!found) throw new Error(`未找到快照: ${snapshotId}`);
+  fs.rmSync(found.dir, { recursive: true, force: true });
 }

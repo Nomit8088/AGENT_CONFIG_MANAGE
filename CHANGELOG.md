@@ -2,6 +2,16 @@
 
 All notable changes to AgentHub are documented in this file.
 
+## [1.0.6] - 2026-08-24
+
+### Added
+- DSH 插件配置快照与回滚（WI-006）：把对齐流程中一次性内联快照扩展为「用户可见的配置快照时间线 + 手动创建 + 一键回滚」。
+- 手动创建快照（支持备注）；安装（`install_dsh_plugins*`）与对齐（`align_dsh_plugins`）前自动创建快照。
+- 时间线列表：时间 + 触发来源（手动 / 安装 / 对齐）+ 备注 + 文件清单，插件中心新增「快照回滚」分段页签。
+- 一键回滚：只覆盖 `package.json` / `cordis.patch.yml` / `pnpm-lock.yaml` / `pnpm-workspace.yaml`，不覆盖 `node_modules`，回滚后提示是否需 `pnpm install` 对齐。
+- 保留策略：最近 20 份自动快照 + 手动标记「永久保留」，超出自动清理；快照目录加入同步仓库 `.gitignore`。
+- 双端对齐：Rust 新增 `create_dsh_config_snapshot` / `list_dsh_config_snapshots` / `rollback_dsh_config_snapshot` / `set_dsh_config_snapshot_permanent` / `delete_dsh_config_snapshot` 命令，Node 同步新增对应 Web 路由与前端 store 动作。
+
 ## [1.0.5] - 2026-08-23
 
 ### Added

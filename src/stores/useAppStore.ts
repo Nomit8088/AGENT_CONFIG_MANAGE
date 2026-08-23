@@ -3,6 +3,7 @@ import {
   AgentInfo,
   AppConfig,
   AppUpdateCheck,
+  DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallMode,
   DshInstallReport,
@@ -133,6 +134,10 @@ export const useAppStore = defineStore('app', {
     dshPluginDiffModal: {
       visible: false,
     },
+
+    // DSH 配置快照与回滚 (WI-006)
+    dshSnapshots: [] as DshConfigSnapshot[],
+    dshSnapshotsLoading: false,
 
     // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
     dshInstallEntries: [] as DshPluginInstallEntry[],
@@ -1016,6 +1021,64 @@ export const useAppStore = defineStore('app', {
         title: '一键对齐完成',
         message: '本地插件配置已对齐镜像并执行 pnpm install',
         type: 'success',
+      });
+    },
+
+    // ==================== DSH 配置快照与回滚 (WI-006) ====================
+
+    async loadDshSnapshots(profile?: string) {
+      const target = (profile || '').trim() || this.dshPluginsScan?.profiles[0]?.name || 'web';
+      this.dshSnapshotsLoading = true;
+      try {
+        this.dshSnapshots = await api.listDshConfigSnapshots(target);
+      } finally {
+        this.dshSnapshotsLoading = false;
+      }
+    },
+
+    async createDshConfigSnapshot(profile: string, note?: string) {
+      const snap = await api.createDshConfigSnapshot(profile, note);
+      await this.loadDshSnapshots(profile);
+      this.showToast({
+        title: '快照已创建',
+        message: `已为 profile [${profile}] 创建配置快照${note ? `：${note}` : ''}`,
+        type: 'success',
+      });
+      return snap;
+    },
+
+    async rollbackDshConfigSnapshot(snapshotId: string) {
+      const result = await api.rollbackDshConfigSnapshot(snapshotId);
+      await this.loadDshSnapshots(result.profile);
+      await this.loadDshPlugins();
+      await this.loadDshInstallEntries(result.profile).catch(() => {});
+      this.showToast({
+        title: '配置已回滚',
+        message: `已回滚 profile [${result.profile}] 的配置文件（${result.restored.join(', ')}）。node_modules 未覆盖，若插件安装状态不一致请执行 pnpm install 对齐。`,
+        type: 'warning',
+      });
+      return result;
+    },
+
+    async setDshConfigSnapshotPermanent(snapshotId: string, permanent: boolean) {
+      const snap = await api.setDshConfigSnapshotPermanent(snapshotId, permanent);
+      await this.loadDshSnapshots(snap.profileName);
+      this.showToast({
+        title: permanent ? '已标记永久保留' : '已取消永久保留',
+        message: snap.id,
+        type: 'info',
+      });
+      return snap;
+    },
+
+    async deleteDshConfigSnapshot(snapshotId: string) {
+      const snap = this.dshSnapshots.find(s => s.id === snapshotId);
+      await api.deleteDshConfigSnapshot(snapshotId);
+      await this.loadDshSnapshots(snap?.profileName || this.dshPluginsScan?.profiles[0]?.name || 'web');
+      this.showToast({
+        title: '快照已删除',
+        message: snapshotId,
+        type: 'info',
       });
     },
 

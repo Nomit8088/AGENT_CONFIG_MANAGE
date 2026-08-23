@@ -3,6 +3,7 @@ import {
   AppConfig,
   AppUpdateCheck,
   AppUpdateDownload,
+  DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallMode,
   DshInstallReport,
@@ -11,6 +12,7 @@ import {
   DshPluginScanResult,
   DshPluginUpdateCheck,
   DshRecoveryAction,
+  DshSnapshotRollbackResult,
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
@@ -477,6 +479,43 @@ export const api = {
       return invokeTauri('align_dsh_plugins', { profile });
     }
     return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile });
+  },
+
+  // ==================== DSH 配置快照与回滚 (WI-006) ====================
+
+  async createDshConfigSnapshot(profile: string, note?: string): Promise<DshConfigSnapshot> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot>('create_dsh_config_snapshot', { profile, trigger: 'manual', note });
+    }
+    return requestApi<DshConfigSnapshot>('/api/dsh/plugins/snapshots', 'POST', { profile, note });
+  },
+
+  async listDshConfigSnapshots(profile: string): Promise<DshConfigSnapshot[]> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot[]>('list_dsh_config_snapshots', { profile });
+    }
+    return requestApi<DshConfigSnapshot[]>(`/api/dsh/plugins/snapshots?profile=${encodeURIComponent(profile)}`);
+  },
+
+  async rollbackDshConfigSnapshot(snapshotId: string): Promise<DshSnapshotRollbackResult> {
+    if (isTauri()) {
+      return invokeTauri<DshSnapshotRollbackResult>('rollback_dsh_config_snapshot', { snapshotId });
+    }
+    return requestApi<DshSnapshotRollbackResult>('/api/dsh/plugins/snapshots/rollback', 'POST', { snapshotId });
+  },
+
+  async setDshConfigSnapshotPermanent(snapshotId: string, permanent: boolean): Promise<DshConfigSnapshot> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot>('set_dsh_config_snapshot_permanent', { snapshotId, permanent });
+    }
+    return requestApi<DshConfigSnapshot>('/api/dsh/plugins/snapshots/permanent', 'POST', { snapshotId, permanent });
+  },
+
+  async deleteDshConfigSnapshot(snapshotId: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('delete_dsh_config_snapshot', { snapshotId });
+    }
+    return requestApi<void>('/api/dsh/plugins/snapshots/delete', 'POST', { snapshotId });
   },
 
   // ==================== 应用本体在线更新 (cc-switch 风格) ====================

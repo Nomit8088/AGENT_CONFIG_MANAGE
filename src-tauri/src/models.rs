@@ -330,6 +330,30 @@ impl Default for DshPluginsConfig {
     }
 }
 
+// ==================== DSH 配置快照与回滚 (WI-006) ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshConfigSnapshot {
+    pub id: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: u64,
+    pub trigger: String, // "manual" | "install" | "align"
+    #[serde(default, rename = "note", skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    pub permanent: bool,
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub files: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshSnapshotRollbackResult {
+    pub profile: String,
+    pub restored: Vec<String>,
+    #[serde(rename = "needsInstall")]
+    pub needs_install: bool,
+}
+
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

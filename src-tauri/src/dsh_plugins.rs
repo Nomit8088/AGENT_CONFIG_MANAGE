@@ -11,7 +11,7 @@ use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 
 use crate::models::*;
-use crate::storage::load_config;
+use crate::storage::{get_backups_dir, load_config};
 
 pub(crate) const BUILTIN_BUNDLE_PREFIX: &str = "@deepseek-ai/dsh-";
 
@@ -2559,6 +2559,13 @@ fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(S
     };
     let profile_dir = ensure_profile_dir(&profile_name)?;
 
+    // 安装前自动快照（用户可见时间线；失败不阻塞安装）
+    let _ = create_dsh_config_snapshot(
+        profile_name.clone(),
+        "install".to_string(),
+        Some("安装前自动快照".to_string()),
+    );
+
     let safe_mode = match mode.as_str() {
         "update" | "reinstall-all" | "reinstall-failed" | "incremental" => mode.as_str().to_string(),
         _ => "incremental".to_string(),
@@ -2760,4 +2767,189 @@ pub async fn install_dsh_plugins_streamed(
     })
     .await
     .map_err(|e| format!("安装执行失败: {}", e))?
+}
+
+// ==================== 配置快照与回滚 (WI-006) ====================
+
+const SNAPSHOT_FILES: [&str; 4] = [
+    "package.json",
+    "cordis.patch.yml",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+];
+const MAX_AUTO_SNAPSHOTS: usize = 20;
+
+fn safe_profile_name(name: &str) -> String {
+    name.replace('/', "_").replace('\\', "_")
+}
+
+fn dsh_snapshots_root() -> PathBuf {
+    get_backups_dir().join("dsh-profiles")
+}
+
+fn snapshot_profile_root(profile: &str) -> PathBuf {
+    dsh_snapshots_root().join(safe_profile_name(profile))
+}
+
+fn read_snapshot_meta(dir: &Path) -> Option<DshConfigSnapshot> {
+    let text = fs::read_to_string(dir.join("meta.json")).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn list_snapshots_of(profile: &str) -> Vec<DshConfigSnapshot> {
+    let root = snapshot_profile_root(profile);
+    let mut out = Vec::new();
+    if let Ok(entries) = fs::read_dir(&root) {
+        for e in entries.flatten() {
+            if e.path().is_dir() {
+                if let Some(meta) = read_snapshot_meta(&e.path()) {
+                    out.push(meta);
+                }
+            }
+        }
+    }
+    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out
+}
+
+fn find_snapshot(snapshot_id: &str) -> Option<(PathBuf, DshConfigSnapshot)> {
+    let root = dsh_snapshots_root();
+    if let Ok(entries) = fs::read_dir(&root) {
+        for e in entries.flatten() {
+            if !e.path().is_dir() {
+                continue;
+            }
+            let dir = e.path().join(snapshot_id);
+            if let Some(meta) = read_snapshot_meta(&dir) {
+                return Some((dir, meta));
+            }
+        }
+    }
+    None
+}
+
+fn prune_snapshots(profile: &str) {
+    let root = snapshot_profile_root(profile);
+    let snapshots = list_snapshots_of(profile);
+    let mut keep: HashSet<String> = snapshots
+        .iter()
+        .filter(|s| !s.permanent)
+        .take(MAX_AUTO_SNAPSHOTS)
+        .map(|s| s.id.clone())
+        .collect();
+    for s in snapshots.iter().filter(|s| s.permanent) {
+        keep.insert(s.id.clone());
+    }
+    for s in snapshots {
+        if !keep.contains(&s.id) {
+            let _ = fs::remove_dir_all(root.join(&s.id));
+        }
+    }
+}
+
+/// 创建一份用户可见的配置快照。trigger 仅接受 manual / install / align。
+#[tauri::command]
+pub fn create_dsh_config_snapshot(
+    profile: String,
+    trigger: String,
+    note: Option<String>,
+) -> Result<DshConfigSnapshot, String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let profile_dir = resolve_dsh_home().join("profiles").join(&profile_name);
+    let now = now_millis();
+    let id = format!("dsh-snap-{}", now);
+    let snap_dir = snapshot_profile_root(&profile_name).join(&id);
+    fs::create_dir_all(&snap_dir).map_err(|e| format!("无法创建快照目录: {}", e))?;
+
+    let mut files = Vec::new();
+    for f in SNAPSHOT_FILES {
+        let src = profile_dir.join(f);
+        if src.exists() {
+            let _ = fs::copy(&src, snap_dir.join(f));
+            files.push(f.to_string());
+        }
+    }
+
+    let trigger = match trigger.as_str() {
+        "manual" | "install" | "align" => trigger,
+        _ => "manual".to_string(),
+    };
+    let meta = DshConfigSnapshot {
+        id: id.clone(),
+        created_at: now,
+        trigger,
+        note: note.filter(|s| !s.trim().is_empty()),
+        permanent: false,
+        profile_name: profile_name.clone(),
+        files,
+    };
+    let meta_text = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+    fs::write(snap_dir.join("meta.json"), meta_text).map_err(|e| e.to_string())?;
+
+    prune_snapshots(&profile_name);
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn list_dsh_config_snapshots(profile: String) -> Vec<DshConfigSnapshot> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    list_snapshots_of(&profile_name)
+}
+
+#[tauri::command]
+pub fn rollback_dsh_config_snapshot(
+    snapshot_id: String,
+) -> Result<DshSnapshotRollbackResult, String> {
+    let (dir, meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    let profile_name = meta.profile_name.clone();
+    let profile_dir = resolve_dsh_home().join("profiles").join(&profile_name);
+    fs::create_dir_all(&profile_dir).map_err(|e| e.to_string())?;
+
+    let mut restored = Vec::new();
+    for f in SNAPSHOT_FILES {
+        let snap_file = dir.join(f);
+        let target = profile_dir.join(f);
+        if snap_file.exists() {
+            fs::copy(&snap_file, &target).map_err(|e| e.to_string())?;
+            restored.push(f.to_string());
+        } else if target.exists() {
+            let _ = fs::remove_file(&target);
+            restored.push(f.to_string());
+        }
+    }
+
+    Ok(DshSnapshotRollbackResult {
+        profile: profile_name,
+        restored,
+        needs_install: true,
+    })
+}
+
+#[tauri::command]
+pub fn set_dsh_config_snapshot_permanent(
+    snapshot_id: String,
+    permanent: bool,
+) -> Result<DshConfigSnapshot, String> {
+    let (dir, mut meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    meta.permanent = permanent;
+    let text = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+    fs::write(dir.join("meta.json"), text).map_err(|e| e.to_string())?;
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn delete_dsh_config_snapshot(snapshot_id: String) -> Result<(), String> {
+    let (dir, _meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    fs::remove_dir_all(&dir).map_err(|e| e.to_string())
 }

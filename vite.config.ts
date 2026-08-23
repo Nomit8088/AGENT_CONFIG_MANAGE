@@ -51,6 +51,11 @@ import {
   reconcileDshPlugins,
   alignDshPlugins,
   getDshPluginsSyncDiff,
+  createDshConfigSnapshot,
+  listDshConfigSnapshots,
+  rollbackDshConfigSnapshot,
+  setDshConfigSnapshotPermanent,
+  deleteDshConfigSnapshot,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -805,6 +810,42 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
               const { profile } = jsonBody;
               await alignDshPlugins(profile);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/snapshots (手动创建快照)
+            if (pathname === '/api/dsh/plugins/snapshots' && req.method === 'POST') {
+              const { profile, note } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(createDshConfigSnapshot(profile || 'web', 'manual', note)));
+            }
+
+            // GET /api/dsh/plugins/snapshots (快照时间线)
+            if (pathname === '/api/dsh/plugins/snapshots' && req.method === 'GET') {
+              const profile = url.searchParams.get('profile') || 'web';
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(listDshConfigSnapshots(profile)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/rollback (一键回滚)
+            if (pathname === '/api/dsh/plugins/snapshots/rollback' && req.method === 'POST') {
+              const { snapshotId } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(rollbackDshConfigSnapshot(snapshotId)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/permanent (标记永久保留)
+            if (pathname === '/api/dsh/plugins/snapshots/permanent' && req.method === 'POST') {
+              const { snapshotId, permanent } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(setDshConfigSnapshotPermanent(snapshotId, !!permanent)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/delete (删除快照)
+            if (pathname === '/api/dsh/plugins/snapshots/delete' && req.method === 'POST') {
+              const { snapshotId } = jsonBody;
+              deleteDshConfigSnapshot(snapshotId);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

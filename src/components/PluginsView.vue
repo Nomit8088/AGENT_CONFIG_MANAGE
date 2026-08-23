@@ -54,22 +54,25 @@
     <!-- Panels -->
     <DshPluginList v-if="activeTab === 'panel'" />
     <DshDiagnose v-else-if="activeTab === 'diagnose'" />
+    <DshConfigSnapshots v-else-if="activeTab === 'snapshots'" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { Puzzle, Stethoscope, RefreshCw } from 'lucide-vue-next';
+import { Puzzle, Stethoscope, RefreshCw, History } from 'lucide-vue-next';
 import DshPluginList from './DshPluginList.vue';
 import DshDiagnose from './DshDiagnose.vue';
+import DshConfigSnapshots from './DshConfigSnapshots.vue';
 
 const store = useAppStore();
-const activeTab = ref<'panel' | 'diagnose'>('panel');
+const activeTab = ref<'panel' | 'diagnose' | 'snapshots'>('panel');
 
 const tabs = [
   { id: 'panel' as const, label: '插件面板', icon: Puzzle },
   { id: 'diagnose' as const, label: '诊断修复', icon: Stethoscope },
+  { id: 'snapshots' as const, label: '快照回滚', icon: History },
 ];
 
 onMounted(async () => {

@@ -278,6 +278,7 @@ flowchart TD
 │       ├── DshDiagnose.vue             # DSH 启动失败诊断修复面板（紫色品牌控件卡 + 崩溃堆栈解析 + 一键关闭并重试）
 │       ├── DshPluginSync.vue           # DSH 插件配置对账卡片（本地 ~/.dsh ↔ 同步镜像 dsh/；对账/一键对齐/差异详情）
 │       ├── DshPluginDiffModal.vue      # DSH 插件配置对账差异详情弹窗
+│       ├── DshConfigSnapshots.vue      # DSH 配置快照时间线（手动创建 + 触发来源/备注 + 一键回滚 + 永久保留）
 │       ├── SettingsModal.vue           # 全局偏好设置 (深色/浅色/跟随系统三态切换器 + 自动检查更新开关)
 │       ├── UpdateModal.vue             # 应用在线更新弹窗 (检查/下载进度/安装重启)
 │       └── ToastContainer.vue          # 全局浮动操作提示
@@ -480,6 +481,32 @@ npm run tauri build
 
 ---
 
+## 8C. DSH 配置快照与回滚（WI-006）
+
+把「对齐/安装前的一次性内联快照」扩展为「用户可见的配置快照时间线 + 手动创建 + 一键回滚」，服务 WI-009（DSH 版本升级）的升级前安全点。
+
+### 快照范围与存储
+- 快照文件：`~/.dsh/profiles/<name>/` 下的 `package.json` + `cordis.patch.yml` + `pnpm-lock.yaml` + `pnpm-workspace.yaml`。
+- 存储目录：应用数据目录 `backups/dsh-profiles/<profile>/<dsh-snap-<ms>>/`，每个快照目录含 `meta.json`（id / createdAt / trigger / note / permanent / profileName / files）与快照文件本身（仅存在于快照时点的文件）。
+- 保留策略：最近 20 份非永久快照 + 全部「永久保留」标记；超出自动清理。`backups/` 已加入同步仓库共享 `.gitignore`，不进 Git。
+- 回滚只覆盖配置文件、不覆盖 `node_modules`，返回 `needsInstall = true`，UI 提示是否需 `pnpm install` 对齐磁盘。
+
+### 触发来源
+- `manual`：用户手动创建（可带备注）。
+- `install`：`install_dsh_plugins*` 执行前自动创建（`install_inner` / `installDshPluginsV2`，失败不阻塞安装）。
+- `align`：`align_dsh_plugins` 执行前自动创建（`align_dsh_plugins` / `alignDshPlugins`，失败不阻塞对齐）。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `create_dsh_config_snapshot` | `POST /api/dsh/plugins/snapshots` | 手动创建快照（`profile` / `note`） |
+| `list_dsh_config_snapshots` | `GET /api/dsh/plugins/snapshots?profile=` | 快照时间线 |
+| `rollback_dsh_config_snapshot` | `POST /api/dsh/plugins/snapshots/rollback` | 一键回滚（`snapshotId`） |
+| `set_dsh_config_snapshot_permanent` | `POST /api/dsh/plugins/snapshots/permanent` | 标记/取消永久保留 |
+| `delete_dsh_config_snapshot` | `POST /api/dsh/plugins/snapshots/delete` | 删除单份快照 |
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -501,6 +528,8 @@ npm run tauri build
 
 ### 变更记录 (Changelog)
 
+- **2026-08-24 (Session — WI-006)**:
+  - **DSH 配置快照与回滚**：新增 §8C 快照模块；`DshConfigSnapshots.vue` 时间线 UI（手动创建 + 触发来源/备注 + 一键回滚 + 永久保留）；安装/对齐前自动快照；保留策略最近 20 份 + 永久保留；`backups/` 入 `.gitignore`。Rust 5 命令 + Node 5 路由 + 前端 store 动作双端对齐，版本升 v1.0.6。
 - **2026-08-18 (Session 5)**:
   - **16 大主流 AI Agent 全景深度适配**：
     - 全面适配 Claude Code、Cursor、Windsurf、Google Antigravity、OpenCode/Codex、ZCode、DSH、MiMo Code、OpenClaw、Hermes Agent、GitHub Copilot、Pi Coding Agent、Kimi Code CLI、Trae / TraeWork、WorkBuddy、Kiro CLI 16 款 Agent。
