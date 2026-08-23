@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
 use crate::process::spawn_cmd;
 
 pub fn expand_tilde(path_str: &str) -> PathBuf {

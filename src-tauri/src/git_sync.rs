@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
-use crate::process::{run_captured, spawn_cmd, LOCAL_CMD_TIMEOUT, NETWORK_CMD_TIMEOUT};
+use crate::process::{run_captured, LOCAL_CMD_TIMEOUT, NETWORK_CMD_TIMEOUT};
+#[cfg(windows)]
+use crate::process::spawn_cmd;
 use std::sync::OnceLock;
 
 use crate::models::SyncDiffEntry;
@@ -42,6 +44,7 @@ fn normalize_proxy(v: &str) -> String {
 }
 
 /// 支持 `https=host:port;http=host:port` 或纯 `host:port` 形式。
+#[cfg(windows)]
 fn pick_proxy(raw: &str) -> Option<String> {
     let parts: Vec<&str> = raw.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
 
