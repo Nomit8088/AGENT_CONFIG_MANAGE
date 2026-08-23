@@ -165,10 +165,23 @@ AgentHub 严格遵循 **macOS Vibrancy (毛玻璃极简)** 工业设计规范：
 无需安装 Node.js 或 Rust 环境，直接下载安装包即可开箱即用：
 
 1. 前往 [**GitHub Releases 最新版本**](https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases/latest)；
-2. 下载 Windows 安装包：
-   - `AgentHub-setup-*.exe`（推荐，NSIS 一键安装程序）
-   - `*.msi`（Windows Installer 安装包）
+2. 按平台下载对应安装包：
+   - **Windows**：`AgentHub-setup-*.exe`（推荐，NSIS 一键安装程序）或 `*.msi`；
+   - **macOS**：`*.dmg`（Apple Silicon 下载 `aarch64`，Intel Mac 下载 `x64`）或 `*.app.tar.gz`；
+   - **Linux**：`*.deb`（Debian/Ubuntu 推荐）或 `*.AppImage`（若无 libfuse2，用 `--appimage-extract-and-run` 或改用 `.deb`）。
 3. 双击运行安装程序，启动即可使用。后续新版本支持**客户端内一键在线自动更新**。
+
+#### macOS 未签名产物的 Gatekeeper 绕过
+
+本项目 macOS 产物当前**未做 Apple 签名与公证**（见 `PLAN_WI011_MULTI_PLATFORM.md` C2），首次打开会被 Gatekeeper 拦截。任选其一放行：
+
+- **命令行一次性放行**（推荐）：
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/AgentHub.app
+  ```
+- **图形界面放行**：`系统设置 → 隐私与安全性`，在「安全性」一栏点击「仍要打开」。
+
+> 安装后首次启动若仍被拦截，重复上述放行步骤即可。
 
 ---
 
@@ -182,7 +195,7 @@ npm install
 ```
 
 #### 2. Web 开发模式 (推荐日常调试)
-AgentHub 采用 **Dual-Mode 双运行架构**。Web 模式下内置 Node 本地 API，同样真实操作本地 NTFS 链接与 Git Hook：
+AgentHub 采用 **Dual-Mode 双运行架构**。Web 模式下内置 Node 本地 API，同样真实操作本地链接（Junction / Symlink / Hardlink）与 Git Hook：
 ```bash
 npm run dev
 ```
@@ -193,7 +206,7 @@ npm run dev
 # 启动桌面调试窗口 (需 Rust 工具链)
 npm run tauri dev
 
-# 打包发布 Windows 安装包 (.exe / .msi)
+# 打包发布当前平台安装包 (.exe/.msi 或 .app/.dmg 或 .deb/.AppImage)
 npm run tauri build
 ```
 
@@ -210,8 +223,20 @@ npm run tauri build
 │   └── services/             # Dual-Mode IPC 适配层 (Tauri ↔ Web API)
 ├── src-tauri/                # Rust 桌面端源码 (Tauri 2.0)
 │   └── src/                  # DSH 插件引擎、NTFS/Hardlink 驱动、Git 守卫、在线更新
-└── %APPDATA%\AgentHub\       # 本地独立持久化目录 (配置、中央技能库、DSH 镜像、备份)
+└── <应用数据目录>/AgentHub/  # 本地独立持久化目录 (配置、中央技能库、DSH 镜像、备份)
+    # Windows: %APPDATA%\AgentHub
+    # macOS:   ~/Library/Application Support/AgentHub
+    # Linux:   ~/.config/AgentHub (或 $XDG_CONFIG_HOME/AgentHub)
 ```
+
+> **数据目录迁移（仅影响旧版 macOS/Linux Web 模式用户）**：早期版本在 macOS/Linux 的 Web 模式下，数据曾错误落在 `~/AppData/Roaming/AgentHub`。若你在这类平台用过旧版，请手动迁移：
+> ```bash
+> # macOS
+> mv ~/AppData/Roaming/AgentHub ~/Library/Application\ Support/AgentHub
+> # Linux
+> mv ~/AppData/Roaming/AgentHub ~/.config/AgentHub
+> ```
+> Windows 用户不受影响。
 
 ---
 

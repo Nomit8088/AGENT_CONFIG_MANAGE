@@ -15,3 +15,23 @@ export function linkStrategyFor(agentId: string): LinkStrategy {
 export function usesHardlinkTree(agentId: string): boolean {
   return linkStrategyFor(agentId) === 'hardlinkTree';
 }
+
+/** 平台 → 具体链接操作（primary）+ fallback 链（B-M2.2 跨语言对拍用，与 Rust link_op_for 对齐）。 */
+export interface LinkOp {
+  primary: string;
+  fallback: string;
+}
+
+export function linkOpFor(agentId: string, platform: string): LinkOp {
+  const strategy = linkStrategyFor(agentId);
+  if (strategy === 'hardlinkTree') {
+    return { primary: 'hardlink-tree', fallback: 'copy' };
+  }
+  if (strategy === 'copy') {
+    return { primary: 'copy', fallback: '' };
+  }
+  return {
+    primary: platform === 'windows' ? 'junction' : 'symlink',
+    fallback: 'hardlink-tree>copy',
+  };
+}

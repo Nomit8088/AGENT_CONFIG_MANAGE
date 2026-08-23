@@ -171,6 +171,21 @@ pub fn uses_hardlink_tree(agent_id: &str) -> bool {
     matches!(link_strategy_for(agent_id), LinkStrategy::HardlinkTree)
 }
 
+/// 平台 → 具体链接操作（primary）+ fallback 链（B-M2.2 跨语言对拍用，与 Node linkOpFor 对齐）。
+pub fn link_op_for(agent_id: &str, platform: &str) -> (&'static str, &'static str) {
+    match link_strategy_for(agent_id) {
+        LinkStrategy::HardlinkTree => ("hardlink-tree", "copy"),
+        LinkStrategy::Copy => ("copy", ""),
+        LinkStrategy::Default => {
+            if platform == "windows" {
+                ("junction", "hardlink-tree>copy")
+            } else {
+                ("symlink", "hardlink-tree>copy")
+            }
+        }
+    }
+}
+
 /// 按 Agent 链接策略把中央技能挂载到目标目录（双端对齐的挂载入口）。
 pub fn mount_skill(agent_id: &str, central: &Path, target: &Path) -> Result<(), String> {
     let _ = remove_junction(target);
@@ -199,5 +214,30 @@ mod tests {
         assert!(uses_hardlink_tree("antigravity"));
         assert!(!uses_hardlink_tree("cursor"));
         assert!(!uses_hardlink_tree(""));
+    }
+
+    #[test]
+    fn dump_link_strategy_table() {
+        let agents = [
+            "antigravity", "claude-code", "codex", "copilot", "cursor", "dsh", "hermes", "kimi",
+            "kiro", "mimocode", "openclaw", "pi", "trae", "windsurf", "workbuddy", "zcode",
+            "", "custom-agent",
+        ];
+        let platforms = ["windows", "darwin", "linux"];
+        let mut lines: Vec<String> = Vec::new();
+        for a in agents {
+            for p in platforms {
+                let (primary, fallback) = link_op_for(a, p);
+                lines.push(format!("{a}|{p}|{primary}|{fallback}"));
+            }
+        }
+        lines.sort();
+        let out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("link-strategy-table.rust.txt");
+        if let Some(parent) = out.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(&out, lines.join("\n") + "\n").unwrap();
     }
 }

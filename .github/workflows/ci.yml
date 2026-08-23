@@ -20,6 +20,9 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Check version sync (R14)
+        run: node scripts/check-version-sync.mjs
+
       - name: Install Dependencies
         run: npm ci
 
@@ -66,3 +69,13 @@ jobs:
 
       - name: Cargo check
         run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      # B-M2.2 跨语言对拍：Rust 与 Node 各自 dump 链接策略决策表并 diff，锁死双端漂移。
+      - name: Dump Rust link strategy table
+        run: cargo test --manifest-path src-tauri/Cargo.toml dump_link_strategy
+
+      - name: Dump Node link strategy table
+        run: npx tsx scripts/dump-link-strategy.ts
+
+      - name: Diff link strategy tables (B-M2.2)
+        run: diff src-tauri/target/link-strategy-table.rust.txt src-tauri/target/link-strategy-table.node.txt
