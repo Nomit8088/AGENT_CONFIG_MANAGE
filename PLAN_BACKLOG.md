@@ -47,7 +47,7 @@
 | WI-008 | 待开发 | P2 | 同步中心增强 | 定时同步 + 冲突可视化解决 + 同步历史，与 WI-005/WI-006 联动设计 | 支持定时触发、冲突解决、历史记录 | `SyncView.vue`、`syncRepo.ts`、`git_sync.rs` | 与 WI-005/WI-006 统一进同一条同步链路 |
 | WI-009 | 待开发 | P1 | DSH 版本升级与版本管理 | 插件管理页新增 DSH 本体版本升级 + 版本管理，升级前自动快照，支持回滚 | 可查看当前/远端版本、升级、回滚到历史版本 | 插件管理页、WI-006 快照、`dsh_plugins.rs` 命令探测 | 防 DSH 升级后插件大面积失效 |
 | WI-010 | 待开发 | P3 | MCP Server 配置总线 | 多 Agent 的 MCP Server 配置（claude_desktop_config.json / gemini/mcp / codex/mcp）集中可视化管理与共享 | 扫描 / 对账 / 启停 / 多端同步 | `syncRepo.ts`、`skills_sync.rs` 的 mcp/ 分类、新组件 | 既定 TODO；用户明确「要做但推后」 |
-| WI-011 | 待开发 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | 用户标记为当前最高优先级；不做完整底层重构，验证驱动约 3~4 周 |
+| WI-011 | 已完成 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | ✅ 已完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`）；详见 `PLAN_WI011_MULTI_PLATFORM.md` |
 | WI-012 | 待开发 | P1 | 国际化（i18n） | UI 文案 + 后端错误消息多语言化，引入 vue-i18n，支持中/英切换 | 语言包覆盖全 UI 与后端提示；可切换并持久化 | 20+ `.vue` 组件、`useAppStore.ts`、`server/*.ts` 错误消息、`SettingsModal.vue` | 约 589 处 UI 中文硬编码；横切关注点，越早做越省 |
 
 ---
@@ -158,6 +158,8 @@
 
 ### WI-011 — macOS / Linux 系统适配
 
+> ✅ **已完成（2026-08-23，发布 v1.0.5）**：三平台适配（macOS universal / Linux / Windows）的代码、CI、打包、发布全部闭环。实现方案与评审见 `PLAN_WI011_MULTI_PLATFORM.md`，版本变更见 `CHANGELOG.md`。剩余：V1~V4 真机抽验（用户侧）、macOS 签名/公证（WI-011 之后可选）。
+
 - **背景**：当前大量核心逻辑 Windows 强耦合（`mklink /J` NTFS Junction、`taskkill /T /F`、`AppData\Roaming\npm`、WinINET 代理自愈、Antigravity Hardlink Tree、`.cmd` shim）。README badge 宣称支持三平台，实际仅 Windows 验证。**用户标记为当前最高优先级。**
 - **实施策略（已锁定：不做完整底层重构）**：
   - **三层判断**：
@@ -171,7 +173,7 @@
   - **Phase 3 — Antigravity 策略 + 打包 CI + 回归（10~12 人天）**：真机探明 Antigravity 在 Unix 对 symlink 的行为并补策略；`tauri build` 产出 `.app`/`.dmg`/`.deb`/`.AppImage` + 三平台 CI 矩阵（含 macOS 签名/公证）；三平台全量回归。
 - **依赖**：`fs_junction.rs`、`process.rs`、`git_sync.rs` 代理、`dsh_plugins.rs` 命令探测、`agent_detector.rs`、`localApi.ts` 双端、`useAppStore.ts`、`.github/workflows` CI。
 - **风险/边界**：Rust/Node 双端对齐是硬约束；Unix 分支是「从未跑过的代码 = 有 bug 的代码」，主工作量在真机验证与回归，而非写新代码。关键变量：Antigravity 在 Unix 的沙箱行为、macOS 签名/公证、16 Agent 目录覆盖度。
-- **后续动作（落盘规范）**：WI-011 完成后，将 §5「跨平台开发规范」同步进 `HANDOVER.md` 与 `AGENTS.md`（本仓库当前无 `AGENTS.md`，需新建），作为后续所有开发的强制约束。
+- **后续动作（落盘规范）**：✅ 已完成——§5「跨平台开发规范」已同步进根 `AGENTS.md`（新建，权威版全文）、`CONTRIBUTING.md` §5（并入 PR 准入）、`HANDOVER.md`（指针），作为后续所有开发的强制约束。
 
 ### WI-012 — 国际化（i18n）
 
@@ -196,7 +198,7 @@
 
 | 优先级 | 编号 | 工作项 |
 |---|---|---|
-| **P0 地基** | WI-011 | macOS / Linux 系统适配 |
+| **P0 地基** | WI-011 | macOS / Linux 系统适配（✅ 已完成 v1.0.5） |
 | **P1 高** | WI-003 | 一键启动 dsh + 错误堆栈复制 |
 | | WI-005 | 插件选择性同步（按卡片勾选） |
 | | WI-006 | 配置快照与回滚 |
@@ -213,7 +215,7 @@
 
 | 序 | 梯队 | 编号 | 工作项 | 优先级 | 依赖 / 理由 |
 |---|---|---|---|---|---|
-| 1 | **T0 地基** | WI-011 | 三平台适配 | P0 | 最高优先；落地后成为后续开发规范，避免返工 |
+| 1 | **T0 地基** | WI-011 | 三平台适配 | P0 | ✅ 已完成 v1.0.5；落地后成为后续开发规范，避免返工 |
 | 2 | T1 规范基建 | WI-012 | 国际化 | P1 | 紧随适配，避免新增文案二次补抽 |
 | 3 | T1 | WI-007 | 应用日志 | P2 | 基础设施，支撑排查 |
 | 4 | T1 | WI-004 | 首启卡顿研究 | P2 | 有日志支撑后再定位 |
@@ -230,7 +232,7 @@
 
 ## 5. 跨平台开发规范（WI-011 落地后生效）
 
-> WI-011 落地后，以下规范成为**后续所有开发的强制约束**。届时同步进 `HANDOVER.md` 与 `AGENTS.md`（本仓库当前无 `AGENTS.md`，需新建）。
+> ✅ WI-011 已落地（v1.0.5），以下规范已成为**后续所有开发的强制约束**，并已同步进根 `AGENTS.md`（权威版全文）、`CONTRIBUTING.md` §5、`HANDOVER.md`（指针）。
 
 1. **三平台一致**：所有新功能在 Windows / macOS / Linux 三平台行为一致，禁止只验证单一平台。
 2. **Dual-Mode 双端对齐**：涉及底层文件系统 / 配置 / Git 的改动，Rust Tauri 端（`src-tauri/src/`）与 Node Web 端（`src/server/localApi.ts`）实现 100% 对齐（沿用 CONTRIBUTING 现有约定）。
@@ -251,6 +253,7 @@
 | 2026-08-22 | 新增 1 项 | WI-012 国际化（i18n），P2；并补充 WI-011 工作量评估（大） |
 | 2026-08-22 | WI-011 策略落盘 | 锁定「不做完整底层重构」，改三层判断 + 链接决策矩阵收敛 + 三 Phase；修正工作量评估为「验证驱动 3~4 周」 |
 | 2026-08-22 | 排序与规范落盘 | 新增 §4 优先级/推荐开发顺序、§5 跨平台开发规范；WI-011 升 P0、WI-012 升 P1；标注规范后续同步 HANDOVER/AGENTS |
+| 2026-08-23 | WI-011 完成 | macOS/Linux 三平台适配开发完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`）；§5 规范同步进 `AGENTS.md` / `CONTRIBUTING.md` §5 / `HANDOVER.md` |
 
 ---
 
