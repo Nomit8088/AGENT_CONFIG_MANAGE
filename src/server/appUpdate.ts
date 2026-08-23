@@ -6,14 +6,12 @@ import http from 'http';
 import https from 'https';
 import net from 'net';
 import tls from 'tls';
-import { spawn } from 'child_process';
+import { spawn, spawnSync, execFileSync } from 'child_process';
 import { URL } from 'url';
 import { getAppDataDir } from './localApi';
 import { detectSystemProxy } from './gitSyncUtil';
 import type { AppUpdateCheck, AppUpdateDownload } from '../types';
-
-// 需与 package.json / Cargo.toml / tauri.conf.json 保持一致。
-const APP_VERSION = '1.0.3';
+import { APP_VERSION } from '../types';
 const UPDATE_REPO = 'Nomit8088/AGENT_CONFIG_MANAGE';
 const UPDATE_API_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 const USER_AGENT = 'AgentHub';
@@ -317,7 +315,76 @@ export function installAppUpdate(installPath: string): void {
     } else {
       spawn(installPath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
     }
+  } else if (process.platform === 'darwin') {
+    installMacUpdate(installPath);
   } else {
+    installLinuxUpdate(installPath);
+  }
+}
+
+function installMacUpdate(installPath: string): void {
+  const lower = installPath.toLowerCase();
+  if (lower.endsWith('.dmg')) {
+    // hdiutil attach → 找 .app → ditto 复制到暂存目录 → detach → 去 quarantine → open
+    const mountOut = execFileSync('hdiutil', ['attach', '-nobrowse', '-readonly', installPath], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const mount = mountOut
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => l.split(/\s+/).pop())
+      .find((p) => p && p.startsWith('/Volumes/'));
+    if (!mount) throw new Error('无法解析 dmg 挂载点');
+
+    const app = fs
+      .readdirSync(mount)
+      .map((n) => path.join(mount, n))
+      .find((p) => p.endsWith('.app'));
+    if (!app) {
+      try { spawn('hdiutil', ['detach', mount], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+      throw new Error('dmg 内未找到 .app');
+    }
+
+    const staged = path.join(getAppDataDir(), 'updates', 'staged', path.basename(app));
+    fs.rmSync(path.dirname(staged), { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(staged), { recursive: true });
+    execFileSync('ditto', [app, staged], { stdio: 'ignore' });
+    try { spawn('hdiutil', ['detach', mount], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+    try { execFileSync('xattr', ['-dr', 'com.apple.quarantine', staged], { stdio: 'ignore' }); } catch {}
+    spawn('open', [staged], { detached: true, stdio: 'ignore' }).unref();
+  } else {
+    // .app.tar.gz：解压到暂存目录后去 quarantine + open
+    const staged = path.join(getAppDataDir(), 'updates', 'staged');
+    fs.rmSync(staged, { recursive: true, force: true });
+    fs.mkdirSync(staged, { recursive: true });
+    execFileSync('tar', ['-xzf', installPath, '-C', staged], { stdio: 'ignore' });
+    const app = fs
+      .readdirSync(staged)
+      .map((n) => path.join(staged, n))
+      .find((p) => p.endsWith('.app'));
+    if (!app) throw new Error('归档内未找到 .app');
+    try { execFileSync('xattr', ['-dr', 'com.apple.quarantine', app], { stdio: 'ignore' }); } catch {}
+    spawn('open', [app], { detached: true, stdio: 'ignore' }).unref();
+  }
+}
+
+function installLinuxUpdate(installPath: string): void {
+  const lower = installPath.toLowerCase();
+  if (lower.endsWith('.deb')) {
+    const hasPkexec = spawnSync('which', ['pkexec'], { stdio: 'ignore' }).status === 0;
+    const hasSudo = spawnSync('which', ['sudo'], { stdio: 'ignore' }).status === 0;
+    if (hasPkexec) {
+      spawn('pkexec', ['dpkg', '-i', installPath], { detached: true, stdio: 'ignore' }).unref();
+    } else if (hasSudo) {
+      spawn('sudo', ['dpkg', '-i', installPath], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('dpkg', ['-i', installPath], { detached: true, stdio: 'ignore' }).unref();
+    }
+  } else {
+    // .AppImage（或其它）：chmod +x 后启动
+    try { execFileSync('chmod', ['+x', installPath], { stdio: 'ignore' }); } catch {}
     spawn(installPath, [], { detached: true, stdio: 'ignore' }).unref();
   }
 }

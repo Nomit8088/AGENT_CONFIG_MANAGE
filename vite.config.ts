@@ -54,6 +54,7 @@ import {
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
+  linkStrategyFor,
 } from './src/server/localApi';
 import {
   checkAppUpdate,
@@ -231,17 +232,20 @@ function localApiPlugin(): Plugin {
               fs.mkdirSync(skillDir, { recursive: true });
               fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf-8');
 
-              // If Antigravity has this skill mounted as physical/hardlink dir, keep SKILL.md in sync
-              const antigravitySkillDir = path.join(expandTilde('~/.gemini/config/skills'), skillName);
-              if (fs.existsSync(antigravitySkillDir) && !isJunctionOrSymlink(antigravitySkillDir)) {
-                const targetSkillMd = path.join(antigravitySkillDir, 'SKILL.md');
-                try {
-                  if (fs.existsSync(targetSkillMd)) {
-                    fs.unlinkSync(targetSkillMd);
+              // 对 hardlink-tree 策略的 Agent（antigravity），若技能已挂载为物理目录，则同步 SKILL.md
+              for (const a of getAgentsList()) {
+                if (linkStrategyFor(a.id) !== 'hardlinkTree') continue;
+                const hardlinkSkillDir = path.join(expandTilde(a.skillsDir), skillName);
+                if (fs.existsSync(hardlinkSkillDir) && !isJunctionOrSymlink(hardlinkSkillDir)) {
+                  const targetSkillMd = path.join(hardlinkSkillDir, 'SKILL.md');
+                  try {
+                    if (fs.existsSync(targetSkillMd)) {
+                      fs.unlinkSync(targetSkillMd);
+                    }
+                    fs.linkSync(path.join(skillDir, 'SKILL.md'), targetSkillMd);
+                  } catch {
+                    fs.copyFileSync(path.join(skillDir, 'SKILL.md'), targetSkillMd);
                   }
-                  fs.linkSync(path.join(skillDir, 'SKILL.md'), targetSkillMd);
-                } catch {
-                  fs.copyFileSync(path.join(skillDir, 'SKILL.md'), targetSkillMd);
                 }
               }
 
@@ -299,8 +303,8 @@ function localApiPlugin(): Plugin {
 
                       const p = path.join(agentDir, ent.name);
                       if (!isJunctionOrSymlink(p)) {
-                        // Antigravity special check: if it's already managed by AgentHub hardlink tree
-                        if (a.id === 'antigravity' && fs.existsSync(path.join(central, ent.name))) {
+                        // hardlink-tree 策略的 Agent：若已被 AgentHub 托管（中央库存在同名），跳过待纳管
+                        if (linkStrategyFor(a.id) === 'hardlinkTree' && fs.existsSync(path.join(central, ent.name))) {
                           continue;
                         }
 

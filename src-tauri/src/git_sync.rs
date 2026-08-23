@@ -8,6 +8,7 @@ use crate::models::SyncDiffEntry;
 
 /// 读取 Windows WinINET 注册表值（HKCU）。输出形如:
 /// `    ProxyServer    REG_SZ    127.0.0.1:7897`
+#[cfg(windows)]
 fn query_reg_value(name: &str) -> Option<String> {
     let out = spawn_cmd("reg")
         .args([
@@ -71,7 +72,8 @@ fn detect_system_proxy() -> Option<String> {
     }
 
     // 2) Windows WinINET 系统代理（git 默认不读取 WinINET）
-    if cfg!(windows) {
+    #[cfg(windows)]
+    {
         if let Some(raw) = query_reg_value("ProxyServer") {
             let enabled = query_reg_value("ProxyEnable")
                 .and_then(|v| {

@@ -5,6 +5,9 @@ import { execSync } from 'child_process';
 import jsyaml from 'js-yaml';
 import { runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
+import { getAppDataDir as resolveAppDataDir } from './appPaths';
+import { linkStrategyFor } from '../shared/linkStrategy';
+export { linkStrategyFor };
 
 export function expandTilde(p: string): string {
   if (p.startsWith('~/') || p.startsWith('~\\') || p === '~') {
@@ -19,8 +22,7 @@ export function expandTilde(p: string): string {
 }
 
 export function getAppDataDir(): string {
-  const appdata = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  return path.join(appdata, 'AgentHub');
+  return resolveAppDataDir();
 }
 
 export function getCentralSkillsDir(): string {
@@ -213,11 +215,11 @@ export const DEFAULT_PRESET_AGENTS = [
 export function detectAgentInstalled(agentId: string, skillsDir: string): boolean {
   const probes: Record<string, string[]> = {
     'claude-code': ['~/.claude', '~/.claude/skills'],
-    'cursor': ['~/.cursor', '~/AppData/Roaming/Cursor', '~/.cursor/skills'],
-    'windsurf': ['~/.windsurf', '~/AppData/Roaming/Windsurf', '~/.windsurf/skills'],
+    'cursor': ['~/.cursor', '~/AppData/Roaming/Cursor', '~/Library/Application Support/Cursor', '~/.config/Cursor', '~/.cursor/skills'],
+    'windsurf': ['~/.windsurf', '~/AppData/Roaming/Windsurf', '~/Library/Application Support/Windsurf', '~/.config/Windsurf', '~/.windsurf/skills'],
     'antigravity': ['~/.gemini', '~/.gemini/config/skills', '~/.gemini/antigravity'],
     'codex': ['~/.codex', '~/.opencode', '~/.codex/skills'],
-    'zcode': ['~/.zcode', '~/AppData/Roaming/ZCode', '~/AppData/Roaming/zcode', '~/.zcode/skills'],
+    'zcode': ['~/.zcode', '~/AppData/Roaming/ZCode', '~/AppData/Roaming/zcode', '~/Library/Application Support/ZCode', '~/Library/Application Support/zcode', '~/.config/ZCode', '~/.config/zcode', '~/.zcode/skills'],
     'dsh': ['~/.dsh', '~/.dsh/skills'],
     'mimocode': ['~/.config/mimocode', '~/.mimocode', '~/.config/mimocode/skills'],
     'openclaw': ['~/.openclaw', '~/.agents', '~/.openclaw/skills'],
@@ -225,7 +227,7 @@ export function detectAgentInstalled(agentId: string, skillsDir: string): boolea
     'copilot': ['~/.copilot', '~/.github', '~/.copilot/skills'],
     'pi': ['~/.pi', '~/.omo', '~/.opencode', '~/.pi/skills'],
     'kimi': ['~/.kimi', '~/.kimi/skills'],
-    'trae': ['~/.trae', '~/.trae-cn', '~/AppData/Roaming/Trae', '~/.trae/skills'],
+    'trae': ['~/.trae', '~/.trae-cn', '~/AppData/Roaming/Trae', '~/Library/Application Support/Trae', '~/.config/Trae', '~/.trae/skills'],
     'workbuddy': ['~/.workbuddy', '~/.workbuddy/skills'],
     'kiro': ['~/.kiro', '~/.amazonq', '~/.kiro/skills'],
   };
@@ -247,6 +249,35 @@ export function detectSystemTheme(): 'dark' | 'light' {
       if (output.includes('0x0')) {
         return 'dark';
       }
+    } catch {}
+  } else if (process.platform === 'darwin') {
+    // macOS：`defaults read -g AppleInterfaceStyle` 输出 "Dark" 即为深色；无输出为浅色。
+    try {
+      const output = execSync('defaults read -g AppleInterfaceStyle', {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      if (output.trim().toLowerCase() === 'dark') {
+        return 'dark';
+      }
+    } catch {}
+    return 'light';
+  } else {
+    // Linux：优先 `gsettings` 的 color-scheme，其次 gtk-theme 名；无 GUI 会话回退浅色（前端 matchMedia 兜底）。
+    try {
+      const scheme = execSync('gsettings get org.gnome.desktop.interface color-scheme', {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      if (scheme.toLowerCase().includes('dark')) return 'dark';
+      if (scheme.toLowerCase().includes('light')) return 'light';
+    } catch {}
+    try {
+      const theme = execSync('gsettings get org.gnome.desktop.interface gtk-theme', {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      if (theme.toLowerCase().includes('dark')) return 'dark';
     } catch {}
   }
   return 'light';
@@ -417,12 +448,11 @@ export function removeSkillMount(linkOrDirPath: string): void {
 
 export function mountSkillForAgent(agentId: string, targetPath: string, centralSkillPath: string): void {
   removeSkillMount(targetPath);
-  if (agentId === 'antigravity') {
-    // For Antigravity, use physical directory + NTFS Hardlink tree
+  if (linkStrategyFor(agentId) === 'hardlinkTree') {
+    // Antigravity：物理目录 + 文件级 Hardlink tree（三平台终态）
     createHardlinkDirRecursive(centralSkillPath, targetPath);
   } else {
-    // For Claude Code, Codex, ZCode, Cursor, DSH, Windsurf:
-    // Standard Windows NTFS Junction with robust fallback
+    // 默认：Windows NTFS Junction / Unix symlink，带 robust fallback
     createJunction(targetPath, centralSkillPath);
   }
 }

@@ -130,12 +130,20 @@ git push -u origin feat/your-feature-name
 1. **零外部 Git 冲突原则**：
    - 严禁直接在用户项目根目录无通知修改追踪中的公共 `AGENTS.md`；
    - 本地规则必须精准分发至对应 Agent 专属私有文件（`CLAUDE.local.md`, `ZCODE.local.md` 等），并自动写入 `.git/info/exclude`；
-2. **Windows NTFS 软链兼容性**：
-   - 普通 Agent 目录分发优先使用 `mklink /J`（NTFS Junction），避免符号链接在非开发者模式下需要提权的权限问题；
-   - Antigravity 特殊沙箱必须采用 **Hardlink Tree（物理目录 + 文件硬链接）** 架构；
+2. **链接操作走统一决策矩阵（跨平台）**：
+   - 任何技能/目录的软链、硬链、复制分发，必须经「Agent × 平台 → 链接策略矩阵」决策（Rust `src-tauri/src/fs_junction.rs::link_strategy_for` / Node `src/shared/linkStrategy.ts`），禁止在业务代码里散落 `mklink` / `symlink` / `hard_link` 调用；
+   - 默认策略：Windows 用 NTFS Junction、macOS/Linux 用 symlink；Antigravity 特殊沙箱三平台统一采用 **Hardlink Tree（物理目录 + 文件硬链接）**；回退链 hardlink-tree → copy。
 3. **前端 UI/UX 原则**：
    - 遵循 Tailwind `dark:` 原生双模变量，浅色模式必须保持高对比度与清爽质感，杜绝使用破坏层级的 `!important` 强制反色；
    - 所有全局浮动下拉框（如 `AgentPillPicker`）必须使用 `<Teleport to="body">` 结合视口翻转，避免被父级卡片截断。
+
+### 跨平台开发规范（WI-011 后强制，与根 `AGENTS.md` 同一份）
+
+1. **三平台一致**：所有新功能在 Windows / macOS / Linux 三平台行为一致，禁止只验证单一平台。
+2. **Dual-Mode 双端对齐**：涉及底层文件系统 / 配置 / Git 的改动，Rust Tauri 端（`src-tauri/src/`）与 Node Web 端（`src/server/localApi.ts`）实现 100% 对齐。
+3. **链接操作走统一决策矩阵**：见上方第 2 条；禁止在业务代码里散落 `mklink` / `symlink` / `hard_link` 调用。
+4. **平台差异走统一抽象**：路径（npm 全局目录 / Agent 目录 / 数据目录）、代理、进程树清理、系统主题检测等，收敛到统一 helper，禁止硬编码 `AppData\Roaming`、`taskkill`、WinINET。
+5. **新代码三平台验证**：提交前至少在目标平台（或 CI）跑通；不得以「本机是 Windows」为由跳过 macOS / Linux 验证。
 
 ---
 

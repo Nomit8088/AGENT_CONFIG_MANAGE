@@ -116,7 +116,7 @@ fn get_central_skills() -> Result<Vec<SkillItem>, String> {
                     let mounted = skill_dirs.iter().any(|dir| dir.join(&folder_name).exists());
                     let is_link = skill_dirs.iter().any(|dir| is_junction_or_symlink(&dir.join(&folder_name)));
                     if mounted {
-                        is_symlink_map.insert(agent.id.clone(), is_link || agent.id == "antigravity");
+                        is_symlink_map.insert(agent.id.clone(), is_link || uses_hardlink_tree(&agent.id));
                         mounted_agents.push(agent.id.clone());
                     }
                 }
@@ -169,7 +169,7 @@ fn scan_unmanaged_skills() -> Result<Vec<UnmanagedSkill>, String> {
 
                     let is_link = is_junction_or_symlink(&path);
                     if !is_link {
-                        if agent.id == "antigravity" && central_dir.join(&skill_name).exists() {
+                        if uses_hardlink_tree(&agent.id) && central_dir.join(&skill_name).exists() {
                             continue;
                         }
 
@@ -225,7 +225,7 @@ fn save_skill(skill_name: String, content: String) -> Result<(), String> {
 
     // If Antigravity has this skill mounted as physical/hardlink dir, keep SKILL.md in sync
     let agents = load_agents();
-    if let Some(ag) = agents.iter().find(|a| a.id == "antigravity") {
+    if let Some(ag) = agents.iter().find(|a| uses_hardlink_tree(&a.id)) {
         let target_dir = expand_tilde(&ag.skills_dir).join(&skill_name);
         if target_dir.exists() && !is_junction_or_symlink(&target_dir) {
             let target_file = target_dir.join("SKILL.md");
@@ -277,12 +277,7 @@ fn toggle_skill_for_agent(skill_name: String, agent_id: String, enable: bool) ->
     if enable {
         // 启用只挂载主目录，不清理其他根目录，避免误删公共/共享技能。
         let target_link = skill_dirs[0].join(&skill_name);
-        if agent.id == "antigravity" {
-            let _ = remove_junction(&target_link);
-            create_hardlink_dir_all(&central_skill, &target_link).map_err(|e| e.to_string())?;
-        } else {
-            create_junction(&target_link, &central_skill)?;
-        }
+        mount_skill(&agent.id, &central_skill, &target_link)?;
     } else {
         // 停用必须清理该 Agent 所有 skill 根目录，否则 DSH 仍会从其他根读到同名技能。
         for dir in skill_dirs {
@@ -322,11 +317,7 @@ fn takeover_unmanaged_skill(
             if local_dir.exists() {
                 let _ = fs::remove_dir_all(&local_dir);
             }
-            if agent.id == "antigravity" {
-                create_hardlink_dir_all(&target_central, &local_dir).map_err(|e| e.to_string())?;
-            } else {
-                create_junction(&local_dir, &target_central)?;
-            }
+            mount_skill(&agent.id, &target_central, &local_dir)?;
         }
         "rename" => {
             let new_name = format!("{}-{}", skill_name, agent_id);
@@ -336,11 +327,7 @@ fn takeover_unmanaged_skill(
             if local_dir.exists() {
                 let _ = fs::remove_dir_all(&local_dir);
             }
-            if agent.id == "antigravity" {
-                create_hardlink_dir_all(&rename_central, &local_dir).map_err(|e| e.to_string())?;
-            } else {
-                create_junction(&local_dir, &rename_central)?;
-            }
+            mount_skill(&agent.id, &rename_central, &local_dir)?;
         }
         "skip" => {
             // Do nothing

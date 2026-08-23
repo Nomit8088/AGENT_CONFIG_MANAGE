@@ -15,7 +15,13 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: ''
+            args: '--bundles nsis,msi'
+          - platform: 'macos-latest'   # arm64
+            args: '--bundles app,dmg'
+          - platform: 'macos-13'       # x86_64（Intel Mac）
+            args: '--bundles app,dmg'
+          - platform: 'ubuntu-latest'
+            args: '--bundles deb,appimage'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -27,6 +33,19 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libssl-dev \
+            libgtk-3-dev
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
@@ -42,6 +61,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'AgentHub ${{ github.ref_name }}'
           releaseBody: 'See changelog for details.'
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

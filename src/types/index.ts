@@ -293,7 +293,6 @@ export const APP_VERSION = '1.0.3';
 export interface ValidationResult {
   valid: boolean;
   message: string;
-  supportsJunction: boolean;
 }
 
 export interface ToastMessage {

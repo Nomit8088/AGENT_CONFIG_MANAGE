@@ -289,6 +289,7 @@ import { ref, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import { UnmanagedSkill } from '../types';
 import AgentBrandIcon from './AgentBrandIcon.vue';
+import { linkStrategyFor } from '../shared/linkStrategy';
 import {
   X,
   AlertTriangle,
@@ -342,7 +343,7 @@ const filteredSkills = computed(() => {
 const footerText = computed(() => {
   if (!store.activeDetailAgent) return '';
   if (store.agentDetailModal.activeTab === 'skills') {
-    return store.activeDetailAgent.id === 'antigravity'
+    return linkStrategyFor(store.activeDetailAgent.id) === 'hardlinkTree'
       ? '挂载后将在该 Agent 技能目录创建 NTFS Hardlink 文件级硬链接'
       : '挂载后将在该 Agent 技能目录创建 Windows NTFS Junction 软链';
   }

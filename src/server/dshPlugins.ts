@@ -5,6 +5,7 @@ import { spawn, spawnSync, execFileSync } from 'child_process';
 import jsyaml from 'js-yaml';
 import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
+import { getAppDataDir as appDataDir } from './appPaths';
 import type {
   DshDiagnoseResult,
   DshInstallFailure,
@@ -32,11 +33,6 @@ export function resolveDshHome(): string {
   return path.join(os.homedir(), '.dsh');
 }
 
-function appDataDir(): string {
-  const appdata = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  return path.join(appdata, 'AgentHub');
-}
-
 function readConfigFile(): any {
   const configFile = path.join(appDataDir(), 'config.json');
   if (fs.existsSync(configFile)) {
@@ -61,13 +57,35 @@ function whichCmd(name: string): string | null {
   }
 }
 
+function npmGlobalBinDir(): string | null {
+  if (process.platform === 'win32') return null;
+  try {
+    const out = execFileSync('npm', ['prefix', '-g'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const prefix = out.split(/\r?\n/).map(s => s.trim()).find(Boolean);
+    return prefix ? path.join(prefix, 'bin') : null;
+  } catch {
+    return null;
+  }
+}
+
 function npmDirCmd(name: string): string | null {
-  if (process.platform !== 'win32') return null;
-  const candidates = [
-    path.join(os.homedir(), 'AppData', 'Roaming', 'npm', `${name}.cmd`),
-    path.join(os.homedir(), 'AppData', 'Roaming', 'npm', name),
-  ];
-  for (const c of candidates) {
+  if (process.platform === 'win32') {
+    const candidates = [
+      path.join(os.homedir(), 'AppData', 'Roaming', 'npm', `${name}.cmd`),
+      path.join(os.homedir(), 'AppData', 'Roaming', 'npm', name),
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
+    }
+    return null;
+  }
+  // Unix：which 失效时走 npm prefix -g（resolve_global_bin 语义）
+  const bin = npmGlobalBinDir();
+  if (bin) {
+    const c = path.join(bin, name);
     if (fs.existsSync(c)) return c;
   }
   return null;
@@ -1381,6 +1399,23 @@ function removeDependency(profileDir: string, pkgName: string): boolean {
 
 // ==================== 诊断 ====================
 
+function directChildPids(pid: number): number[] {
+  try {
+    const out = execFileSync('pgrep', ['-P', String(pid)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter(n => Number.isInteger(n) && n > 0);
+  } catch {
+    return [];
+  }
+}
+
 function killProcessTree(pid: number | undefined): void {
   if (!pid) return;
   if (process.platform === 'win32') {
@@ -1388,9 +1423,18 @@ function killProcessTree(pid: number | undefined): void {
       spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
     } catch {}
   } else {
-    try {
-      process.kill(pid, 'SIGKILL');
-    } catch {}
+    // 递归 pgrep -P 自底向上 + kill -9（与 Rust process.rs::kill_tree 对齐）
+    const order: number[] = [];
+    const walk = (p: number): void => {
+      for (const c of directChildPids(p)) walk(c);
+      order.push(p);
+    };
+    walk(pid);
+    for (const p of order) {
+      try {
+        process.kill(p, 'SIGKILL');
+      } catch {}
+    }
   }
 }
 

@@ -24,6 +24,11 @@ pub fn start_watcher(app_handle: AppHandle) {
             expand_tilde("~/.codex/skills"),
             expand_tilde("~/.dsh/skills"),
             expand_tilde("~/.agents/skills"),
+            // 4 个 Electron 系 Agent 的挂载目标（L11：纳入链接矩阵目录来源）
+            expand_tilde("~/.cursor/skills"),
+            expand_tilde("~/.windsurf/skills"),
+            expand_tilde("~/.zcode/skills"),
+            expand_tilde("~/.trae/skills"),
         ];
 
         for dir in watch_dirs {

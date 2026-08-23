@@ -292,12 +292,202 @@ fn launch_installer(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn launch_installer(path: &Path) -> Result<(), String> {
-    std::process::Command::new(path)
-        .spawn()
-        .map_err(|e| format!("无法启动安装程序: {}", e))?;
+    use std::process::Command;
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    // 得到待安装的 .app：dmg 挂载复制 / tar.gz 解压 / 直接 .app 目录
+    let app = if ext == "dmg" {
+        mount_and_copy_dmg(path)?
+    } else if path.is_dir() {
+        path.to_path_buf()
+    } else {
+        extract_app_archive(path)?
+    };
+
+    // 未签名产物去 quarantine（与 C2 一致）
+    let _ = Command::new("xattr")
+        .args(["-dr", "com.apple.quarantine"])
+        .arg(&app)
+        .status();
+
+    // 运行于 .app bundle 内 → 后置替换脚本（app 退出后替换 + 重启）；否则（开发模式）直接 open。
+    match current_app_bundle() {
+        Some(current) => spawn_macos_replace_script(&current, &app)?,
+        None => {
+            let _ = Command::new("open").arg(&app).spawn();
+        }
+    }
     Ok(())
+}
+
+/// 运行中的 AgentHub.app 的 bundle 路径（从 current_exe 向上找 *.app）。
+#[cfg(target_os = "macos")]
+fn current_app_bundle() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let mut p = exe.as_path();
+    while let Some(parent) = p.parent() {
+        if parent
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map_or(false, |n| n.ends_with(".app"))
+        {
+            return Some(parent.to_path_buf());
+        }
+        p = parent;
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn mount_and_copy_dmg(dmg: &Path) -> Result<PathBuf, String> {
+    use std::process::Command;
+
+    let out = Command::new("hdiutil")
+        .args(["attach", "-nobrowse", "-readonly"])
+        .arg(dmg)
+        .output()
+        .map_err(|e| format!("无法挂载 dmg: {}", e))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mount = text
+        .lines()
+        .filter_map(|l| l.split_whitespace().last())
+        .find(|p| p.starts_with("/Volumes/"))
+        .ok_or("无法解析 dmg 挂载点")?;
+    let mount_path = PathBuf::from(mount);
+
+    let app = fs::read_dir(&mount_path)
+        .map_err(|e| format!("无法读取 dmg 挂载内容: {}", e))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().map_or(false, |e| e == "app"))
+        .ok_or("dmg 内未找到 .app")?;
+
+    let staged_root = get_app_data_dir().join("updates").join("staged");
+    let _ = fs::remove_dir_all(&staged_root);
+    fs::create_dir_all(&staged_root).map_err(|e| format!("创建暂存目录失败: {}", e))?;
+    let dest = staged_root.join(app.file_name().unwrap_or_default());
+
+    let status = Command::new("ditto")
+        .arg(&app)
+        .arg(&dest)
+        .status()
+        .map_err(|e| format!("复制 .app 失败: {}", e))?;
+    if !status.success() {
+        let _ = Command::new("hdiutil").args(["detach"]).arg(&mount_path).output();
+        return Err("复制 .app 失败".to_string());
+    }
+
+    let _ = Command::new("hdiutil").args(["detach"]).arg(&mount_path).output();
+    Ok(dest)
+}
+
+#[cfg(target_os = "macos")]
+fn extract_app_archive(archive: &Path) -> Result<PathBuf, String> {
+    use std::process::Command;
+
+    let staged_root = get_app_data_dir().join("updates").join("staged");
+    let _ = fs::remove_dir_all(&staged_root);
+    fs::create_dir_all(&staged_root).map_err(|e| format!("创建暂存目录失败: {}", e))?;
+
+    let status = Command::new("tar")
+        .args(["-xzf"])
+        .arg(archive)
+        .arg("-C")
+        .arg(&staged_root)
+        .status()
+        .map_err(|e| format!("解压 .app 失败: {}", e))?;
+    if !status.success() {
+        return Err("解压 .app 失败".to_string());
+    }
+
+    fs::read_dir(&staged_root)
+        .map_err(|e| format!("读取暂存目录失败: {}", e))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().map_or(false, |e| e == "app"))
+        .ok_or("归档内未找到 .app".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn spawn_macos_replace_script(current_app: &Path, staged_app: &Path) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+
+    let pid = std::process::id();
+    let script = format!(
+        "#!/bin/bash\nwhile kill -0 {pid} 2>/dev/null; do sleep 0.5; done\nsleep 1\nrm -rf \"{current}\"\nmv \"{staged}\" \"{current}\"\nxattr -dr com.apple.quarantine \"{current}\" 2>/dev/null || true\nopen \"{current}\"\n",
+        pid = pid,
+        current = current_app.to_string_lossy(),
+        staged = staged_app.to_string_lossy(),
+    );
+    let script_path = get_app_data_dir().join("updates").join("postinstall.sh");
+    fs::write(&script_path, script).map_err(|e| format!("写入后置脚本失败: {}", e))?;
+
+    Command::new("/bin/bash")
+        .arg(&script_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("启动后置脚本失败: {}", e))?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn launch_installer(path: &Path) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let path_str = path.to_string_lossy().to_string();
+
+    if ext == "deb" {
+        // 优先 pkexec（图形提权）→ sudo → 直跑 dpkg（无权限会失败）。
+        let (prog, args): (&str, Vec<&str>) = if command_exists("pkexec") {
+            ("pkexec", vec!["dpkg", "-i", &path_str])
+        } else if command_exists("sudo") {
+            ("sudo", vec!["dpkg", "-i", &path_str])
+        } else {
+            ("dpkg", vec!["-i", &path_str])
+        };
+        Command::new(prog)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("无法启动 deb 安装: {}", e))?;
+    } else {
+        // .AppImage（或其它可执行包）：chmod +x 后直接启动。
+        let _ = Command::new("chmod").arg("+x").arg(&path_str).status();
+        Command::new(&path_str)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("无法启动安装程序: {}", e))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn command_exists(name: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(name)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 /// 启动安装程序并退出当前应用。启动后稍作等待，让安装程序的 UAC 提权 / 进程先就位，
