@@ -167,7 +167,7 @@ AgentHub 严格遵循 **macOS Vibrancy (毛玻璃极简)** 工业设计规范：
 1. 前往 [**GitHub Releases 最新版本**](https://github.com/Nomit8088/AGENT_CONFIG_MANAGE/releases/latest)；
 2. 按平台下载对应安装包：
    - **Windows**：`AgentHub-setup-*.exe`（推荐，NSIS 一键安装程序）或 `*.msi`；
-   - **macOS**：`*.dmg`（Apple Silicon 下载 `aarch64`，Intel Mac 下载 `x64`）或 `*.app.tar.gz`；
+   - **macOS**：`*.dmg`（universal，Intel + Apple Silicon 通用）或 `*.app.tar.gz`；
    - **Linux**：`*.deb`（Debian/Ubuntu 推荐）或 `*.AppImage`（若无 libfuse2，用 `--appimage-extract-and-run` 或改用 `.deb`）。
 3. 双击运行安装程序，启动即可使用。后续新版本支持**客户端内一键在线自动更新**。
 
