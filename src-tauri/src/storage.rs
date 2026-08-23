@@ -150,3 +150,34 @@ pub fn parse_skill_md(content: &str, folder_name: &str) -> (String, String, Opti
     }
     (folder_name.to_string(), "无描述信息".to_string(), None)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_data_dir_platform_consistent() {
+        // B-M9.1：应用数据目录 = <平台基目录>/AgentHub。
+        let dir = get_app_data_dir();
+        assert_eq!(dir.file_name().and_then(|n| n.to_str()), Some("AgentHub"));
+
+        #[cfg(windows)]
+        {
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                assert!(dir.starts_with(&appdata), "Windows 应位于 %APPDATA% 下: {dir:?}");
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let home = dirs::home_dir().unwrap();
+            assert!(dir.starts_with(home.join("Library").join("Application Support")));
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let base = std::env::var("XDG_CONFIG_HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| dirs::home_dir().unwrap().join(".config"));
+            assert!(dir.starts_with(&base), "Linux 应位于 XDG/.config 下: {dir:?}");
+        }
+    }
+}

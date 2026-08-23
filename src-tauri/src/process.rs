@@ -185,3 +185,44 @@ where
     }
     Ok(out)
 }
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{direct_children, kill_tree};
+
+    #[test]
+    fn kill_tree_unix_kills_descendants() {
+        // B-M4.6：spawn 一个带子进程的 sh，kill_tree 后整棵树（根 + 子进程）消失。
+        let child = std::process::Command::new("sh")
+            .args(["-c", "sleep 300 & sleep 300"])
+            .spawn()
+            .unwrap();
+        let root = child.id();
+
+        // 等子进程就位（最多 2s）
+        let mut child_pids = Vec::new();
+        for _ in 0..20 {
+            child_pids = direct_children(root);
+            if !child_pids.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(!child_pids.is_empty(), "应能探测到子进程");
+
+        kill_tree(root);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+
+        let alive = |pid: u32| -> bool {
+            std::process::Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        };
+        assert!(!alive(root), "根进程应已被杀");
+        for p in child_pids {
+            assert!(!alive(p), "子进程 {p} 应已被杀（递归杀树）");
+        }
+    }
+}

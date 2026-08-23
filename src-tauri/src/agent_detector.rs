@@ -183,6 +183,12 @@ pub fn get_default_agents() -> Vec<AgentInfo> {
     ]
 }
 
+/// D4 查证结论（web 实证，未真机验证）：
+/// 4 个 Electron 系 Agent（cursor/windsurf/zcode/trae）的 skills 读取目录均为
+/// `~/.xxx/skills` HOME 点目录（三平台统一，见官方文档 Cursor/ZCode/Trae 与
+/// vercel-labs/skills 的 Supported Agents 表），不随平台落到 `~/Library/Application Support/*`。
+/// 因此 `skills_dir`（挂载目标）保持 `~/.xxx/skills` 不变；下方 `~/Library/Application Support/X`
+/// 与 `~/.config/X` 仅作「已安装」探测启发（best-known，未真机验证）。
 pub fn detect_agent(agent: &mut AgentInfo) {
     let probe_paths: Vec<PathBuf> = match agent.id.as_str() {
         "claude-code" => vec![
