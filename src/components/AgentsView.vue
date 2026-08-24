@@ -5,7 +5,7 @@
       <div class="flex items-center gap-2 min-w-0">
         <h2 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">Agent Hub</h2>
         <span class="hidden md:inline text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/60 border border-black/8 dark:border-white/8 font-mono">
-          {{ store.agents.length }} 款 Agent 适配
+          {{ $t('agent.agentsCount', { count: store.agents.length }) }}
         </span>
       </div>
 
@@ -13,11 +13,11 @@
         <button
           v-if="store.totalUnmanagedCount > 0"
           @click="store.takeoverAllUnmanagedSkills()"
-          title="一键将所有 Agent 下的存量物理技能全部纳管并替换为中央受控链接"
+          :title="$t('agent.adoptAllTitle')"
           class="px-2.5 py-1.5 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 border border-[#22c55e]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
           <PackageCheck class="w-3.5 h-3.5" />
-          <span class="hidden sm:inline">一键纳管全部 ({{ store.totalUnmanagedCount }})</span>
+          <span class="hidden sm:inline">{{ $t('agent.adoptAll', { count: store.totalUnmanagedCount }) }}</span>
           <span class="sm:hidden">{{ store.totalUnmanagedCount }}</span>
         </button>
 
@@ -26,7 +26,7 @@
           class="px-2.5 py-1.5 rounded-lg bg-transparent text-slate-700 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 hover:bg-black/5 dark:hover:bg-white/8 border border-black/10 dark:border-white/12 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
           <Plus class="w-3.5 h-3.5 text-slate-600 dark:text-white/80" />
-          <span class="hidden sm:inline">添加 Agent</span>
+          <span class="hidden sm:inline">{{ $t('agent.addAgent') }}</span>
         </button>
 
         <button
@@ -35,7 +35,7 @@
           class="px-2.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200"
         >
           <RefreshCw class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" :class="{ 'animate-spin': store.isLoading }" />
-          <span class="hidden sm:inline">重新扫描</span>
+          <span class="hidden sm:inline">{{ $t('agent.rescan') }}</span>
         </button>
       </div>
     </div>
@@ -47,7 +47,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="搜索 Agent 名称、私有规则文件名、路径..."
+          :placeholder="$t('agent.searchPlaceholder')"
           class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         />
         <button
@@ -72,7 +72,7 @@
           ]"
         >
           <span v-if="agentFilterTab === 'enabled'" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
-          <span>已启用 ({{ filteredEnabled.length }})</span>
+          <span>{{ $t('agent.enabledTab') }} ({{ filteredEnabled.length }})</span>
         </button>
         <button
           type="button"
@@ -85,7 +85,7 @@
           ]"
         >
           <span v-if="agentFilterTab === 'disabled'" class="w-1.5 h-1.5 rounded-sm bg-slate-300 dark:bg-white/30"></span>
-          <span>未启用 ({{ filteredDisabled.length }})</span>
+          <span>{{ $t('agent.disabledTab') }} ({{ filteredDisabled.length }})</span>
         </button>
       </div>
     </div>
@@ -95,7 +95,7 @@
       <div class="flex items-center justify-between px-1">
         <h3 class="font-serif text-xs font-semibold text-slate-900 dark:text-white/90 tracking-wider flex items-center gap-2">
           <span class="w-2 h-2 rounded-sm" :class="agentFilterTab === 'enabled' ? 'bg-[#22c55e]' : 'bg-slate-300 dark:bg-white/30'"></span>
-          <span>{{ agentFilterTab === 'enabled' ? '已启用 Agent' : '未启用 / 待激活 Agent' }} ({{ currentList.length }})</span>
+          <span>{{ (agentFilterTab === 'enabled' ? $t('agent.enabledAgents') : $t('agent.disabledAgents')) }} ({{ currentList.length }})</span>
         </h3>
         <button
           v-if="agentFilterTab === 'disabled' && filteredDisabled.length > 1"
@@ -103,7 +103,7 @@
           class="text-xs text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white/95 flex items-center gap-1 font-medium transition-colors duration-200"
         >
           <Zap class="w-3.5 h-3.5 text-[#f59e0b]" />
-          <span>全部一键启用</span>
+          <span>{{ $t('agent.enableAll') }}</span>
         </button>
       </div>
 
@@ -135,6 +135,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import AgentCard from './AgentCard.vue';
 import AgentDetailModal from './AgentDetailModal.vue';
 import {
@@ -170,9 +171,9 @@ const currentList = computed(() =>
 );
 
 const emptyText = computed(() => {
-  if (searchQuery.value.trim()) return '未搜索到匹配的 Agent，请尝试其他关键词';
-  if (agentFilterTab.value === 'enabled') return '暂无已启用的 Agent，请切换到「未启用」页签一键开启';
-  return '全部 Agent 均已启用 🎉';
+  if (searchQuery.value.trim()) return t('agent.searchEmpty');
+  if (agentFilterTab.value === 'enabled') return t('agent.enabledEmpty');
+  return t('agent.allEnabled');
 });
 
 async function enableAllDisabled() {

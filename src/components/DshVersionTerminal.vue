@@ -7,7 +7,7 @@
           class="w-2 h-2 rounded-sm shrink-0 transition-colors duration-200"
           :class="statusDotClass"
         ></span>
-        <span class="font-mono text-slate-700 dark:text-white/90 truncate">版本变更终端 · {{ statusText }}</span>
+        <span class="font-mono text-slate-700 dark:text-white/90 truncate">{{ $t('version.terminalTitle', { status: statusText }) }}</span>
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <button
@@ -16,7 +16,7 @@
           @click="clearLines"
           class="text-[11px] px-2 py-1 rounded-md text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80 transition-colors duration-200"
         >
-          清屏
+          {{ $t('dshPlugin.terminalClear') }}
         </button>
         <button
           type="button"
@@ -31,7 +31,7 @@
     <!-- Log output -->
     <div ref="logRef" class="h-40 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 dark:text-[#e5e5ea] whitespace-pre-wrap break-all">
       <p v-if="store.dshVersionTerminal.lines.length === 0" class="text-slate-500 dark:text-white/40">
-        终端空闲，点击「升级 / 安装 / 回滚」后，这里会实时回显诊断、快照与 npm install -g 日志…
+        {{ $t('version.terminalIdle') }}
       </p>
       <template v-else>
         <div v-for="(line, idx) in store.dshVersionTerminal.lines" :key="idx">{{ line }}</div>
@@ -44,12 +44,12 @@
       class="px-3 py-2 border-t border-black/8 dark:border-white/8 bg-black/5 dark:bg-[#1c1d22] text-[11px] font-mono flex items-center gap-3 flex-wrap"
     >
       <span :class="store.dshVersionResult.ok ? 'text-[#22c55e]' : 'text-[#ef4444]'">
-        {{ store.dshVersionResult.ok ? '✓ 变更成功' : '✗ 变更需关注' }}
+        {{ store.dshVersionResult.ok ? $t('version.changeSuccess') : $t('version.changeAttention') }}
       </span>
       <span class="text-slate-500 dark:text-white/50">
-        {{ store.dshVersionResult.beforeVersion || '未知' }} → {{ store.dshVersionResult.afterVersion || store.dshVersionResult.targetVersion }}
+        {{ store.dshVersionResult.beforeVersion || $t('common.unknown') }} → {{ store.dshVersionResult.afterVersion || store.dshVersionResult.targetVersion }}
       </span>
-      <span class="text-slate-500 dark:text-white/50">失败插件: {{ store.dshVersionResult.diagnosisBefore }} → {{ store.dshVersionResult.diagnosisAfter }}</span>
+      <span class="text-slate-500 dark:text-white/50">{{ $t('version.failedPlugins', { before: store.dshVersionResult.diagnosisBefore, after: store.dshVersionResult.diagnosisAfter }) }}</span>
     </div>
   </div>
 </template>
@@ -57,17 +57,18 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import { X } from 'lucide-vue-next';
 
 const store = useAppStore();
 const logRef = ref<HTMLElement | null>(null);
 
 const statusText = computed(() => {
-  if (store.dshVersionTerminal.running) return '运行中…';
+  if (store.dshVersionTerminal.running) return t('version.runningStatus');
   if (store.dshVersionResult) {
-    return store.dshVersionResult.ok ? '完成 · 成功' : '完成 · 需关注';
+    return store.dshVersionResult.ok ? t('version.doneSuccessStatus') : t('version.doneAttentionStatus');
   }
-  return '空闲';
+  return t('version.idleStatus');
 });
 
 const statusDotClass = computed(() => {

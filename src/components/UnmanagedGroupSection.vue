@@ -8,19 +8,19 @@
         </div>
         <div>
           <h3 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 flex items-center gap-2">
-            <span>本地存量 Skill 检测与纳管 (Agent Skills)</span>
+            <span>{{ $t('unmanaged.title') }}</span>
             <span
               v-if="store.totalUnmanagedCount > 0"
               class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#f59e0b] border border-black/8 dark:border-white/8 font-mono font-semibold"
             >
-              {{ store.totalUnmanagedCount }} 个待纳管
+              {{ $t('unmanaged.count', { count: store.totalUnmanagedCount }) }}
             </span>
             <span v-else class="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#22c55e] border border-black/8 dark:border-white/8 font-mono">
-              全部受控
+              {{ $t('unmanaged.allManaged') }}
             </span>
           </h3>
           <p class="text-[11px] text-slate-500 dark:text-white/50">
-            按 Agent 归类扫描本地未受控实体文件夹。点击卡片可快速纳入中央库或标记为私有忽略。
+            {{ $t('unmanaged.subtitle') }}
           </p>
         </div>
       </div>
@@ -33,7 +33,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索 Agent / 目录..."
+            :placeholder="$t('unmanaged.searchPlaceholder')"
             class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
@@ -50,9 +50,9 @@
           v-model="statusFilter"
           class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
-          <option value="all">全部 Agent ({{ store.enabledAgents.length }})</option>
-          <option value="unmanaged">仅显示有待纳管</option>
-          <option value="clean">仅显示全部受控</option>
+          <option value="all">{{ $t('unmanaged.agentAll', { count: store.enabledAgents.length }) }}</option>
+          <option value="unmanaged">{{ $t('unmanaged.onlyUnmanaged') }}</option>
+          <option value="clean">{{ $t('unmanaged.onlyClean') }}</option>
         </select>
 
         <!-- Sort Dropdown -->
@@ -60,18 +60,18 @@
           v-model="sortKey"
           class="bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
         >
-          <option value="unmanaged_desc">待纳管数量 (从多到少)</option>
-          <option value="name_asc">Agent 名称 (A-Z)</option>
+          <option value="unmanaged_desc">{{ $t('unmanaged.sortDesc') }}</option>
+          <option value="name_asc">{{ $t('unmanaged.nameAsc') }}</option>
         </select>
 
         <!-- Rescan Button -->
         <button
           @click="store.scanUnmanaged()"
           class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1"
-          title="重新扫描各 Agent 目录"
+          :title="$t('unmanaged.rescanTitle')"
         >
           <RefreshCw class="w-3 h-3" />
-          <span>重新检测</span>
+          <span>{{ $t('unmanaged.redetect') }}</span>
         </button>
 
         <!-- Batch Takeover All Across Agents Button -->
@@ -79,10 +79,10 @@
           v-if="store.totalUnmanagedCount > 0"
           @click="store.takeoverAllUnmanagedSkills()"
           class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1 font-medium"
-          title="一键将所有 Agent 下的存量物理技能全部纳管并替换为中央受控链接"
+          :title="$t('agent.adoptAllTitle')"
         >
           <PackageCheck class="w-3 h-3 text-[#22c55e]" />
-          <span>一键纳管全部 ({{ store.totalUnmanagedCount }})</span>
+          <span>{{ $t('agent.adoptAll', { count: store.totalUnmanagedCount }) }}</span>
         </button>
       </div>
     </div>
@@ -133,23 +133,23 @@
               v-if="getAgentUnmanagedCount(agent.id) > 0"
               class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#f59e0b] border border-black/8 dark:border-white/8 font-mono"
             >
-              {{ getAgentUnmanagedCount(agent.id) }} 待纳管
+              {{ $t('unmanaged.countBadge', { count: getAgentUnmanagedCount(agent.id) }) }}
             </span>
             <span v-else class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-[#22c55e] border border-black/8 dark:border-white/8 font-mono">
-              0 实体
+              {{ $t('unmanaged.zero') }}
             </span>
 
             <span
               v-if="getAgentIgnoredCount(agent.id) > 0"
               class="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-500 dark:text-white/50 border border-black/8 dark:border-white/8 font-mono"
-              title="已忽略私有技能"
+              :title="$t('agent.ignoredTitle')"
             >
-              {{ getAgentIgnoredCount(agent.id) }} 忽略
+              {{ $t('unmanaged.ignoredBadge', { count: getAgentIgnoredCount(agent.id) }) }}
             </span>
           </div>
 
           <div class="flex items-center text-slate-400 dark:text-white/40 group-hover:text-slate-900 dark:group-hover:text-white/90 text-xs transition-colors duration-200">
-            <span>管理</span>
+            <span>{{ $t('common.manage') }}</span>
             <ChevronRight class="w-3.5 h-3.5" />
           </div>
         </div>
@@ -157,7 +157,7 @@
     </div>
 
     <div v-if="displayAgents.length === 0" class="py-6 text-center text-slate-400 dark:text-white/40 text-xs">
-      未匹配到符合筛选条件的 Agent
+      {{ $t('unmanaged.empty') }}
     </div>
   </div>
 </template>

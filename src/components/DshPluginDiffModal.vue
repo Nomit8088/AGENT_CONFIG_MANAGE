@@ -12,10 +12,10 @@
           </div>
           <div>
             <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">
-              {{ isApply ? '确认从仓库应用' : 'DSH 插件配置对账' }}
+              {{ isApply ? $t('dshPlugin.diffApplyTitle') : $t('dshPlugin.diffPreviewTitle') }}
             </h3>
             <p class="text-xs text-slate-500 dark:text-white/50">
-              {{ isApply ? '将用仓库镜像覆盖本地配置，请确认以下变更' : '仓库镜像 vs 本地 ~/.dsh 的差异' }}
+              {{ isApply ? $t('dshPlugin.diffApplyDesc') : $t('dshPlugin.diffPreviewDesc') }}
             </p>
           </div>
         </div>
@@ -30,7 +30,7 @@
       <!-- Body -->
       <div class="flex-1 overflow-y-auto py-4 space-y-3">
         <div v-if="!diff || diff.items.length === 0" class="text-center py-8 text-xs text-slate-500 dark:text-white/50">
-          暂无差异
+          {{ $t('dshPlugin.diffNoDiff') }}
         </div>
 
         <div v-else class="space-y-2">
@@ -53,17 +53,17 @@
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="rounded-md bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 px-2 py-1.5">
-                <div class="text-slate-400 dark:text-white/40">本地</div>
+                <div class="text-slate-400 dark:text-white/40">{{ $t('dshPlugin.diffLocal') }}</div>
                 <div class="text-slate-700 dark:text-white/70 break-all">{{ item.local || '—' }}</div>
               </div>
               <div class="rounded-md bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 px-2 py-1.5">
-                <div class="text-slate-400 dark:text-white/40">仓库</div>
+                <div class="text-slate-400 dark:text-white/40">{{ $t('dshPlugin.diffRepo') }}</div>
                 <div class="text-slate-700 dark:text-white/70 break-all">{{ item.remote || '—' }}</div>
               </div>
             </div>
 
             <div v-if="isApply" class="mt-2 flex items-center gap-2 flex-wrap">
-              <span class="text-[10px] text-slate-400 dark:text-white/40">处理方式</span>
+              <span class="text-[10px] text-slate-400 dark:text-white/40">{{ $t('dshPlugin.diffHandling') }}</span>
               <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-[11px]">
                 <button
                   type="button"
@@ -84,15 +84,15 @@
       <!-- Footer -->
       <div class="flex items-center justify-between gap-3 pt-3 border-t border-black/8 dark:border-white/8 flex-shrink-0">
         <div class="text-[11px] text-slate-400 dark:text-white/50">
-          <template v-if="isApply">按上方每条选择的方向写回本地并执行 pnpm install；「丢弃」会移除本地插件。</template>
-          <template v-else>仅比较，不修改任何配置。如需以仓库覆盖本地，请使用「从仓库应用」。</template>
+          <template v-if="isApply">{{ $t('dshPlugin.diffApplyFooter') }}</template>
+          <template v-else>{{ $t('dshPlugin.diffPreviewFooter') }}</template>
         </div>
         <div class="flex items-center gap-2">
           <button
             @click="close"
             class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
           >
-            {{ isApply ? '取消' : '关闭' }}
+            {{ isApply ? $t('common.cancel') : $t('common.close') }}
           </button>
           <button
             v-if="isApply"
@@ -101,7 +101,7 @@
             class="px-3 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-medium border border-[#8b5cf6] transition-colors duration-200 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle class="w-3.5 h-3.5" />
-            <span>{{ applying ? '应用中…' : '确认应用（以仓库为准）' }}</span>
+            <span>{{ applying ? $t('dshPlugin.diffApplying') : $t('dshPlugin.diffConfirmApply') }}</span>
           </button>
         </div>
       </div>
@@ -112,6 +112,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import { CheckCircle, GitCompare, X } from 'lucide-vue-next';
 import type { DshAlignDecision, DshAlignDirection, DshPluginDiffItem } from '../types';
 
@@ -121,18 +122,20 @@ const isApply = computed(() => store.dshPluginDiffModal.mode === 'apply');
 const applying = ref(false);
 const overrides = ref<Record<string, DshAlignDirection>>({});
 
-const REMOTE_LABEL: Record<DshPluginDiffItem['kind'], string> = {
-  missing: '采纳仓库',
-  extra: '丢弃',
-  version: '采用仓库',
-  patch: '采用仓库',
-};
-const LOCAL_LABEL: Record<DshPluginDiffItem['kind'], string> = {
-  missing: '跳过',
-  extra: '保留本地',
-  version: '保留本地',
-  patch: '保留本地',
-};
+function remoteLabel(kind: DshPluginDiffItem['kind']): string {
+  switch (kind) {
+    case 'missing': return t('dshPlugin.diffAdoptRepo');
+    case 'extra': return t('dshPlugin.diffDiscard');
+    default: return t('dshPlugin.diffUseRepo');
+  }
+}
+
+function localLabel(kind: DshPluginDiffItem['kind']): string {
+  switch (kind) {
+    case 'missing': return t('dshPlugin.diffSkip');
+    default: return t('dshPlugin.diffKeepLocal');
+  }
+}
 
 function itemKey(item: DshPluginDiffItem): string {
   return `${item.profileName}|${item.kind}|${item.name}`;
@@ -148,14 +151,6 @@ function dirOf(item: DshPluginDiffItem): DshAlignDirection {
 
 function setDir(item: DshPluginDiffItem, dir: DshAlignDirection) {
   overrides.value[itemKey(item)] = dir;
-}
-
-function remoteLabel(kind: DshPluginDiffItem['kind']): string {
-  return REMOTE_LABEL[kind];
-}
-
-function localLabel(kind: DshPluginDiffItem['kind']): string {
-  return LOCAL_LABEL[kind];
 }
 
 function dirBtnClass(item: DshPluginDiffItem, dir: DshAlignDirection): string {
@@ -184,7 +179,7 @@ async function confirmApply() {
     await store.alignDshPlugins(undefined, decisions);
     store.dshPluginDiffModal.visible = false;
   } catch (e: any) {
-    store.showToast({ title: '应用失败', message: e?.message || '无法应用仓库配置', type: 'error' });
+    store.showToast({ title: t('dshPlugin.diffToastApplyFailed'), message: translateError(e, 'dshPlugin.diffToastApplyFailedMsg'), type: 'error' });
   } finally {
     applying.value = false;
   }
@@ -192,10 +187,10 @@ async function confirmApply() {
 
 function kindLabel(kind: DshPluginDiffItem['kind']): string {
   switch (kind) {
-    case 'missing': return '缺失';
-    case 'extra': return '多余';
-    case 'version': return '版本差异';
-    case 'patch': return 'patch 差异';
+    case 'missing': return t('dshPlugin.diffKindMissing');
+    case 'extra': return t('dshPlugin.diffKindExtra');
+    case 'version': return t('dshPlugin.diffKindVersion');
+    case 'patch': return t('dshPlugin.diffKindPatch');
   }
 }
 
