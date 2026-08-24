@@ -6,8 +6,8 @@ use crate::git_sync::run_git;
 use serde_json::Value as JsonValue;
 
 use crate::dsh_plugins::{
-    is_portable_spec, list_profile_dirs, read_pkg, reconcile_node_modules, resolve_dsh_home,
-    run_install_blocking, write_pkg, BUILTIN_BUNDLE_PREFIX,
+    create_dsh_config_snapshot, is_portable_spec, list_profile_dirs, read_pkg,
+    reconcile_node_modules, resolve_dsh_home, run_install_blocking, write_pkg, BUILTIN_BUNDLE_PREFIX,
 };
 use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -30,6 +30,7 @@ config.json
 agents.json
 projects.json
 dsh_install_state.json
+dsh_version_history.json
 backups/
 *.log
 .DS_Store
@@ -775,6 +776,13 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
         if fs::create_dir_all(&local_dir).is_err() {
             continue;
         }
+
+        // 对齐前自动快照（用户可见时间线；失败不阻塞对齐）
+        let _ = create_dsh_config_snapshot(
+            name.clone(),
+            "align".to_string(),
+            Some("对齐前自动快照".to_string()),
+        );
 
         // 对齐前快照：安装失败时回滚本地配置
         let snap_files = ["package.json", "cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"];

@@ -51,6 +51,17 @@ import {
   reconcileDshPlugins,
   alignDshPlugins,
   getDshPluginsSyncDiff,
+  createDshConfigSnapshot,
+  listDshConfigSnapshots,
+  rollbackDshConfigSnapshot,
+  setDshConfigSnapshotPermanent,
+  deleteDshConfigSnapshot,
+  getDshVersionInfo,
+  checkDshVersionUpdate,
+  listDshVersions,
+  upgradeDshVersion,
+  installDshVersion,
+  rollbackDshVersion,
   DEFAULT_PRESET_AGENTS,
   detectAgentInstalled,
   detectSystemTheme,
@@ -807,6 +818,87 @@ function localApiPlugin(): Plugin {
               await alignDshPlugins(profile);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/snapshots (手动创建快照)
+            if (pathname === '/api/dsh/plugins/snapshots' && req.method === 'POST') {
+              const { profile, note } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(createDshConfigSnapshot(profile || 'web', 'manual', note)));
+            }
+
+            // GET /api/dsh/plugins/snapshots (快照时间线)
+            if (pathname === '/api/dsh/plugins/snapshots' && req.method === 'GET') {
+              const profile = url.searchParams.get('profile') || 'web';
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(listDshConfigSnapshots(profile)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/rollback (一键回滚)
+            if (pathname === '/api/dsh/plugins/snapshots/rollback' && req.method === 'POST') {
+              const { snapshotId } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(rollbackDshConfigSnapshot(snapshotId)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/permanent (标记永久保留)
+            if (pathname === '/api/dsh/plugins/snapshots/permanent' && req.method === 'POST') {
+              const { snapshotId, permanent } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(setDshConfigSnapshotPermanent(snapshotId, !!permanent)));
+            }
+
+            // POST /api/dsh/plugins/snapshots/delete (删除快照)
+            if (pathname === '/api/dsh/plugins/snapshots/delete' && req.method === 'POST') {
+              const { snapshotId } = jsonBody;
+              deleteDshConfigSnapshot(snapshotId);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/dsh/version (当前 DSH 版本信息)
+            if (pathname === '/api/dsh/version' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getDshVersionInfo()));
+            }
+
+            // GET /api/dsh/version/check (检测远端最新版本)
+            if (pathname === '/api/dsh/version/check' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(checkDshVersionUpdate()));
+            }
+
+            // GET /api/dsh/version/history (本地版本历史)
+            if (pathname === '/api/dsh/version/history' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(listDshVersions()));
+            }
+
+            // POST /api/dsh/version/upgrade (升级：自动快照 → npm install -g → 诊断对比)
+            if (pathname === '/api/dsh/version/upgrade' && req.method === 'POST') {
+              const report = await upgradeDshVersion();
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(report));
+            }
+
+            // POST /api/dsh/version/install (指定版本安装 / 降级 / 切换)
+            if (pathname === '/api/dsh/version/install' && req.method === 'POST') {
+              const { version } = jsonBody;
+              if (!version || !String(version).trim()) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'version 不能为空' }));
+              }
+              const report = await installDshVersion(String(version));
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(report));
+            }
+
+            // POST /api/dsh/version/rollback (一键回滚：版本 + 配置快照)
+            if (pathname === '/api/dsh/version/rollback' && req.method === 'POST') {
+              const { previousVersion, snapshotIds } = jsonBody;
+              const report = await rollbackDshVersion(previousVersion || '', Array.isArray(snapshotIds) ? snapshotIds : []);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(report));
             }
 
             // GET /api/app/update/check

@@ -15,6 +15,7 @@ config.json
 agents.json
 projects.json
 dsh_install_state.json
+dsh_version_history.json
 backups/
 *.log
 .DS_Store

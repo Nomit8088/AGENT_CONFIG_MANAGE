@@ -3,6 +3,7 @@ import {
   AppConfig,
   AppUpdateCheck,
   AppUpdateDownload,
+  DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallMode,
   DshInstallReport,
@@ -11,6 +12,12 @@ import {
   DshPluginScanResult,
   DshPluginUpdateCheck,
   DshRecoveryAction,
+  DshSnapshotRollbackResult,
+  DshVersionCheck,
+  DshVersionHistoryEntry,
+  DshVersionInfo,
+  DshVersionRollbackResult,
+  DshVersionUpgradeResult,
   ProjectInfo,
   SkillItem,
   SkillsSyncStatus,
@@ -477,6 +484,87 @@ export const api = {
       return invokeTauri('align_dsh_plugins', { profile });
     }
     return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile });
+  },
+
+  // ==================== DSH 配置快照与回滚 (WI-006) ====================
+
+  async createDshConfigSnapshot(profile: string, note?: string): Promise<DshConfigSnapshot> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot>('create_dsh_config_snapshot', { profile, trigger: 'manual', note });
+    }
+    return requestApi<DshConfigSnapshot>('/api/dsh/plugins/snapshots', 'POST', { profile, note });
+  },
+
+  async listDshConfigSnapshots(profile: string): Promise<DshConfigSnapshot[]> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot[]>('list_dsh_config_snapshots', { profile });
+    }
+    return requestApi<DshConfigSnapshot[]>(`/api/dsh/plugins/snapshots?profile=${encodeURIComponent(profile)}`);
+  },
+
+  async rollbackDshConfigSnapshot(snapshotId: string): Promise<DshSnapshotRollbackResult> {
+    if (isTauri()) {
+      return invokeTauri<DshSnapshotRollbackResult>('rollback_dsh_config_snapshot', { snapshotId });
+    }
+    return requestApi<DshSnapshotRollbackResult>('/api/dsh/plugins/snapshots/rollback', 'POST', { snapshotId });
+  },
+
+  async setDshConfigSnapshotPermanent(snapshotId: string, permanent: boolean): Promise<DshConfigSnapshot> {
+    if (isTauri()) {
+      return invokeTauri<DshConfigSnapshot>('set_dsh_config_snapshot_permanent', { snapshotId, permanent });
+    }
+    return requestApi<DshConfigSnapshot>('/api/dsh/plugins/snapshots/permanent', 'POST', { snapshotId, permanent });
+  },
+
+  async deleteDshConfigSnapshot(snapshotId: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('delete_dsh_config_snapshot', { snapshotId });
+    }
+    return requestApi<void>('/api/dsh/plugins/snapshots/delete', 'POST', { snapshotId });
+  },
+
+  // ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+  async getDshVersionInfo(): Promise<DshVersionInfo> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionInfo>('get_dsh_version_info');
+    }
+    return requestApi<DshVersionInfo>('/api/dsh/version');
+  },
+
+  async checkDshVersionUpdate(): Promise<DshVersionCheck> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionCheck>('check_dsh_version_update');
+    }
+    return requestApi<DshVersionCheck>('/api/dsh/version/check');
+  },
+
+  async listDshVersions(): Promise<DshVersionHistoryEntry[]> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionHistoryEntry[]>('list_dsh_versions');
+    }
+    return requestApi<DshVersionHistoryEntry[]>('/api/dsh/version/history');
+  },
+
+  async upgradeDsh(): Promise<DshVersionUpgradeResult> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionUpgradeResult>('upgrade_dsh_version');
+    }
+    return requestApi<DshVersionUpgradeResult>('/api/dsh/version/upgrade', 'POST');
+  },
+
+  async installDshVersion(version: string): Promise<DshVersionUpgradeResult> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionUpgradeResult>('install_dsh_version', { targetVersion: version });
+    }
+    return requestApi<DshVersionUpgradeResult>('/api/dsh/version/install', 'POST', { version });
+  },
+
+  async rollbackDsh(previousVersion: string, snapshotIds: string[]): Promise<DshVersionRollbackResult> {
+    if (isTauri()) {
+      return invokeTauri<DshVersionRollbackResult>('rollback_dsh_version', { previousVersion, snapshotIds });
+    }
+    return requestApi<DshVersionRollbackResult>('/api/dsh/version/rollback', 'POST', { previousVersion, snapshotIds });
   },
 
   // ==================== 应用本体在线更新 (cc-switch 风格) ====================

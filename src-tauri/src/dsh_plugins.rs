@@ -11,7 +11,7 @@ use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 
 use crate::models::*;
-use crate::storage::load_config;
+use crate::storage::{get_backups_dir, load_config};
 
 pub(crate) const BUILTIN_BUNDLE_PREFIX: &str = "@deepseek-ai/dsh-";
 
@@ -98,6 +98,11 @@ pub fn resolve_pnpm_command(cfg: &AppConfig) -> Option<String> {
         }
     }
     which_cmd("pnpm").or_else(|| npm_dir_cmd("pnpm"))
+}
+
+/// npm 命令探测（DSH 本体是全局 npm 包，升级/版本管理走 npm，与 pnpm 的插件安装分属两条链）。
+pub fn resolve_npm_command(_cfg: &AppConfig) -> Option<String> {
+    which_cmd("npm").or_else(|| npm_dir_cmd("npm"))
 }
 
 // ==================== 扫描 ====================
@@ -2559,6 +2564,13 @@ fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(S
     };
     let profile_dir = ensure_profile_dir(&profile_name)?;
 
+    // 安装前自动快照（用户可见时间线；失败不阻塞安装）
+    let _ = create_dsh_config_snapshot(
+        profile_name.clone(),
+        "install".to_string(),
+        Some("安装前自动快照".to_string()),
+    );
+
     let safe_mode = match mode.as_str() {
         "update" | "reinstall-all" | "reinstall-failed" | "incremental" => mode.as_str().to_string(),
         _ => "incremental".to_string(),
@@ -2760,4 +2772,553 @@ pub async fn install_dsh_plugins_streamed(
     })
     .await
     .map_err(|e| format!("安装执行失败: {}", e))?
+}
+
+// ==================== 配置快照与回滚 (WI-006) ====================
+
+const SNAPSHOT_FILES: [&str; 4] = [
+    "package.json",
+    "cordis.patch.yml",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+];
+const MAX_AUTO_SNAPSHOTS: usize = 20;
+
+fn safe_profile_name(name: &str) -> String {
+    name.replace('/', "_").replace('\\', "_")
+}
+
+fn dsh_snapshots_root() -> PathBuf {
+    get_backups_dir().join("dsh-profiles")
+}
+
+fn snapshot_profile_root(profile: &str) -> PathBuf {
+    dsh_snapshots_root().join(safe_profile_name(profile))
+}
+
+fn read_snapshot_meta(dir: &Path) -> Option<DshConfigSnapshot> {
+    let text = fs::read_to_string(dir.join("meta.json")).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn list_snapshots_of(profile: &str) -> Vec<DshConfigSnapshot> {
+    let root = snapshot_profile_root(profile);
+    let mut out = Vec::new();
+    if let Ok(entries) = fs::read_dir(&root) {
+        for e in entries.flatten() {
+            if e.path().is_dir() {
+                if let Some(meta) = read_snapshot_meta(&e.path()) {
+                    out.push(meta);
+                }
+            }
+        }
+    }
+    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out
+}
+
+fn find_snapshot(snapshot_id: &str) -> Option<(PathBuf, DshConfigSnapshot)> {
+    let root = dsh_snapshots_root();
+    if let Ok(entries) = fs::read_dir(&root) {
+        for e in entries.flatten() {
+            if !e.path().is_dir() {
+                continue;
+            }
+            let dir = e.path().join(snapshot_id);
+            if let Some(meta) = read_snapshot_meta(&dir) {
+                return Some((dir, meta));
+            }
+        }
+    }
+    None
+}
+
+fn prune_snapshots(profile: &str) {
+    let root = snapshot_profile_root(profile);
+    let snapshots = list_snapshots_of(profile);
+    let mut keep: HashSet<String> = snapshots
+        .iter()
+        .filter(|s| !s.permanent)
+        .take(MAX_AUTO_SNAPSHOTS)
+        .map(|s| s.id.clone())
+        .collect();
+    for s in snapshots.iter().filter(|s| s.permanent) {
+        keep.insert(s.id.clone());
+    }
+    for s in snapshots {
+        if !keep.contains(&s.id) {
+            let _ = fs::remove_dir_all(root.join(&s.id));
+        }
+    }
+}
+
+/// 创建一份用户可见的配置快照。trigger 仅接受 manual / install / align。
+#[tauri::command]
+pub fn create_dsh_config_snapshot(
+    profile: String,
+    trigger: String,
+    note: Option<String>,
+) -> Result<DshConfigSnapshot, String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    let profile_dir = resolve_dsh_home().join("profiles").join(&profile_name);
+    let now = now_millis();
+    let id = format!("dsh-snap-{}", now);
+    let snap_dir = snapshot_profile_root(&profile_name).join(&id);
+    fs::create_dir_all(&snap_dir).map_err(|e| format!("无法创建快照目录: {}", e))?;
+
+    let mut files = Vec::new();
+    for f in SNAPSHOT_FILES {
+        let src = profile_dir.join(f);
+        if src.exists() {
+            let _ = fs::copy(&src, snap_dir.join(f));
+            files.push(f.to_string());
+        }
+    }
+
+    let trigger = match trigger.as_str() {
+        "manual" | "install" | "align" | "upgrade" => trigger,
+        _ => "manual".to_string(),
+    };
+    let meta = DshConfigSnapshot {
+        id: id.clone(),
+        created_at: now,
+        trigger,
+        note: note.filter(|s| !s.trim().is_empty()),
+        permanent: false,
+        profile_name: profile_name.clone(),
+        files,
+    };
+    let meta_text = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+    fs::write(snap_dir.join("meta.json"), meta_text).map_err(|e| e.to_string())?;
+
+    prune_snapshots(&profile_name);
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn list_dsh_config_snapshots(profile: String) -> Vec<DshConfigSnapshot> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    list_snapshots_of(&profile_name)
+}
+
+#[tauri::command]
+pub fn rollback_dsh_config_snapshot(
+    snapshot_id: String,
+) -> Result<DshSnapshotRollbackResult, String> {
+    let (dir, meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    let profile_name = meta.profile_name.clone();
+    let profile_dir = resolve_dsh_home().join("profiles").join(&profile_name);
+    fs::create_dir_all(&profile_dir).map_err(|e| e.to_string())?;
+
+    let mut restored = Vec::new();
+    for f in SNAPSHOT_FILES {
+        let snap_file = dir.join(f);
+        let target = profile_dir.join(f);
+        if snap_file.exists() {
+            fs::copy(&snap_file, &target).map_err(|e| e.to_string())?;
+            restored.push(f.to_string());
+        } else if target.exists() {
+            let _ = fs::remove_file(&target);
+            restored.push(f.to_string());
+        }
+    }
+
+    Ok(DshSnapshotRollbackResult {
+        profile: profile_name,
+        restored,
+        needs_install: true,
+    })
+}
+
+#[tauri::command]
+pub fn set_dsh_config_snapshot_permanent(
+    snapshot_id: String,
+    permanent: bool,
+) -> Result<DshConfigSnapshot, String> {
+    let (dir, mut meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    meta.permanent = permanent;
+    let text = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+    fs::write(dir.join("meta.json"), text).map_err(|e| e.to_string())?;
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn delete_dsh_config_snapshot(snapshot_id: String) -> Result<(), String> {
+    let (dir, _meta) = find_snapshot(&snapshot_id)
+        .ok_or_else(|| format!("未找到快照: {}", snapshot_id))?;
+    fs::remove_dir_all(&dir).map_err(|e| e.to_string())
+}
+
+// ==================== DSH 版本升级与版本管理 (WI-009) ====================
+
+pub(crate) const DSH_PACKAGE_NAME: &str = "@deepseek-ai/dsh";
+const MAX_VERSION_HISTORY: usize = 50;
+
+fn parse_version_token(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?").unwrap();
+    re.find(text)
+        .map(|m| m.as_str().trim_start_matches('v').to_string())
+}
+
+fn run_npm_sync(npm_cmd: &str, args: &[String]) -> RunResult {
+    run_with_timeout(npm_cmd, args, None, 30000)
+}
+
+fn npm_global_root(npm_cmd: &str) -> Option<PathBuf> {
+    let run = run_npm_sync(npm_cmd, &["root".to_string(), "-g".to_string()]);
+    if run.exit_code != Some(0) {
+        return None;
+    }
+    let root = run.output.lines().next()?.trim();
+    if root.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(root))
+}
+
+fn read_global_npm_package_version(npm_cmd: &str, pkg_name: &str) -> Option<String> {
+    let root = npm_global_root(npm_cmd)?;
+    let mut p = root;
+    for part in pkg_name.split('/') {
+        p = p.join(part);
+    }
+    p = p.join("package.json");
+    let text = fs::read_to_string(p).ok()?;
+    let v: JsonValue = serde_json::from_str(&text).ok()?;
+    v.get("version")?.as_str().map(|s| s.to_string())
+}
+
+/// 当前 DSH 版本：优先 `dsh --version`，回退 npm 全局包 package.json（两者交叉验证，实测为准）。
+pub fn get_current_dsh_version() -> Option<String> {
+    let cfg = load_config();
+    if let Some(dsh_cmd) = resolve_dsh_command(&cfg) {
+        let run = run_with_timeout(&dsh_cmd, &["--version".to_string()], None, 10000);
+        if let Some(v) = parse_version_token(&run.output) {
+            return Some(v);
+        }
+    }
+
+    let npm_cmd = resolve_npm_command(&cfg)?;
+    read_global_npm_package_version(&npm_cmd, DSH_PACKAGE_NAME)
+}
+
+#[tauri::command]
+pub fn get_dsh_version_info() -> DshVersionInfo {
+    let cfg = load_config();
+    DshVersionInfo {
+        package_name: DSH_PACKAGE_NAME.to_string(),
+        current: get_current_dsh_version(),
+        dsh_command: resolve_dsh_command(&cfg),
+        npm_command: resolve_npm_command(&cfg),
+        checked_at: now_millis(),
+    }
+}
+
+#[tauri::command]
+pub fn check_dsh_version_update() -> DshVersionCheck {
+    let cfg = load_config();
+    let current = get_current_dsh_version();
+    let checked_at = now_millis();
+
+    if resolve_npm_command(&cfg).is_none() {
+        return DshVersionCheck {
+            package_name: DSH_PACKAGE_NAME.to_string(),
+            current,
+            latest: None,
+            update_available: false,
+            checked_at,
+            error: Some("未找到 npm 命令，请先安装 Node.js / npm".to_string()),
+        };
+    }
+
+    match query_npm_latest(DSH_PACKAGE_NAME) {
+        Ok(latest) => DshVersionCheck {
+            package_name: DSH_PACKAGE_NAME.to_string(),
+            update_available: current
+                .as_deref()
+                .map(|c| semver_newer(&latest, c))
+                .unwrap_or(false),
+            current,
+            latest: Some(latest),
+            checked_at,
+            error: None,
+        },
+        Err(e) => DshVersionCheck {
+            package_name: DSH_PACKAGE_NAME.to_string(),
+            current,
+            latest: None,
+            update_available: false,
+            checked_at,
+            error: Some(e),
+        },
+    }
+}
+
+fn version_history_file() -> PathBuf {
+    crate::storage::get_app_data_dir().join("dsh_version_history.json")
+}
+
+fn read_version_history() -> Vec<DshVersionHistoryEntry> {
+    let f = version_history_file();
+    if !f.exists() {
+        return Vec::new();
+    }
+    let text = match fs::read_to_string(&f) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    serde_json::from_str::<Vec<DshVersionHistoryEntry>>(&text).unwrap_or_default()
+}
+
+fn append_version_history(entry: &DshVersionHistoryEntry) {
+    let mut list = read_version_history();
+    list.insert(0, entry.clone());
+    list.truncate(MAX_VERSION_HISTORY);
+    let dir = crate::storage::get_app_data_dir();
+    let _ = fs::create_dir_all(&dir);
+    if let Ok(text) = serde_json::to_string_pretty(&list) {
+        let _ = fs::write(version_history_file(), format!("{}\n", text));
+    }
+}
+
+#[tauri::command]
+pub fn list_dsh_versions() -> Vec<DshVersionHistoryEntry> {
+    read_version_history()
+}
+
+/// 升级前后诊断对比：对每个 profile 跑一次 `diagnose_inner`，累计失败插件条目数。
+fn count_dsh_failures() -> u32 {
+    let profiles = list_profile_dirs(&resolve_dsh_home().join("profiles"));
+    let targets: Vec<String> = if profiles.is_empty() {
+        vec!["web".to_string()]
+    } else {
+        profiles
+    };
+    let mut total = 0u32;
+    for p in targets {
+        let r = diagnose_inner(Some(p));
+        total += r.failed_plugins.len() as u32;
+    }
+    total
+}
+
+fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResult {
+    let cfg = load_config();
+    let before_version = get_current_dsh_version();
+    let safe_target = if target.trim().is_empty() {
+        "latest".to_string()
+    } else {
+        target.trim().to_string()
+    };
+
+    let base = || DshVersionUpgradeResult {
+        ok: false,
+        action: action.clone(),
+        before_version: before_version.clone(),
+        after_version: before_version.clone(),
+        target_version: safe_target.clone(),
+        snapshot_ids: Vec::new(),
+        diagnosis_before: 0,
+        diagnosis_after: 0,
+        mass_failure: false,
+        output: String::new(),
+        warnings: Vec::new(),
+        error: None,
+    };
+
+    let npm_cmd = match resolve_npm_command(&cfg) {
+        Some(c) => c,
+        None => {
+            let mut r = base();
+            r.error = Some("未找到 npm 命令，请先安装 Node.js / npm".to_string());
+            return r;
+        }
+    };
+
+    if safe_target != "latest" {
+        let re = regex::Regex::new(r"^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$").unwrap();
+        if !re.is_match(&safe_target) {
+            let mut r = base();
+            r.error = Some(format!("非法版本号: {}", safe_target));
+            return r;
+        }
+    }
+
+    // 1) 升级前诊断基准
+    let diagnosis_before = count_dsh_failures();
+
+    // 2) 升级前自动快照（所有 profile，复用 WI-006）
+    let mut snapshot_ids = Vec::new();
+    let profiles = list_profile_dirs(&resolve_dsh_home().join("profiles"));
+    let snapshot_targets: Vec<String> = if profiles.is_empty() {
+        vec!["web".to_string()]
+    } else {
+        profiles
+    };
+    for p in snapshot_targets {
+        if let Ok(snap) = create_dsh_config_snapshot(
+            p,
+            "upgrade".to_string(),
+            Some("DSH 升级前自动快照".to_string()),
+        ) {
+            snapshot_ids.push(snap.id);
+        }
+    }
+
+    // 3) npm install -g（复用 run_pnpm_streaming 的 spawn + 代理注入 + 超时能力）
+    let spec = if safe_target == "latest" {
+        format!("{}@latest", DSH_PACKAGE_NAME)
+    } else {
+        format!("{}@{}", DSH_PACKAGE_NAME, safe_target)
+    };
+    let cwd = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let mut noop = |_line: String| {};
+    let run = run_pnpm_streaming(
+        &npm_cmd,
+        &vec!["install".to_string(), "-g".to_string(), spec],
+        &cwd,
+        &mut noop,
+    );
+
+    let mut r = base();
+    r.diagnosis_before = diagnosis_before;
+    r.snapshot_ids = snapshot_ids;
+
+    let (run_output, install_ok) = match run {
+        Ok(res) => {
+            let ok = res.exit_code == Some(0) && !res.timed_out;
+            if res.timed_out {
+                r.warnings
+                    .push("npm install -g 执行超过 10 分钟，已强制终止（timeout）".to_string());
+            }
+            if !ok {
+                r.warnings
+                    .push(format!("npm install -g 退出码为 {:?}", res.exit_code));
+            }
+            (res.output, ok)
+        }
+        Err(e) => {
+            r.warnings.push(e.clone());
+            (e, false)
+        }
+    };
+    r.output = run_output;
+
+    r.after_version = get_current_dsh_version();
+    r.diagnosis_after = count_dsh_failures();
+    r.mass_failure = r.diagnosis_after > r.diagnosis_before;
+    r.ok = install_ok && !r.mass_failure;
+    if r.mass_failure {
+        r.warnings.push(format!(
+            "升级后失败插件数 {} → {}，疑似插件大面积失效，建议一键回滚",
+            r.diagnosis_before, r.diagnosis_after
+        ));
+    }
+
+    append_version_history(&DshVersionHistoryEntry {
+        version: r.after_version.clone().unwrap_or_else(|| safe_target.clone()),
+        action: action.clone(),
+        installed_at: now_millis(),
+        from_version: before_version.clone(),
+        note: Some(if action == "upgrade" {
+            "升级到最新版".to_string()
+        } else {
+            format!("安装指定版本 {}", safe_target)
+        }),
+    });
+
+    r
+}
+
+#[tauri::command]
+pub async fn upgrade_dsh_version() -> Result<DshVersionUpgradeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        version_change_inner("latest".to_string(), "upgrade".to_string())
+    })
+    .await
+    .map_err(|e| format!("升级执行失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn install_dsh_version(target_version: String) -> Result<DshVersionUpgradeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        version_change_inner(target_version, "install".to_string())
+    })
+    .await
+    .map_err(|e| format!("安装执行失败: {}", e))
+}
+
+/// 一键回滚：同时覆盖两层 —— DSH 版本（装回旧版）+ 插件配置（复用 rollback_dsh_config_snapshot）。
+fn rollback_inner(
+    previous_version: String,
+    snapshot_ids: Vec<String>,
+) -> Result<DshVersionRollbackResult, String> {
+    let cfg = load_config();
+    let npm_cmd = resolve_npm_command(&cfg).ok_or_else(|| "未找到 npm 命令".to_string())?;
+    let prev = previous_version.trim().to_string();
+    if prev.is_empty() {
+        return Err("缺少回滚目标版本（previousVersion）".to_string());
+    }
+
+    // 1) 回滚配置快照（复用 WI-006）
+    let mut restored_snapshots = Vec::new();
+    for id in &snapshot_ids {
+        if let Ok(r) = rollback_dsh_config_snapshot(id.clone()) {
+            restored_snapshots.push(r);
+        }
+    }
+
+    // 2) 装回旧版本
+    let cwd = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let mut noop = |_line: String| {};
+    let run = run_pnpm_streaming(
+        &npm_cmd,
+        &vec![
+            "install".to_string(),
+            "-g".to_string(),
+            format!("{}@{}", DSH_PACKAGE_NAME, prev),
+        ],
+        &cwd,
+        &mut noop,
+    )
+    .map_err(|e| e)?;
+
+    let version = get_current_dsh_version();
+    let ok = run.exit_code == Some(0) && !run.timed_out;
+
+    append_version_history(&DshVersionHistoryEntry {
+        version: version.clone().unwrap_or_else(|| prev.clone()),
+        action: "rollback".to_string(),
+        installed_at: now_millis(),
+        from_version: None,
+        note: Some(format!("回滚到 {}", prev)),
+    });
+
+    Ok(DshVersionRollbackResult {
+        ok,
+        version,
+        restored_snapshots,
+        output: run.output.clone(),
+        error: if ok { None } else { Some(run.output) },
+    })
+}
+
+#[tauri::command]
+pub async fn rollback_dsh_version(
+    previous_version: String,
+    snapshot_ids: Vec<String>,
+) -> Result<DshVersionRollbackResult, String> {
+    tauri::async_runtime::spawn_blocking(move || rollback_inner(previous_version, snapshot_ids))
+        .await
+        .map_err(|e| format!("回滚执行失败: {}", e))?
 }
