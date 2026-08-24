@@ -324,7 +324,7 @@
                       ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                       : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                   ]"
-                  title="一键分发至全部活跃 Agent"
+                  :title="$t('skill.distributeAllTitle')"
                 >
                   <span v-if="skill.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
                   <span>{{ $t('common.enable') }}</span>
@@ -338,9 +338,9 @@
                       ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
                       : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                   ]"
-                  title="从所有 Agent 一键解绑"
+                  :title="$t('skill.unmountAllTitle')"
                 >
-                  <span>停用</span>
+                  <span>{{ $t('common.disable') }}</span>
                 </button>
               </div>
             </div>
