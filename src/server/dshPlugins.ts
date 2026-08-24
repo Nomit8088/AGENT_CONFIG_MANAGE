@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { spawn, spawnSync, execFileSync } from 'child_process';
+import { spawn, spawnSync, execFileSync, type ChildProcess } from 'child_process';
 import jsyaml from 'js-yaml';
 import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
@@ -2830,8 +2830,13 @@ export function listDshAvailableVersions(): DshAvailableVersions {
   }
 }
 
-/** 一键启动 `dsh web`（detached 常驻，不阻塞当前请求）。 */
-export function launchDshWeb(profile?: string): DshLaunchResult {
+/** 一键启动 `dsh web`（detached 常驻，不阻塞当前请求）。
+ *
+ * 与 Rust 端 `launch_dsh_web` 对齐：stderr(Stdio::piped()) + 4 秒宽限窗口轮询
+ * `child.exit` 事件。窗口内退出 → 失败（返回累积 stderr）；窗口结束仍存活 → 成功
+ * （返回 pid，`child.unref()` 去关联，不 kill 子进程）。
+ */
+export async function launchDshWeb(profile?: string): Promise<DshLaunchResult> {
   const cfg = readConfigFile();
   const dshCmd = resolveDshCommand(cfg);
   if (!dshCmd) {
@@ -2847,21 +2852,15 @@ export function launchDshWeb(profile?: string): DshLaunchResult {
   const args = profileName === 'web' ? ['web'] : ['--profile', profileName];
   const cwd = path.join(resolveDshHome(), 'profiles', profileName);
 
+  let child: ChildProcess;
   try {
-    const child = spawn(dshCmd, args, {
+    child = spawn(dshCmd, args, {
       cwd: fs.existsSync(cwd) ? cwd : undefined,
       shell: process.platform === 'win32',
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'pipe'],
       detached: true,
       windowsHide: false,
     });
-    child.unref();
-    return {
-      ok: true,
-      pid: child.pid ?? null,
-      message: `已启动 dsh web（profile: ${profileName}）`,
-      error: null,
-    };
   } catch (e: any) {
     return {
       ok: false,
@@ -2870,6 +2869,60 @@ export function launchDshWeb(profile?: string): DshLaunchResult {
       error: `无法启动 dsh: ${e?.message || String(e)}`,
     };
   }
+
+  const pid = child.pid ?? null;
+  let stderrBuf = '';
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    stderrBuf += chunk.toString();
+  });
+
+  const GRACE_MS = 4000;
+  const outcome = await new Promise<{ code: number | null; error?: string } | null>(resolve => {
+    let settled = false;
+    const done = (v: { code: number | null; error?: string } | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => done(null), GRACE_MS);
+    child.once('error', (err: Error) => done({ code: null, error: err?.message || String(err) }));
+    child.once('exit', (code: number | null) => done({ code }));
+  });
+
+  // 宽限窗口结束仍存活 → 成功常驻，去关联但不杀进程。
+  if (outcome === null) {
+    child.unref();
+    return {
+      ok: true,
+      pid,
+      message: `已启动 dsh web（profile: ${profileName}）`,
+      error: null,
+    };
+  }
+
+  // 窗口内退出 → 失败：优先返回捕获的 stderr，其次返回 spawn 错误或退出码。
+  const trimmed = trimStack(stderrBuf, 4096);
+  const text = trimmed || outcome.error || `dsh web 启动后立即退出（exit code: ${outcome.code ?? 'unknown'}）`;
+
+  const lower = text.toLowerCase();
+  if (lower.includes('eaddrinuse') || text.includes('端口占用') || text.includes('端口已被占用')) {
+    return {
+      ok: false,
+      pid: null,
+      message: null,
+      error: null,
+      stderr: text,
+    };
+  }
+
+  return {
+    ok: false,
+    pid: null,
+    message: null,
+    error: text,
+    stderr: text,
+  };
 }
 
 function versionHistoryFile(): string {

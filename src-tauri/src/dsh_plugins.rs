@@ -3117,8 +3117,25 @@ pub fn list_dsh_available_versions() -> DshAvailableVersions {
 }
 
 /// 一键启动 `dsh web`（常驻进程，detached 不阻塞）。
+///
+/// 核心难点「成功常驻 vs 失败捕获」：`dsh web` 成功时不会退出，失败时很快退出并写
+/// stderr。这里用宽限窗口轮询 `try_wait`：
+/// - 窗口内退出 → 判定失败，返回累积的 stderr；
+/// - 窗口结束仍存活 → 判定成功，返回 pid，不杀子进程（drop `Child` 不会杀进程）。
 #[tauri::command]
-pub fn launch_dsh_web(profile: Option<String>) -> DshLaunchResult {
+pub async fn launch_dsh_web(profile: Option<String>) -> DshLaunchResult {
+    tauri::async_runtime::spawn_blocking(move || launch_dsh_web_inner(profile))
+        .await
+        .unwrap_or_else(|e| DshLaunchResult {
+            ok: false,
+            pid: None,
+            message: None,
+            error: Some(format!("启动执行失败: {}", e)),
+            stderr: None,
+        })
+}
+
+fn launch_dsh_web_inner(profile: Option<String>) -> DshLaunchResult {
     let cfg = load_config();
     let dsh_cmd = match resolve_dsh_command(&cfg) {
         Some(c) => c,
@@ -3128,6 +3145,7 @@ pub fn launch_dsh_web(profile: Option<String>) -> DshLaunchResult {
                 pid: None,
                 message: None,
                 error: Some("未找到 dsh 命令，请在「设置」中配置 dshCommand，或先安装 DeepSeek Harness".to_string()),
+                stderr: None,
             }
         }
     };
@@ -3149,24 +3167,105 @@ pub fn launch_dsh_web(profile: Option<String>) -> DshLaunchResult {
     command
         .args(&args)
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     if cwd.exists() {
         command.current_dir(&cwd);
     }
 
-    match command.spawn() {
-        Ok(child) => DshLaunchResult {
-            ok: true,
-            pid: Some(child.id()),
-            message: Some(format!("已启动 dsh web（profile: {}）", profile_name)),
-            error: None,
-        },
-        Err(e) => DshLaunchResult {
-            ok: false,
-            pid: None,
-            message: None,
-            error: Some(format!("无法启动 dsh: {}", e)),
-        },
+    let mut child = match command.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            return DshLaunchResult {
+                ok: false,
+                pid: None,
+                message: None,
+                error: Some(format!("无法启动 dsh: {}", e)),
+                stderr: None,
+            }
+        }
+    };
+
+    let pid = child.id();
+    let stderr = child.stderr.take();
+    let captured = Arc::new(Mutex::new(String::new()));
+    let reader = if let Some(mut s) = stderr {
+        let c = captured.clone();
+        Some(std::thread::spawn(move || {
+            let mut buf = String::new();
+            let _ = s.read_to_string(&mut buf);
+            if let Ok(mut g) = c.lock() {
+                g.push_str(&buf);
+            }
+        }))
+    } else {
+        None
+    };
+
+    // 宽限窗口：成功常驻，失败通常在 1~2 秒内退出。取 4 秒，兼顾「错误 profile 快速
+    // 失败」与「冷启动较慢但成功」的场景。
+    let grace = Duration::from_secs(4);
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if let Some(r) = reader {
+                    let _ = r.join();
+                }
+                let raw = captured.lock().unwrap().clone();
+                let stderr_text = trim_stack(&raw, 4096);
+                let text = if stderr_text.is_empty() {
+                    format!(
+                        "dsh web 启动后立即退出（exit code: {}）",
+                        status
+                            .code()
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "未知".to_string())
+                    )
+                } else {
+                    stderr_text
+                };
+
+                let lower = text.to_lowercase();
+                if lower.contains("eaddrinuse") || text.contains("端口占用") || text.contains("端口已被占用") {
+                    return DshLaunchResult {
+                        ok: false,
+                        pid: None,
+                        message: None,
+                        error: None,
+                        stderr: Some(text),
+                    };
+                }
+
+                return DshLaunchResult {
+                    ok: false,
+                    pid: None,
+                    message: None,
+                    error: Some(text.clone()),
+                    stderr: Some(text),
+                };
+            }
+            Ok(None) => {
+                if start.elapsed() >= grace {
+                    return DshLaunchResult {
+                        ok: true,
+                        pid: Some(pid),
+                        message: Some(format!("已启动 dsh web（profile: {}）", profile_name)),
+                        error: None,
+                        stderr: None,
+                    };
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(_) => {
+                return DshLaunchResult {
+                    ok: true,
+                    pid: Some(pid),
+                    message: Some(format!("已启动 dsh web（profile: {}）", profile_name)),
+                    error: None,
+                    stderr: None,
+                };
+            }
+        }
     }
 }
 

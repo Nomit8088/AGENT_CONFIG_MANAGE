@@ -352,6 +352,7 @@ export interface DshLaunchResult {
   pid: number | null;
   message: string | null;
   error: string | null;
+  stderr?: string;
 }
 
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================

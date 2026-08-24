@@ -88,6 +88,29 @@
       </div>
     </div>
 
+    <!-- 启动失败 stderr（WI-003：一键启动 dsh 失败堆栈捕获 + 复制） -->
+    <div
+      v-if="store.dshLaunchStderr"
+      class="rounded-xl bg-white dark:bg-[#1c1d22] border border-[#ff453a]/25 dark:border-[#ff453a]/30 overflow-hidden transition-colors duration-200"
+    >
+      <div class="px-3 py-2 border-b border-[#ff453a]/20 dark:border-[#ff453a]/30 bg-[#ff453a]/5 dark:bg-[#ff453a]/10 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <AlertTriangle class="w-3.5 h-3.5 text-[#ff453a] shrink-0" />
+          <span class="text-xs font-serif font-semibold text-[#ff453a]">启动 dsh 失败</span>
+        </div>
+        <button
+          type="button"
+          @click="copyLaunchStderr"
+          class="px-2 py-0.5 rounded-md bg-[#ff453a]/10 hover:bg-[#ff453a]/15 text-[#ff453a] text-[11px] font-medium flex items-center gap-1 transition-colors duration-200 shrink-0"
+          title="复制 stderr"
+        >
+          <Copy class="w-3 h-3" />
+          <span>{{ launchStderrCopied ? '已复制' : '复制日志' }}</span>
+        </button>
+      </div>
+      <pre class="p-3 overflow-x-auto font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/70 whitespace-pre-wrap select-text max-h-64">{{ store.dshLaunchStderr }}</pre>
+    </div>
+
     <!-- 版本变更实时终端 -->
     <DshVersionTerminal v-if="store.dshVersionTerminal.visible" />
 
@@ -389,12 +412,14 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Copy,
   History,
   Package,
   Play,
@@ -418,6 +443,8 @@ const availableVersions = computed(() => store.dshAvailableVersions?.versions ??
 // 历史版本平铺列表分页：默认每页 5 行，可选 5/10/20/50
 const versionPageSize = ref(5);
 const currentVersionPage = ref(1);
+
+const launchStderrCopied = ref(false);
 
 const totalVersionPages = computed(() =>
   Math.max(1, Math.ceil(availableVersions.value.length / versionPageSize.value))
@@ -489,6 +516,15 @@ function actionDot(a: DshVersionAction): string {
 
 async function launchDsh() {
   await store.launchDsh('web').catch(() => {});
+}
+
+async function copyLaunchStderr() {
+  if (!store.dshLaunchStderr) return;
+  try {
+    await navigator.clipboard.writeText(store.dshLaunchStderr);
+    launchStderrCopied.value = true;
+    setTimeout(() => { launchStderrCopied.value = false; }, 2000);
+  } catch (e) {}
 }
 
 async function loadAvailableVersions() {

@@ -474,6 +474,8 @@ pub struct DshLaunchResult {
     pub message: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stderr: Option<String>,
 }
 
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================

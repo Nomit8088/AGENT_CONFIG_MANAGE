@@ -163,6 +163,8 @@ export const useAppStore = defineStore('app', {
     dshAvailableVersions: null as DshAvailableVersions | null,
     dshAvailableVersionsLoading: false,
     dshLaunching: false,
+    dshLaunchError: null as string | null,
+    dshLaunchStderr: null as string | null,
     dshVersionTerminal: {
       visible: false,
       lines: [] as string[],
@@ -1206,16 +1208,32 @@ export const useAppStore = defineStore('app', {
 
     async launchDsh(profile?: string) {
       this.dshLaunching = true;
+      this.dshLaunchError = null;
+      this.dshLaunchStderr = null;
       try {
         const result: DshLaunchResult = await api.launchDshWeb(profile);
         if (result.ok) {
           this.showToast({ title: '已启动 dsh', message: result.message || 'dsh web 已拉起', type: 'success' });
         } else {
-          this.showToast({ title: '启动 dsh 失败', message: result.error || '无法启动 dsh', type: 'error' });
+          const raw = result.stderr || result.error || '';
+          const isPortBusy = /EADDRINUSE|端口占用|端口已被占用/i.test(raw);
+          if (isPortBusy) {
+            this.showToast({
+              title: '端口占用',
+              message: '检测到端口已被占用（可能是另一个 DSH 实例正在运行），请先关闭现有实例后重试。',
+              type: 'warning',
+            });
+          } else {
+            this.dshLaunchError = result.error || '无法启动 dsh';
+            this.dshLaunchStderr = result.stderr || result.error || '';
+            this.showToast({ title: '启动 dsh 失败', message: this.dshLaunchError ?? '无法启动 dsh', type: 'error' });
+          }
         }
         return result;
       } catch (e: any) {
-        this.showToast({ title: '启动 dsh 失败', message: e?.message || '无法启动 dsh', type: 'error' });
+        this.dshLaunchError = e?.message || '无法启动 dsh';
+        this.dshLaunchStderr = e?.message || '';
+        this.showToast({ title: '启动 dsh 失败', message: this.dshLaunchError ?? '无法启动 dsh', type: 'error' });
         throw e;
       } finally {
         this.dshLaunching = false;

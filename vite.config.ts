@@ -929,7 +929,7 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/dsh/launch' && req.method === 'POST') {
               const { profile } = jsonBody;
               res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify(launchDshWeb(profile)));
+              return res.end(JSON.stringify(await launchDshWeb(profile)));
             }
 
             // GET /api/dsh/version/upgrade/stream (SSE 实时回显升级日志)
