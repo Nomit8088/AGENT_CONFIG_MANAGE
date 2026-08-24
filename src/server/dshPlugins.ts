@@ -9,11 +9,13 @@ import { getAppDataDir as appDataDir } from './appPaths';
 import type {
   DshAlignDecision,
   DshAlignDirection,
+  DshAvailableVersions,
   DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallFailure,
   DshInstallMode,
   DshInstallReport,
+  DshLaunchResult,
   DshPatchRow,
   DshPluginDiff,
   DshPluginDiffItem,
