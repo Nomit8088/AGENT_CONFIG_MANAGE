@@ -27,6 +27,8 @@ import {
   setSkillsSyncAutoPull,
   testSkillsSyncConnection,
   resetSkillsSyncToRemote,
+  applySkillsFromRemote,
+  fetchSkillsSync,
   getSkillsSyncDiff,
   getSyncRepoConfig,
   validateSyncRepo,
@@ -59,6 +61,8 @@ import {
   getDshVersionInfo,
   checkDshVersionUpdate,
   listDshVersions,
+  listDshAvailableVersions,
+  launchDshWeb,
   upgradeDshVersion,
   installDshVersion,
   rollbackDshVersion,
@@ -602,9 +606,9 @@ function localApiPlugin(): Plugin {
 
             // POST /api/skills/sync/push
             if (pathname === '/api/skills/sync/push' && req.method === 'POST') {
-              const { message } = jsonBody;
+              const { message, paths } = jsonBody;
               res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify(pushSkillsSync(message)));
+              return res.end(JSON.stringify(pushSkillsSync(message, paths)));
             }
 
             // POST /api/skills/sync/auto-pull
@@ -625,6 +629,20 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/skills/sync/reset' && req.method === 'POST') {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(resetSkillsSyncToRemote()));
+            }
+
+            // POST /api/skills/sync/fetch
+            if (pathname === '/api/skills/sync/fetch' && req.method === 'POST') {
+              fetchSkillsSync();
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/skills/sync/apply
+            if (pathname === '/api/skills/sync/apply' && req.method === 'POST') {
+              const { decisions } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(applySkillsFromRemote(decisions)));
             }
 
             // GET /api/skills/sync/diff
@@ -814,8 +832,8 @@ function localApiPlugin(): Plugin {
 
             // POST /api/dsh/plugins/align
             if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
-              const { profile } = jsonBody;
-              await alignDshPlugins(profile);
+              const { profile, decisions } = jsonBody;
+              await alignDshPlugins(profile, decisions);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }
@@ -899,6 +917,78 @@ function localApiPlugin(): Plugin {
               const report = await rollbackDshVersion(previousVersion || '', Array.isArray(snapshotIds) ? snapshotIds : []);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(report));
+            }
+
+            // GET /api/dsh/version/available (npm registry 已发布版本列表)
+            if (pathname === '/api/dsh/version/available' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(listDshAvailableVersions()));
+            }
+
+            // POST /api/dsh/launch (一键启动 dsh web)
+            if (pathname === '/api/dsh/launch' && req.method === 'POST') {
+              const { profile } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(launchDshWeb(profile)));
+            }
+
+            // GET /api/dsh/version/upgrade/stream (SSE 实时回显升级日志)
+            if (pathname === '/api/dsh/version/upgrade/stream' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+              res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
+              try {
+                const report = await upgradeDshVersion(line => {
+                  res.write(`data: ${JSON.stringify({ type: 'line', line })}\n\n`);
+                });
+                res.write(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+              } catch (e: any) {
+                res.write(`data: ${JSON.stringify({ type: 'error', error: e?.message || String(e) })}\n\n`);
+              }
+              return res.end();
+            }
+
+            // GET /api/dsh/version/install/stream (SSE 实时回显指定版本安装日志)
+            if (pathname === '/api/dsh/version/install/stream' && req.method === 'GET') {
+              const version = url.searchParams.get('version') || '';
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+              res.write(`data: ${JSON.stringify({ type: 'start', version })}\n\n`);
+              try {
+                const report = await installDshVersion(version, line => {
+                  res.write(`data: ${JSON.stringify({ type: 'line', line })}\n\n`);
+                });
+                res.write(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+              } catch (e: any) {
+                res.write(`data: ${JSON.stringify({ type: 'error', error: e?.message || String(e) })}\n\n`);
+              }
+              return res.end();
+            }
+
+            // GET /api/dsh/version/rollback/stream (SSE 实时回显回滚日志)
+            if (pathname === '/api/dsh/version/rollback/stream' && req.method === 'GET') {
+              const previousVersion = url.searchParams.get('previousVersion') || '';
+              const rawIds = url.searchParams.get('snapshotIds') || '[]';
+              let snapshotIds: string[] = [];
+              try {
+                const parsed = JSON.parse(rawIds);
+                if (Array.isArray(parsed)) snapshotIds = parsed.filter((v): v is string => typeof v === 'string');
+              } catch {}
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+              res.write(`data: ${JSON.stringify({ type: 'start', previousVersion })}\n\n`);
+              try {
+                const report = await rollbackDshVersion(previousVersion, snapshotIds, line => {
+                  res.write(`data: ${JSON.stringify({ type: 'line', line })}\n\n`);
+                });
+                res.write(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+              } catch (e: any) {
+                res.write(`data: ${JSON.stringify({ type: 'error', error: e?.message || String(e) })}\n\n`);
+              }
+              return res.end();
             }
 
             // GET /api/app/update/check

@@ -3,6 +3,7 @@ import {
   AgentInfo,
   AppConfig,
   AppUpdateCheck,
+  DshAlignDecision,
   DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallMode,
@@ -12,6 +13,8 @@ import {
   DshPluginScanResult,
   DshPluginUpdateCheck,
   DshRecoveryAction,
+  DshAvailableVersions,
+  DshLaunchResult,
   DshVersionCheck,
   DshVersionHistoryEntry,
   DshVersionInfo,
@@ -19,6 +22,7 @@ import {
   IgnoredSkill,
   ProjectInfo,
   SkillItem,
+  SkillsSyncDecision,
   SkillsSyncStatus,
   SyncDiffEntry,
   SyncRepoConfig,
@@ -137,6 +141,11 @@ export const useAppStore = defineStore('app', {
     dshPluginsScanLoading: false,
     dshPluginDiffModal: {
       visible: false,
+      mode: 'preview' as 'preview' | 'apply',
+    },
+    skillsDiffModal: {
+      visible: false,
+      mode: 'apply' as 'apply' | 'push',
     },
 
     // DSH 配置快照与回滚 (WI-006)
@@ -151,6 +160,14 @@ export const useAppStore = defineStore('app', {
     dshVersionUpgrading: false,
     dshVersionResult: null as DshVersionUpgradeResult | null,
     dshVersionRollingBack: false,
+    dshAvailableVersions: null as DshAvailableVersions | null,
+    dshAvailableVersionsLoading: false,
+    dshLaunching: false,
+    dshVersionTerminal: {
+      visible: false,
+      lines: [] as string[],
+      running: false,
+    },
 
     // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
     dshInstallEntries: [] as DshPluginInstallEntry[],
@@ -558,21 +575,21 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    async pushSkillsSync(message?: string) {
+    async pushSkillsSync(message?: string, paths?: string[]) {
       this.skillsSyncLoading = true;
       try {
-        this.skillsSyncStatus = await api.pushSkillsSync(message);
+        this.skillsSyncStatus = await api.pushSkillsSync(message, paths);
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
-          title: '推送完成',
-          message: '中央技能库已提交并推送到远端',
+          title: '已上传到仓库',
+          message: paths && paths.length ? `已提交并推送 ${paths.length} 个文件到远端` : '中央技能库已提交并推送到远端',
           type: 'success',
         });
       } catch (e: any) {
         this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
         this.showToast({
-          title: '推送失败',
+          title: '上传失败',
           message: e?.message || '无法推送中央技能库',
           type: 'error',
         });
@@ -640,6 +657,46 @@ export const useAppStore = defineStore('app', {
       } finally {
         this.skillsSyncLoading = false;
       }
+    },
+
+    async applySkillsFromRemote(decisions: SkillsSyncDecision[]) {
+      this.skillsSyncLoading = true;
+      try {
+        this.skillsSyncStatus = await api.applySkillsFromRemote(decisions);
+        await this.loadSkills();
+        this.loadSkillsSyncDiff().catch(() => {});
+        this.showToast({
+          title: '已应用仓库文件',
+          message: '选中的远端文件已写回本地技能库',
+          type: 'success',
+        });
+      } catch (e: any) {
+        this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
+        this.showToast({
+          title: '应用失败',
+          message: e?.message || '无法应用远端技能库',
+          type: 'error',
+        });
+        throw e;
+      } finally {
+        this.skillsSyncLoading = false;
+      }
+    },
+
+    async previewSkillsApply() {
+      try {
+        await api.fetchSkillsSync();
+      } catch {}
+      await this.loadSkillsSyncDiff().catch(() => {});
+      this.skillsDiffModal = { visible: true, mode: 'apply' };
+    },
+
+    async previewSkillsPush() {
+      try {
+        await api.fetchSkillsSync();
+      } catch {}
+      await this.loadSkillsSyncDiff().catch(() => {});
+      this.skillsDiffModal = { visible: true, mode: 'push' };
     },
 
     // ==================== DSH 插件中心 ====================
@@ -966,8 +1023,8 @@ export const useAppStore = defineStore('app', {
         this.loadDshPluginsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
-            title: '拉取完成',
-            message: 'DSH 插件配置已与远端同步（拉取后请对账并一键对齐）',
+            title: '仓库镜像已拉取',
+            message: '远端仓库的 dsh/ 镜像已更新到本地（尚未改动本机插件配置）',
             type: 'success',
           });
         }
@@ -993,8 +1050,8 @@ export const useAppStore = defineStore('app', {
         await this.reconcileDshPlugins();
         this.loadDshPluginsSyncDiff().catch(() => {});
         this.showToast({
-          title: '推送完成',
-          message: 'DSH 插件配置已镜像并推送到远端',
+          title: '已上传到仓库',
+          message: '本机 DSH 插件配置已镜像并推送到远端仓库',
           type: 'success',
         });
       } catch (e: any) {
@@ -1025,14 +1082,30 @@ export const useAppStore = defineStore('app', {
       return this.dshPluginDiff;
     },
 
-    async alignDshPlugins(profile?: string) {
-      await api.alignDshPlugins(profile);
+    /** 「从仓库应用」：拉取镜像 → 对账 → 弹差异预览，用户确认后才写回本地（对齐）。 */
+    async applyDshFromRepo() {
+      try {
+        await this.pullDshPluginsSync(false);
+      } catch (e: any) {
+        this.showToast({
+          title: '拉取仓库失败',
+          message: e?.message || '无法拉取远端插件配置',
+          type: 'error',
+        });
+        return;
+      }
+      await this.reconcileDshPlugins();
+      this.dshPluginDiffModal = { visible: true, mode: 'apply' };
+    },
+
+    async alignDshPlugins(profile?: string, decisions?: DshAlignDecision[]) {
+      await api.alignDshPlugins(profile, decisions);
       await this.loadDshPlugins();
       await this.reconcileDshPlugins();
       if (profile) await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: '一键对齐完成',
-        message: '本地插件配置已对齐镜像并执行 pnpm install',
+        title: '已应用仓库配置',
+        message: '本地插件配置已按所选方向写回并执行 pnpm install',
         type: 'success',
       });
     },
@@ -1114,6 +1187,41 @@ export const useAppStore = defineStore('app', {
       }
     },
 
+    async loadDshAvailableVersions() {
+      this.dshAvailableVersionsLoading = true;
+      try {
+        this.dshAvailableVersions = await api.listDshAvailableVersions();
+      } catch (e: any) {
+        this.dshAvailableVersions = null;
+        this.showToast({
+          title: '拉取版本列表失败',
+          message: e?.message || '无法查询 npm registry',
+          type: 'error',
+        });
+      } finally {
+        this.dshAvailableVersionsLoading = false;
+      }
+      return this.dshAvailableVersions;
+    },
+
+    async launchDsh(profile?: string) {
+      this.dshLaunching = true;
+      try {
+        const result: DshLaunchResult = await api.launchDshWeb(profile);
+        if (result.ok) {
+          this.showToast({ title: '已启动 dsh', message: result.message || 'dsh web 已拉起', type: 'success' });
+        } else {
+          this.showToast({ title: '启动 dsh 失败', message: result.error || '无法启动 dsh', type: 'error' });
+        }
+        return result;
+      } catch (e: any) {
+        this.showToast({ title: '启动 dsh 失败', message: e?.message || '无法启动 dsh', type: 'error' });
+        throw e;
+      } finally {
+        this.dshLaunching = false;
+      }
+    },
+
     async checkDshVersionUpdate() {
       this.dshVersionChecking = true;
       try {
@@ -1126,8 +1234,12 @@ export const useAppStore = defineStore('app', {
 
     async upgradeDsh() {
       this.dshVersionUpgrading = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.upgradeDsh();
+        const result = await api.upgradeDshStreamed(line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         this.dshVersionResult = result;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
@@ -1151,6 +1263,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionUpgrading = false;
       }
@@ -1158,8 +1273,12 @@ export const useAppStore = defineStore('app', {
 
     async installDshVersion(version: string) {
       this.dshVersionUpgrading = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.installDshVersion(version);
+        const result = await api.installDshVersionStreamed(version, line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         this.dshVersionResult = result;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
@@ -1183,6 +1302,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionUpgrading = false;
       }
@@ -1190,8 +1312,12 @@ export const useAppStore = defineStore('app', {
 
     async rollbackDsh(previousVersion: string, snapshotIds: string[]) {
       this.dshVersionRollingBack = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.rollbackDsh(previousVersion, snapshotIds);
+        const result = await api.rollbackDshStreamed(previousVersion, snapshotIds, line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
         if (result.ok) {
@@ -1208,6 +1334,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionRollingBack = false;
       }

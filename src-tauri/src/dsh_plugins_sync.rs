@@ -9,7 +9,7 @@ use crate::dsh_plugins::{
     create_dsh_config_snapshot, is_portable_spec, list_profile_dirs, read_pkg,
     reconcile_node_modules, resolve_dsh_home, run_install_blocking, write_pkg, BUILTIN_BUNDLE_PREFIX,
 };
-use crate::models::{DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
+use crate::models::{DshAlignDecision, DshPluginDiff, DshPluginDiffItem, DshPluginsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
 
 /// 与 skills sync 共用同一 Git 仓库根目录。
@@ -756,9 +756,23 @@ pub fn reconcile_dsh_plugins() -> DshPluginDiff {
 }
 
 #[tauri::command]
-pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
+pub fn align_dsh_plugins(profile: Option<String>, decisions: Vec<DshAlignDecision>) -> Result<(), String> {
     let profiles_dir = resolve_dsh_home().join("profiles");
     let mirror_root = dsh_mirror_dir().join("profiles");
+
+    // 逐插件决策：按 profile 分组，key = dep 名 / "bundle:<pkg>" / "cordis.patch.yml"
+    let mut by_profile: std::collections::HashMap<String, std::collections::HashMap<String, String>> =
+        std::collections::HashMap::new();
+    for d in &decisions {
+        let p = d.profile_name.trim().to_string();
+        if p.is_empty() {
+            continue;
+        }
+        by_profile
+            .entry(p)
+            .or_default()
+            .insert(d.name.clone(), if d.direction == "local" { "local".to_string() } else { "remote".to_string() });
+    }
 
     let targets: Vec<String> = match profile.filter(|p| !p.trim().is_empty()) {
         Some(p) => vec![p],
@@ -794,6 +808,15 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
 
         let local_pkg = read_pkg(&local_dir).unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
+        let dir_of = |key: &str| -> String {
+            by_profile
+                .get(&name)
+                .and_then(|m| m.get(key))
+                .cloned()
+                .unwrap_or_else(|| "remote".to_string())
+        };
+
+        // 内置 bundle 保留本地默认；本地不可移植依赖始终保留
         let builtin_bundles: Vec<String> = match local_pkg
             .get("dsh")
             .and_then(|d| d.get("profile"))
@@ -817,13 +840,76 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
             }
         }
 
-        let mut merged_deps = portable_deps(&mirror_pkg);
+        // 逐条合并 dependencies：默认 remote=镜像为准，local=保留本地
+        let local_portable = portable_deps(&local_pkg);
+        let mirror_portable = portable_deps(&mirror_pkg);
+        let mut dep_names: Vec<String> = local_portable
+            .keys()
+            .chain(mirror_portable.keys())
+            .cloned()
+            .collect();
+        dep_names.sort();
+        dep_names.dedup();
+
+        let mut merged_deps: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for dep in dep_names {
+            let l = local_portable.get(&dep);
+            let r = mirror_portable.get(&dep);
+            let dir = dir_of(&dep);
+            match (l, r) {
+                (Some(lv), Some(rv)) => {
+                    merged_deps.insert(dep, if dir == "local" { lv.clone() } else { rv.clone() });
+                }
+                (Some(lv), None) => {
+                    // extra：本地有、镜像无
+                    if dir == "local" {
+                        merged_deps.insert(dep, lv.clone());
+                    }
+                }
+                (None, Some(rv)) => {
+                    // missing：镜像有、本地无
+                    if dir != "local" {
+                        merged_deps.insert(dep, rv.clone());
+                    }
+                }
+                (None, None) => {}
+            }
+        }
         for (dep, spec) in local_unportable {
             merged_deps.insert(dep, spec);
         }
 
+        // 逐条合并 bundles
+        let local_bundles = user_bundles(&local_pkg);
+        let mirror_bundles = user_bundles(&mirror_pkg);
+        let mut bundle_names: Vec<String> = local_bundles
+            .iter()
+            .chain(mirror_bundles.iter())
+            .cloned()
+            .collect();
+        bundle_names.sort();
+        bundle_names.dedup();
+
+        let mut merged_user_bundles: Vec<String> = Vec::new();
+        for b in bundle_names {
+            let in_l = local_bundles.contains(&b);
+            let in_r = mirror_bundles.contains(&b);
+            let dir = dir_of(&format!("bundle:{}", b));
+            if in_l && in_r {
+                merged_user_bundles.push(b);
+            } else if in_l && !in_r {
+                if dir == "local" {
+                    merged_user_bundles.push(b);
+                }
+            } else if !in_l && in_r {
+                if dir != "local" {
+                    merged_user_bundles.push(b);
+                }
+            }
+        }
         let mut merged_bundles: Vec<String> = builtin_bundles.clone();
-        merged_bundles.extend(user_bundles(&mirror_pkg));
+        merged_bundles.extend(merged_user_bundles);
 
         let mut merged_pkg = local_pkg.clone();
         if !merged_pkg.is_object() {
@@ -850,7 +936,12 @@ pub fn align_dsh_plugins(profile: Option<String>) -> Result<(), String> {
 
         write_pkg(&local_dir, &merged_pkg);
 
+        // patch：direction=local 保留本地 cordis.patch.yml，否则用镜像；lock/workspace 始终用镜像
+        let apply_mirror_patch = dir_of("cordis.patch.yml") != "local";
         for f in ["cordis.patch.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"] {
+            if f == "cordis.patch.yml" && !apply_mirror_patch {
+                continue;
+            }
             let src = mirror_dir.join(f);
             if src.exists() {
                 let _ = fs::copy(&src, local_dir.join(f));

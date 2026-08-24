@@ -41,14 +41,15 @@
 | WI-002 | 待开发 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | 备注/tag 不入 `~/.dsh` 事实源，存 AgentHub 本地缓存 |
 | WI-003 | 待开发 | P1 | 一键启动 dsh + 错误堆栈复制 | 插件管理 / 一键诊断页新增「启动 dsh」按钮，启动失败时捕获完整 stderr 堆栈并支持一键复制 | 点击即启动 dsh；失败时展示堆栈并可复制 | 复用 `PLAN_DSH_PLUGIN_MANAGER` §4.3 堆栈解析、`DshDiagnose.vue` | 端口占用(EADDRINUSE)提示、不算失败 |
 | WI-004 | 待开发 | P2 | 首启卡顿定位与研究 | 定位首次启动程序卡顿的原因，产出结论与可执行的优化方向 | 给出卡顿原因说明 + 优化项列表（可转成后续工作项） | 前端初始化、Rust 启动、sync / 扫描 | 先研究后决策，本轮不改代码 |
-| WI-005 | 待开发 | P1 | 插件选择性同步（按卡片勾选） | 同步从「整份 profile 全量镜像」细化为「每条插件卡片可独立勾选是否同步」 | 卡片有同步开关；推送/拉取只包含勾选条目 | `dsh_plugins_sync.rs`、`dshPlugins.ts`、`DshPluginRow/List.vue` | 内置包/不可移植依赖仍按现有规则剔除 |
+| WI-005 | 待开发 | P1 | 插件选择性同步（按卡片勾选） | 同步从「整份 profile 全量镜像」细化为「每条插件卡片可独立勾选是否同步」 | 卡片有同步开关；推送/拉取只包含勾选条目 | `dsh_plugins_sync.rs`、`dshPlugins.ts`、`DshPluginRow/List.vue` | 内置包/不可移植依赖仍按现有规则剔除；→ 并入 WI-013 |
 | WI-006 | 已完成 | P1 | 配置快照与回滚 | 对 DSH 插件配置做快照，支持时间线查看与一键回滚 | 可手动/自动创建快照、列出历史、一键回滚 | `dsh_plugins.rs`、`dshPlugins.ts`、`backups/` | ✅ 已完成 v1.0.6：手动/安装/对齐快照 + 时间线 + 一键回滚 + 最近 20 份 + 永久保留 |
 | WI-007 | 待开发 | P2 | 应用日志系统 | 统一日志采集/分级/导出，配合排障 | 关键路径有日志；可查看与一键导出 | Rust `log`/`tracing`、Node 端日志模块、`SettingsModal.vue` | 支撑 WI-004 首启卡顿排查 |
-| WI-008 | 待开发 | P2 | 同步中心增强 | 定时同步 + 冲突可视化解决 + 同步历史，与 WI-005/WI-006 联动设计 | 支持定时触发、冲突解决、历史记录 | `SyncView.vue`、`syncRepo.ts`、`git_sync.rs` | 与 WI-005/WI-006 统一进同一条同步链路 |
+| WI-008 | 待开发 | P2 | 同步中心增强 | 定时同步 + 冲突可视化解决 + 同步历史，与 WI-005/WI-006 联动设计 | 支持定时触发、冲突解决、历史记录 | `SyncView.vue`、`syncRepo.ts`、`git_sync.rs` | 与 WI-005/WI-006 统一进同一条同步链路；→ 并入 WI-013 |
 | WI-009 | 已完成 | P1 | DSH 版本升级与版本管理 | 插件管理页新增 DSH 本体版本升级 + 版本管理，升级前自动快照，支持回滚 | 可查看当前/远端版本、升级、回滚到历史版本 | 插件管理页、WI-006 快照、`dsh_plugins.rs` 命令探测 | ✅ 已完成 v1.0.6：当前/远端版本 + 升级（自动快照 + 诊断对比）+ 一键回滚（版本 + 配置）+ 版本历史 |
 | WI-010 | 待开发 | P3 | MCP Server 配置总线 | 多 Agent 的 MCP Server 配置（claude_desktop_config.json / gemini/mcp / codex/mcp）集中可视化管理与共享 | 扫描 / 对账 / 启停 / 多端同步 | `syncRepo.ts`、`skills_sync.rs` 的 mcp/ 分类、新组件 | 既定 TODO；用户明确「要做但推后」 |
 | WI-011 | 已完成 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | ✅ 已完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`）；详见 `PLAN_WI011_MULTI_PLATFORM.md` |
 | WI-012 | 待开发 | P1 | 国际化（i18n） | UI 文案 + 后端错误消息多语言化，引入 vue-i18n，支持中/英切换 | 语言包覆盖全 UI 与后端提示；可切换并持久化 | 20+ `.vue` 组件、`useAppStore.ts`、`server/*.ts` 错误消息、`SettingsModal.vue` | 约 589 处 UI 中文硬编码；横切关注点，越早做越省 |
+| WI-013 | 已完成 | P1 | 同步交互重设计（方向化命名 + 逐条勾选对齐） | 同步按钮按数据流方向重组（上传到仓库 / 从仓库应用 / 预览差异）；DSH 插件对齐细化为逐插件 decisions，Skills 同步细化为逐文件 apply/push | 按钮方向与后果明确；覆盖操作强制前置差异预览；diff 逐条勾选方向并逐条应用 | `SyncView.vue`、`DshPluginSync.vue`、`DshPluginDiffModal.vue`、`SkillsDiffModal.vue`、`dshPlugins.ts`、`localApi.ts`、`dsh_plugins_sync.rs`、`skills_sync.rs` | ✅ 已完成（PR #19）；吸收 WI-005/WI-008；WI-006 快照继续兜底 |
 
 ---
 
@@ -190,6 +191,28 @@
 - **依赖**：`vue-i18n`、20+ 组件改造、`server/*.ts` 错误消息、`SettingsModal.vue`。
 - **风险/边界**：文案量 589+ 处需分批抽取；建议在 macOS/Linux 适配新增文案前尽早做，避免二次补抽。
 
+### WI-013 — 同步交互重设计（方向化命名 + 逐条勾选对齐）
+
+> ✅ **已完成（2026-08-24，PR #19）**：DSH 插件同步与 Skills 同步均落地方向化命名 + 逐条勾选对齐（双端 Node/Rust 对齐）——DSH 逐插件 decisions 合并（`alignDshPlugins`/`align_dsh_plugins` 接收 decisions）、Skills 逐文件 apply/push（`applySkillsFromRemote`/`apply_skills_from_remote` + `pushSkillsSync(paths)`）；新增 `SkillsDiffModal.vue`。WI-005/WI-008 的「勾选」与「冲突解决」能力已统一吸收进这条同步决策链路。
+
+- **背景**：当前 DSH 插件同步分两层但 UI 摊平——Git 层「拉取/推送」只操作本地镜像 `%APPDATA%\AgentHub\dsh\`（不碰 `~/.dsh`），配置层「对账/一键对齐」才操作 `~/.dsh/profiles`。用户容易配错：①「拉取」后本地插件其实没变，还需再「一键对齐」才生效；②「一键对齐」以镜像为准覆盖本地，本地新装、未推送的可移植插件会被静默丢弃（`alignDshPlugins` 合并逻辑只保留「镜像可移植依赖 + 本地不可移植依赖」）；③「推送/拉取」的方向感靠术语脑补，覆盖方向藏在字眼里。
+- **现状依据**：`reconcileDshPlugins` 已按插件产出 `missing / extra / version / patch` 逐条差异；`alignDshPlugins` 仍是整份 profile 全量 `mergedDeps`；`DshPluginDiffModal` 只读展示、无逐条操作。
+- **方案要点**：
+  1. **方向化命名 + 按钮精简**：DSH 侧收敛为 3 个动作——`上传到仓库`（=推送：`~/.dsh` → 镜像 → 远端）、`从仓库应用`（=「拉取 + 对齐」合并：远端 → 镜像 → `~/.dsh`）、`预览差异`（=对账，只读，永远是第一步）。
+  2. **覆盖方向三重标注**：按钮旁用「箭头 + 后果文案」明确数据流与影响（如「将以仓库为准写回本地，本地未上传的插件会被移除」）；危险覆盖操作强制先弹差异清单再确认。
+  3. **逐插件对齐**：`DshPluginDiffModal` 从只读改为可勾选，单位 = `profile × 插件名`，每条独立选方向——`missing` 默认采纳仓库 / `extra` 默认保留本地并提示是否上传 / `version` 二选一；`alignDshPlugins` 改为接受 `{ profile, decisions: [{ name, direction }] }` 逐条应用。
+  4. **Skills 逐文件勾选**：`skills/` 目录本身就是 git 工作区（无镜像层），粒度 = 文件；`SkillsDiffModal` 双模式（apply=从仓库应用 / push=上传到仓库），逐文件选方向——`applySkillsFromRemote(decisions)` 对 `remote` 方向文件 `git checkout origin/<branch>`（远端删除则 `git rm`），`pushSkillsSync(paths)` 只 `git add` 勾选文件；默认 `side=remote` 采用仓库、`local/both` 保留本地。
+- **关键决策（已锁定）**：
+  - 统一吸收 WI-005（按卡片勾选同步）与 WI-008（冲突可视化解决），做进同一条「逐插件同步决策」链路，避免三处各写一套。
+  - 逐条勾选/同步标记存 AgentHub 本地缓存，不入 `~/.dsh` 事实源、不入同步镜像（与 WI-005 决策一致）。
+  - 所有覆盖操作继续复用 WI-006 自动快照兜底。
+- **依赖**：`SyncView.vue`、`DshPluginSync.vue`、`DshPluginDiffModal.vue`、`SkillsDiffModal.vue`、`dshPlugins.ts`（`alignDshPlugins`/`reconcileDshPlugins`）、`localApi.ts`（`applySkillsFromRemote`/`pushSkillsSync`/`fetchSkillsSync`）、`dsh_plugins_sync.rs`、`skills_sync.rs`（Rust 双端对齐）、`DshPluginDiff`/`DshPluginEntry`/`SkillsSyncDecision` 类型扩展。
+- **风险/边界**：
+  - 「从仓库应用」合并后，git 分叉兜底（「以远端为准」）仍需保留且二次确认。
+  - 逐条对齐时 `pnpm install` 触发时机需定义（逐条即装 vs 批量确认后一次装），避免频繁 install。
+  - `cordis.patch.yml` 目前是整文件 diff，真正按插件粒度需把 patch 行按插件分组（WI-005 延伸）。
+  - Rust/Node 双端对齐是硬约束（`AGENTS.md` §5）。
+
 ---
 
 ## 4. 优先级与推荐开发顺序
@@ -206,6 +229,7 @@
 | | WI-006 | 配置快照与回滚（✅ 已完成 v1.0.6） |
 | | WI-009 | DSH 版本升级与版本管理（✅ 已完成 v1.0.6） |
 | | WI-012 | 国际化（i18n） |
+| | WI-013 | 同步交互重设计（方向化命名 + 逐条勾选对齐）（✅ 已完成 PR #19） |
 | **P2 中** | WI-001 | 后台常驻与系统托盘 |
 | | WI-004 | 首启卡顿定位与研究 |
 | | WI-007 | 应用日志系统 |
@@ -220,15 +244,16 @@
 | 1 | **T0 地基** | WI-011 | 三平台适配 | P0 | ✅ 已完成 v1.0.5；落地后成为后续开发规范，避免返工 |
 | 2 | **T1 插件核心** | WI-006 | 配置快照回滚 | P1 | ✅ 已完成 v1.0.6；WI-009 前置；多个功能复用 |
 | 3 | T1 | WI-003 | 一键启动 dsh | P1 | 独立功能，可并行 |
-| 4 | T1 | WI-005 | 插件选择性同步 | P1 | 插件管理核心 |
+| 4 | T1 | WI-005 | 插件选择性同步 | P1 | 插件管理核心；→ 并入 WI-013 |
 | 5 | T1 | WI-009 | DSH 版本管理 | P1 | ✅ 已完成 v1.0.6；依赖 WI-006 快照 |
-| 6 | T1 | WI-008 | 同步中心增强 | P2 | 联动 WI-005 / WI-006 统一设计 |
-| 7 | T2 基建 | WI-007 | 应用日志 | P2 | 基础设施，支撑 WI-004 排查 |
-| 8 | T2 | WI-004 | 首启卡顿研究 | P2 | 有日志支撑后再定位 |
-| 9 | T3 横切 | WI-012 | 国际化 | P1 | 横切大工程，插件核心完成后做 |
-| 10 | T4 体验完善 | WI-001 | 系统托盘 | P2 | 独立小功能 |
-| 11 | T4 | WI-002 | 插件卡片 tag / 备注 | P3 | 低优先增强 |
-| 12 | T5 远期 | WI-010 | MCP 总线 | P3 | 远期推后 |
+| 6 | T1 | WI-008 | 同步中心增强 | P2 | 联动 WI-005 / WI-006 统一设计；→ 并入 WI-013 |
+| 7 | T1 | WI-013 | 同步交互重设计 | P1 | ✅ 已完成（PR #19）；吸收 WI-005 / WI-008 的勾选与冲突解决 |
+| 8 | T2 基建 | WI-007 | 应用日志 | P2 | 基础设施，支撑 WI-004 排查 |
+| 9 | T2 | WI-004 | 首启卡顿研究 | P2 | 有日志支撑后再定位 |
+| 10 | T3 横切 | WI-012 | 国际化 | P1 | 横切大工程，插件核心完成后做 |
+| 11 | T4 体验完善 | WI-001 | 系统托盘 | P2 | 独立小功能 |
+| 12 | T4 | WI-002 | 插件卡片 tag / 备注 | P3 | 低优先增强 |
+| 13 | T5 远期 | WI-010 | MCP 总线 | P3 | 远期推后 |
 
 ---
 
@@ -260,6 +285,8 @@
 | 2026-08-23 | WI-009 启动 | WI-006 已完成 v1.0.6（commit db695e0，未 push/未提 PR）；WI-009 标为「计划中 / ⭐ 下一步」，基于 WI-006 改动继续开发 |
 | 2026-08-24 | WI-006 完成 | 配置快照与回滚落地并发布 v1.0.6：手动/安装/对齐快照 + 时间线 + 一键回滚 + 最近 20 份 + 永久保留；总表与 §4.2 已同步 |
 | 2026-08-24 | WI-009 完成 | DSH 版本升级与版本管理落地并随 v1.0.6 发布：当前/远端版本 + 升级（自动快照 + 诊断对比）+ 一键回滚（版本 + 配置）+ 版本历史；总表与 §4.2 已同步 |
+| 2026-08-24 | 新增 1 项 | WI-013 同步交互重设计（方向化命名 + 逐插件对齐，P1，⭐ 下一步；吸收 WI-005/WI-008） |
+| 2026-08-24 | WI-013 完成 | DSH 插件同步与 Skills 同步均落地方向化命名 + 逐条勾选对齐（DSH 逐插件 decisions 合并 / Skills 逐文件 apply-push，双端 Node/Rust 对齐），提交 PR #19 |
 
 ---
 

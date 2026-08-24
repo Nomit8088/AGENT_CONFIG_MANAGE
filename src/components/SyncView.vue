@@ -158,22 +158,27 @@
             <template v-if="repoStatus.initialized">
               <div class="flex gap-2">
                 <button
-                  @click="handlePull"
+                  @click="handleSkillsApplyFromRepo"
                   :disabled="skillsLoading"
                   class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <DownloadCloud class="w-3.5 h-3.5" />
-                  <span>拉取</span>
+                  <span>从仓库应用</span>
                 </button>
                 <button
-                  @click="handlePush"
+                  @click="handleSkillsPush"
                   :disabled="skillsLoading"
                   class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UploadCloud class="w-3.5 h-3.5" />
-                  <span>推送</span>
+                  <span>上传到仓库</span>
                 </button>
               </div>
+
+              <p class="text-[10px] leading-relaxed text-slate-400 dark:text-white/50">
+                <span class="text-[#3b82f6]">↓ 从仓库应用</span>：仓库 → 本机，先逐文件选方向再写回；
+                <span class="text-[#22c55e]">↑ 上传到仓库</span>：本机 → 仓库，先勾选再提交。
+              </p>
 
               <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
                 <div>
@@ -315,12 +320,12 @@
               <template v-if="repoStatus.initialized">
                 <div class="flex gap-2">
                   <button
-                    @click="handleDshPull"
+                    @click="handleDshApplyFromRepo"
                     :disabled="dshLoading"
                     class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <DownloadCloud class="w-3.5 h-3.5" />
-                    <span>拉取</span>
+                    <span>从仓库应用</span>
                   </button>
                   <button
                     @click="handleDshPush"
@@ -328,14 +333,19 @@
                     class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <UploadCloud class="w-3.5 h-3.5" />
-                    <span>推送</span>
+                    <span>上传到仓库</span>
                   </button>
                 </div>
+
+                <p class="text-[10px] leading-relaxed text-slate-400 dark:text-white/50">
+                  <span class="text-[#3b82f6]">↓ 从仓库应用</span>：仓库 → 本机，先预览差异再覆盖本地插件配置；
+                  <span class="text-[#22c55e]">↑ 上传到仓库</span>：本机 → 仓库，把当前插件配置发上去。
+                </p>
 
                 <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
                   <div>
                     <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动自动拉取</div>
-                    <div class="text-[11px] text-slate-500 dark:text-white/50">仅 fast-forward，有本地修改/冲突时自动跳过</div>
+                    <div class="text-[11px] text-slate-500 dark:text-white/50">仅 fast-forward 拉取镜像，不改动本机插件配置；有本地修改/冲突时自动跳过</div>
                   </div>
                   <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
                     <button
@@ -383,6 +393,7 @@
       </div>
 
       <DshPluginDiffModal />
+      <SkillsDiffModal />
     </template>
   </div>
 </template>
@@ -403,6 +414,7 @@ import {
 } from 'lucide-vue-next';
 import DshPluginSync from './DshPluginSync.vue';
 import DshPluginDiffModal from './DshPluginDiffModal.vue';
+import SkillsDiffModal from './SkillsDiffModal.vue';
 
 const store = useAppStore();
 const confirmReset = ref(false);
@@ -501,15 +513,15 @@ const diverged = computed(() => {
   return /diverging|fast-forward|not possible to fast-forward|non-fast-forward|rejected|fetch first/i.test(e);
 });
 
-async function handlePull() {
+async function handleSkillsApplyFromRepo() {
   try {
-    await store.pullSkillsSync();
+    await store.previewSkillsApply();
   } catch {}
 }
 
-async function handlePush() {
+async function handleSkillsPush() {
   try {
-    await store.pushSkillsSync();
+    await store.previewSkillsPush();
   } catch {}
 }
 
@@ -536,10 +548,9 @@ async function toggleAutoPull(enabled: boolean) {
   } catch {}
 }
 
-async function handleDshPull() {
+async function handleDshApplyFromRepo() {
   try {
-    await store.pullDshPluginsSync();
-    await store.reconcileDshPlugins().catch(() => {});
+    await store.applyDshFromRepo();
   } catch {}
 }
 
