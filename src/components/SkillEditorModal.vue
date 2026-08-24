@@ -12,9 +12,9 @@
           </div>
           <div>
             <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">
-              {{ store.skillEditorModal.isNew ? '新建中央 Skill' : `编辑 Skill: ${store.skillEditorModal.skillName}` }}
+              {{ store.skillEditorModal.isNew ? $t('skill.editorNew') : $t('skill.editorEdit', { name: store.skillEditorModal.skillName }) }}
             </h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">编写 SKILL.md 文档与 YAML Frontmatter 元数据</p>
+            <p class="text-xs text-slate-500 dark:text-white/50">{{ $t('skill.editorSubtitle') }}</p>
           </div>
         </div>
         <button
@@ -28,7 +28,7 @@
       <!-- Body -->
       <div class="flex-1 overflow-y-auto py-4 space-y-4 text-xs">
         <div v-if="store.skillEditorModal.isNew">
-          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">技能唯一标识 (目录名)</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('skill.editorIdLabel') }}</label>
           <input
             v-model="store.skillEditorModal.skillName"
             type="text"
@@ -39,8 +39,8 @@
 
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-slate-700 dark:text-white/70 font-medium">SKILL.md 内容</label>
-            <span class="text-[11px] text-slate-400 dark:text-white/40 font-mono">支持 YAML Frontmatter (---)</span>
+            <label class="text-slate-700 dark:text-white/70 font-medium">{{ $t('skill.editorContentLabel') }}</label>
+            <span class="text-[11px] text-slate-400 dark:text-white/40 font-mono">{{ $t('skill.editorYamlHint') }}</span>
           </div>
           <textarea
             v-model="store.skillEditorModal.content"
@@ -57,7 +57,7 @@
           @click="close"
           class="px-4 py-2 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
         >
-          取消
+          {{ $t('common.cancel') }}
         </button>
         <button
           @click="handleSave"
@@ -65,7 +65,7 @@
           class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
         >
           <Save class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" />
-          <span>保存至中央库</span>
+          <span>{{ $t('skill.editorSave') }}</span>
         </button>
       </div>
     </div>

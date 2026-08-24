@@ -12,10 +12,10 @@
           </div>
           <div>
             <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">
-              {{ isApply ? '确认从仓库应用' : '确认上传到仓库' }}
+              {{ isApply ? $t('skillsDiff.applyTitle') : $t('skillsDiff.pushTitle') }}
             </h3>
             <p class="text-xs text-slate-500 dark:text-white/50">
-              {{ isApply ? '逐文件选择「采用仓库」或「保留本地」' : '逐文件勾选要上传的本地文件' }}
+              {{ isApply ? $t('skillsDiff.applyDesc') : $t('skillsDiff.pushDesc') }}
             </p>
           </div>
         </div>
@@ -30,7 +30,7 @@
       <!-- Body -->
       <div class="flex-1 overflow-y-auto py-4 space-y-3">
         <div v-if="!diff || diff.length === 0" class="text-center py-8 text-xs text-slate-500 dark:text-white/50">
-          暂无文件差异
+          {{ $t('skillsDiff.noDiff') }}
         </div>
 
         <div v-else class="space-y-2">
@@ -60,7 +60,7 @@
             </div>
 
             <div class="mt-2 flex items-center gap-2 flex-wrap">
-              <span class="text-[10px] text-slate-400 dark:text-white/40">处理方式</span>
+              <span class="text-[10px] text-slate-400 dark:text-white/40">{{ $t('skillsDiff.handling') }}</span>
               <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-[11px]">
                 <button
                   type="button"
@@ -81,15 +81,15 @@
       <!-- Footer -->
       <div class="flex items-center justify-between gap-3 pt-3 border-t border-black/8 dark:border-white/8 flex-shrink-0">
         <div class="text-[11px] text-slate-400 dark:text-white/50">
-          <template v-if="isApply">「采用仓库」会用远端版本覆盖本地对应文件，「保留本地」则不动。</template>
-          <template v-else>仅上传勾选为「上传」的文件，其余跳过。</template>
+          <template v-if="isApply">{{ $t('skillsDiff.applyFooter') }}</template>
+          <template v-else>{{ $t('skillsDiff.pushFooter') }}</template>
         </div>
         <div class="flex items-center gap-2">
           <button
             @click="close"
             class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
           >
-            取消
+            {{ $t('common.cancel') }}
           </button>
           <button
             @click="confirm"
@@ -97,7 +97,7 @@
             class="px-3 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-medium border border-[#8b5cf6] transition-colors duration-200 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle class="w-3.5 h-3.5" />
-            <span>{{ busy ? '处理中…' : (isApply ? '确认应用' : '确认上传') }}</span>
+            <span>{{ busy ? $t('skillsDiff.processing') : (isApply ? $t('skillsDiff.confirmApply') : $t('skillsDiff.confirmPush')) }}</span>
           </button>
         </div>
       </div>
@@ -108,6 +108,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import { CheckCircle, GitCompare, X } from 'lucide-vue-next';
 import type { SkillsSyncDecision, SyncDiffEntry } from '../types';
 
@@ -117,8 +118,8 @@ const isApply = computed(() => store.skillsDiffModal.mode === 'apply');
 const busy = ref(false);
 const overrides = ref<Record<string, 'remote' | 'local'>>({});
 
-const remoteLabel = computed(() => (isApply.value ? '采用仓库' : '跳过'));
-const localLabel = computed(() => (isApply.value ? '保留本地' : '上传'));
+const remoteLabel = computed(() => (isApply.value ? t('skillsDiff.adoptRepo') : t('skillsDiff.skip')));
+const localLabel = computed(() => (isApply.value ? t('skillsDiff.keepLocal') : t('skillsDiff.upload')));
 
 function defaultDir(e: SyncDiffEntry): 'remote' | 'local' {
   // 远端领先默认采用仓库；本地领先/双方修改默认保留本地（不丢数据）
@@ -165,8 +166,8 @@ async function confirm() {
     store.skillsDiffModal.visible = false;
   } catch (err: any) {
     store.showToast({
-      title: isApply.value ? '应用失败' : '上传失败',
-      message: err?.message || (isApply.value ? '无法应用远端文件' : '无法上传文件'),
+      title: isApply.value ? t('skillsDiff.toastApplyFailed') : t('skillsDiff.toastPushFailed'),
+      message: translateError(err, isApply.value ? 'skillsDiff.toastApplyFailedMsg' : 'skillsDiff.toastPushFailedMsg'),
       type: 'error',
     });
   } finally {
@@ -175,9 +176,9 @@ async function confirm() {
 }
 
 function statusLabel(s: SyncDiffEntry['status']): string {
-  if (s === 'added') return '新增';
-  if (s === 'deleted') return '删除';
-  return '修改';
+  if (s === 'added') return t('skillsDiff.statusAdded');
+  if (s === 'deleted') return t('skillsDiff.statusDeleted');
+  return t('skillsDiff.statusModified');
 }
 
 function statusClass(s: SyncDiffEntry['status']): string {
@@ -187,9 +188,9 @@ function statusClass(s: SyncDiffEntry['status']): string {
 }
 
 function sideLabel(s: SyncDiffEntry['side']): string {
-  if (s === 'local') return '本地领先';
-  if (s === 'remote') return '远端领先';
-  return '双方修改';
+  if (s === 'local') return t('skillsDiff.sideLocal');
+  if (s === 'remote') return t('skillsDiff.sideRemote');
+  return t('skillsDiff.sideBoth');
 }
 
 function sideClass(s: SyncDiffEntry['side']): string {

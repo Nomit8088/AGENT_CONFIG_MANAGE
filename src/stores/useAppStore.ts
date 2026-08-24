@@ -31,6 +31,7 @@ import {
   UnmanagedSkill,
 } from '../types';
 import { api } from '../services/api';
+import { t, translateError, applyLocale } from '../i18n';
 
 export interface DiffModalState {
   visible: boolean;
@@ -54,6 +55,7 @@ export const useAppStore = defineStore('app', {
     config: {
       auto_start: false,
       theme: 'system' as const,
+      locale: 'zh' as 'zh' | 'en',
       default_rule_mode: 'append' as const,
       auto_capture_skills: true,
       toast_notifications: true,
@@ -72,7 +74,7 @@ export const useAppStore = defineStore('app', {
     // Modals
     diffModal: {
       visible: false,
-      title: '版本差异与冲突决策',
+      title: t('diff.title'),
       localContent: '',
       remoteContent: '',
       localLabel: '本地文件 (Local)',
@@ -308,8 +310,8 @@ export const useAppStore = defineStore('app', {
 
         api.onExternalSkillCreated((path) => {
           this.showToast({
-            title: '⚡ 自动捕获到外部新 Skill',
-            message: `检测到新安装的技能: ${path.split(/[\/\\]/).pop()}，已自动就绪！`,
+            title: t('toast.externalSkillTitle'),
+            message: t('toast.externalSkillMsg', { name: path.split(/[\/\\]/).pop() }),
             type: 'info',
           });
           this.loadSkills();
@@ -323,6 +325,22 @@ export const useAppStore = defineStore('app', {
       } finally {
         this.isLoading = false;
       }
+    },
+
+    applyLocale(locale?: 'zh' | 'en') {
+      const target = locale || this.config.locale || 'zh';
+      this.config.locale = target;
+      applyLocale(target);
+    },
+
+    async setLocale(locale: 'zh' | 'en') {
+      this.applyLocale(locale);
+      await api.updateConfig(this.config);
+      this.showToast({
+        title: t('toast.settingsUpdatedTitle'),
+        message: t('toast.settingsUpdatedMsg'),
+        type: 'success',
+      });
     },
 
     applyTheme(theme?: 'dark' | 'light' | 'system') {
@@ -370,6 +388,7 @@ export const useAppStore = defineStore('app', {
         this.config.ignored_skills = [];
       }
       this.applyTheme(this.config.theme);
+      this.applyLocale(this.config.locale);
     },
 
     async saveConfig(newConfig: AppConfig) {
@@ -383,8 +402,8 @@ export const useAppStore = defineStore('app', {
       this.applyTheme(this.config.theme);
       await api.updateConfig(this.config);
       this.showToast({
-        title: '设置已更新',
-        message: '客户端全局配置已成功保存',
+        title: t('toast.settingsUpdatedTitle'),
+        message: t('toast.settingsUpdatedMsg'),
         type: 'success',
       });
     },
@@ -398,8 +417,8 @@ export const useAppStore = defineStore('app', {
       try {
         this.agents = await api.scanAgents();
         this.showToast({
-          title: 'Agent 扫描完成',
-          message: `已自动探测到 ${this.detectedAgentsCount} 个本地 Agent 环境`,
+          title: t('toast.agentScanTitle'),
+          message: t('toast.agentScanMsg', { count: this.detectedAgentsCount }),
           type: 'success',
         });
       } finally {
@@ -413,8 +432,8 @@ export const useAppStore = defineStore('app', {
         agent.enabled = enabled;
         await api.saveAgentsList(this.agents);
         this.showToast({
-          title: enabled ? '已启用 Agent' : '已停用 Agent',
-          message: `${agent.name} 已${enabled ? '启用（将在矩阵与规则中展示）' : '停用（已从其他页面隐藏）'}`,
+          title: t(enabled ? 'toast.agentEnabledTitle' : 'toast.agentDisabledTitle'),
+          message: t(enabled ? 'toast.agentEnabledMsg' : 'toast.agentDisabledMsg', { name: agent.name }),
           type: 'info',
         });
       }
@@ -424,8 +443,8 @@ export const useAppStore = defineStore('app', {
       this.agents.push(agent);
       await api.saveAgentsList(this.agents);
       this.showToast({
-        title: '添加成功',
-        message: `自定义 Agent [${agent.name}] 已注册并启用`,
+        title: t('toast.agentAddTitle'),
+        message: t('toast.agentAddMsg', { name: agent.name }),
         type: 'success',
       });
     },
@@ -435,8 +454,8 @@ export const useAppStore = defineStore('app', {
       this.agents = this.agents.filter(a => a.id !== agentId);
       await api.saveAgentsList(this.agents);
       this.showToast({
-        title: '已移除 Agent',
-        message: `已移除自定义 Agent [${target?.name || agentId}]`,
+        title: t('toast.agentRemoveTitle'),
+        message: t('toast.agentRemoveMsg', { name: target?.name || agentId }),
         type: 'info',
       });
     },
@@ -518,14 +537,14 @@ export const useAppStore = defineStore('app', {
           this.loadDshPluginsSyncStatus().catch(() => {}),
         ]);
         this.showToast({
-          title: '仓库已解绑',
-          message: '同步中心已锁定；本地数据与 Git 历史均已保留',
+          title: t('toast.unbindTitle'),
+          message: t('toast.unbindMsg'),
           type: 'info',
         });
       } catch (e: any) {
         this.showToast({
-          title: '解绑失败',
-          message: e?.message || '无法解绑仓库',
+          title: t('toast.unbindFailedTitle'),
+          message: translateError(e, 'toast.unbindFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -540,8 +559,8 @@ export const useAppStore = defineStore('app', {
         this.skillsSyncStatus = await api.initSkillsSync(remoteUrl, branch);
         await this.loadConfig();
         this.showToast({
-          title: '同步仓库已连接',
-          message: `中央技能库已初始化，远端: ${remoteUrl}`,
+          title: t('toast.syncInitTitle'),
+          message: t('toast.syncInitMsg', { url: remoteUrl }),
           type: 'success',
         });
       } finally {
@@ -557,8 +576,8 @@ export const useAppStore = defineStore('app', {
         this.loadSkillsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
-            title: '拉取完成',
-            message: '中央技能库已与远端同步',
+            title: t('toast.pullDoneTitle'),
+            message: t('toast.pullDoneMsg'),
             type: 'success',
           });
         }
@@ -566,8 +585,8 @@ export const useAppStore = defineStore('app', {
         this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
         if (showToast) {
           this.showToast({
-            title: '拉取失败',
-            message: e?.message || '无法拉取远端技能库',
+            title: t('toast.pullFailedTitle'),
+            message: translateError(e, 'toast.pullFailedMsg'),
             type: 'error',
           });
         }
@@ -584,15 +603,17 @@ export const useAppStore = defineStore('app', {
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
-          title: '已上传到仓库',
-          message: paths && paths.length ? `已提交并推送 ${paths.length} 个文件到远端` : '中央技能库已提交并推送到远端',
+          title: t('toast.pushDoneTitle'),
+          message: paths && paths.length
+            ? t('toast.pushDoneFilesMsg', { count: paths.length })
+            : t('toast.pushDoneMsg'),
           type: 'success',
         });
       } catch (e: any) {
         this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
         this.showToast({
-          title: '上传失败',
-          message: e?.message || '无法推送中央技能库',
+          title: t('toast.pushFailedTitle'),
+          message: translateError(e, 'toast.pushFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -613,8 +634,8 @@ export const useAppStore = defineStore('app', {
       };
       await this.loadConfig();
       this.showToast({
-        title: enabled ? '启动自动拉取已开启' : '启动自动拉取已关闭',
-        message: enabled ? '每次启动 AgentHub 会静默拉取最新中央技能库' : 'AgentHub 启动时将不再自动联网拉取',
+        title: t(enabled ? 'toast.autoPullOnTitle' : 'toast.autoPullOffTitle'),
+        message: t(enabled ? 'toast.autoPullOnMsg' : 'toast.autoPullOffMsg'),
         type: 'info',
       });
     },
@@ -623,14 +644,14 @@ export const useAppStore = defineStore('app', {
       try {
         const message = await api.testSkillsSyncConnection();
         this.showToast({
-          title: '连接测试成功',
+          title: t('toast.testOkTitle'),
           message,
           type: 'success',
         });
       } catch (e: any) {
         this.showToast({
-          title: '连接测试失败',
-          message: e?.message || '无法连接远端仓库',
+          title: t('toast.testFailedTitle'),
+          message: translateError(e, 'toast.testFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -644,15 +665,15 @@ export const useAppStore = defineStore('app', {
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
-          title: '已重置为远端',
-          message: '本地中央技能库已与远端完全一致',
+          title: t('toast.resetDoneTitle'),
+          message: t('toast.resetDoneMsg'),
           type: 'success',
         });
       } catch (e: any) {
         this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
         this.showToast({
-          title: '重置失败',
-          message: e?.message || '无法重置本地中央技能库',
+          title: t('toast.resetFailedTitle'),
+          message: translateError(e, 'toast.resetFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -668,15 +689,15 @@ export const useAppStore = defineStore('app', {
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
-          title: '已应用仓库文件',
-          message: '选中的远端文件已写回本地技能库',
+          title: t('toast.applyDoneTitle'),
+          message: t('toast.applyDoneMsg'),
           type: 'success',
         });
       } catch (e: any) {
         this.skillsSyncStatus = await api.getSkillsSyncStatus().catch(() => this.skillsSyncStatus);
         this.showToast({
-          title: '应用失败',
-          message: e?.message || '无法应用远端技能库',
+          title: t('toast.applyFailedTitle'),
+          message: translateError(e, 'toast.applyFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -726,7 +747,7 @@ export const useAppStore = defineStore('app', {
       await api.applyDshRecovery(action);
       await this.loadDshPlugins();
       this.showToast({
-        title: '已应用恢复动作',
+        title: t('toast.recoveryDoneTitle'),
         message: action.description,
         type: 'success',
       });
@@ -737,8 +758,12 @@ export const useAppStore = defineStore('app', {
       await this.loadDshPlugins();
       await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: enabled ? '插件已启用' : '插件已停用',
-        message: `profile [${profile}] 的 ${key} 已${enabled ? '启用' : '停用'}`,
+        title: t(enabled ? 'toast.pluginEnabledTitle' : 'toast.pluginDisabledTitle'),
+        message: t('toast.pluginToggleMsg', {
+          profile,
+          key,
+          action: t(enabled ? 'toast.pluginEnableAction' : 'toast.pluginDisableAction'),
+        }),
         type: 'info',
       });
     },
@@ -748,8 +773,8 @@ export const useAppStore = defineStore('app', {
       await this.loadDshPlugins();
       await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: '插件已卸载',
-        message: `profile [${profile}] 的 ${key} 已从配置中移除（并已尽力清理 node_modules）`,
+        title: t('toast.pluginUninstalledTitle'),
+        message: t('toast.pluginUninstalledMsg', { profile, key }),
         type: 'warning',
       });
     },
@@ -759,8 +784,8 @@ export const useAppStore = defineStore('app', {
       await this.loadDshPlugins();
       await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: '已纳入配置',
-        message: `${pkgName} 已写入 profile [${profile}] 的 dependencies + bundles`,
+        title: t('toast.pluginAdoptedTitle'),
+        message: t('toast.pluginAdoptedMsg', { name: pkgName, profile }),
         type: 'success',
       });
     },
@@ -783,14 +808,21 @@ export const useAppStore = defineStore('app', {
         await this.loadDshInstallEntries(profile);
         if (this.dshInstallReport.ok) {
           this.showToast({
-            title: '安装完成',
-            message: `profile [${profile}] 已执行 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            title: t('toast.installDoneTitle'),
+            message: t('toast.installDoneMsg', {
+              profile,
+              mode,
+              count: this.dshInstallReport.installed.length,
+            }),
             type: 'success',
           });
         } else {
           this.showToast({
-            title: '安装未完全成功',
-            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            title: t('toast.installPartialTitle'),
+            message: t('toast.installPartialMsg', {
+              count: this.dshInstallReport.failed.length,
+              names: this.dshInstallReport.failed.map(f => f.name).join(', '),
+            }),
             type: 'error',
           });
         }
@@ -798,8 +830,8 @@ export const useAppStore = defineStore('app', {
       } catch (e: any) {
         await this.loadDshInstallEntries(profile).catch(() => {});
         this.showToast({
-          title: '安装失败',
-          message: e?.message || '无法执行 pnpm 安装',
+          title: t('toast.installFailedTitle'),
+          message: translateError(e, 'toast.installFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -820,14 +852,21 @@ export const useAppStore = defineStore('app', {
         await this.loadDshInstallEntries(profile);
         if (this.dshInstallReport.ok) {
           this.showToast({
-            title: '安装完成',
-            message: `profile [${profile}] 已完成 ${mode}：${this.dshInstallReport.installed.length} 个包校验通过`,
+            title: t('toast.installDoneTitle'),
+            message: t('toast.installDoneMsg', {
+              profile,
+              mode,
+              count: this.dshInstallReport.installed.length,
+            }),
             type: 'success',
           });
         } else {
           this.showToast({
-            title: '安装未完全成功',
-            message: `${this.dshInstallReport.failed.length} 个包失败：${this.dshInstallReport.failed.map(f => f.name).join(', ')}`,
+            title: t('toast.installPartialTitle'),
+            message: t('toast.installPartialMsg', {
+              count: this.dshInstallReport.failed.length,
+              names: this.dshInstallReport.failed.map(f => f.name).join(', '),
+            }),
             type: 'error',
           });
         }
@@ -836,8 +875,8 @@ export const useAppStore = defineStore('app', {
         this.installTerminal.running = false;
         await this.loadDshInstallEntries(profile).catch(() => {});
         this.showToast({
-          title: '安装失败',
-          message: e?.message || '无法执行 pnpm 安装',
+          title: t('toast.installFailedTitle'),
+          message: translateError(e, 'toast.installFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -855,8 +894,10 @@ export const useAppStore = defineStore('app', {
       await api.clearDshInstallState(profile, pkg);
       await this.loadDshInstallEntries(profile);
       this.showToast({
-        title: '安装状态已清除',
-        message: pkg ? `已清除 ${pkg} 的失败状态` : `已清除 profile [${profile}] 的全部安装状态`,
+        title: t('toast.installStateClearedTitle'),
+        message: pkg
+          ? t('toast.installStateClearedPkgMsg', { pkg })
+          : t('toast.installStateClearedAllMsg', { profile }),
         type: 'info',
       });
     },
@@ -882,13 +923,13 @@ export const useAppStore = defineStore('app', {
         this.dshPluginUpdates = updates;
         if (report.ok) {
           this.showToast({
-            title: '插件更新完成',
-            message: `profile [${profile}] 的 ${key} 已更新到最新`,
+            title: t('toast.pluginUpdateDoneTitle'),
+            message: t('toast.pluginUpdateDoneMsg', { profile, key }),
             type: 'success',
           });
         } else {
           this.showToast({
-            title: '插件更新失败',
+            title: t('toast.pluginUpdateFailedTitle'),
             message: report.failed.map(f => `${f.name}: ${f.reason}`).join('\n'),
             type: 'error',
           });
@@ -897,8 +938,8 @@ export const useAppStore = defineStore('app', {
       } catch (e: any) {
         await this.loadDshInstallEntries(profile).catch(() => {});
         this.showToast({
-          title: '插件更新失败',
-          message: e?.message || '无法更新插件',
+          title: t('toast.pluginUpdateFailedTitle'),
+          message: translateError(e, 'toast.pluginUpdateFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -931,23 +972,23 @@ export const useAppStore = defineStore('app', {
         if (this.appUpdate.error) {
           if (showToast) {
             this.showToast({
-              title: '检查更新失败',
-              message: this.appUpdate.error,
+              title: t('toast.checkUpdateFailedTitle'),
+              message: translateError(this.appUpdate.error, 'toast.checkUpdateFailedMsg'),
               type: 'error',
             });
           }
         } else if (this.appUpdate.updateAvailable) {
           if (showToast) {
             this.showToast({
-              title: '发现新版本',
-              message: `AgentHub ${this.appUpdate.latestVersion} 已发布`,
+              title: t('toast.foundNewVersionTitle'),
+              message: t('toast.foundNewVersionMsg', { version: this.appUpdate.latestVersion }),
               type: 'info',
             });
           }
         } else if (showToast) {
           this.showToast({
-            title: '已是最新版本',
-            message: `当前版本 ${this.appUpdate.currentVersion} 已是最新`,
+            title: t('toast.latestVersionTitle'),
+            message: t('toast.latestVersionMsg', { version: this.appUpdate.currentVersion }),
             type: 'success',
           });
         }
@@ -955,8 +996,8 @@ export const useAppStore = defineStore('app', {
       } catch (e: any) {
         if (showToast) {
           this.showToast({
-            title: '检查更新失败',
-            message: e?.message || '无法连接更新服务器',
+            title: t('toast.checkUpdateFailedTitle'),
+            message: translateError(e, 'toast.checkUpdateFailedMsg'),
             type: 'error',
           });
         }
@@ -980,7 +1021,7 @@ export const useAppStore = defineStore('app', {
         this.appUpdateDownloadedPath = report.path || null;
         return report;
       } catch (e: any) {
-        this.appUpdateError = e?.message || '下载更新失败';
+        this.appUpdateError = translateError(e, 'toast.downloadFailedMsg');
         throw e;
       } finally {
         this.appUpdateDownloading = false;
@@ -993,8 +1034,8 @@ export const useAppStore = defineStore('app', {
       }
       await api.installAppUpdate(this.appUpdateDownloadedPath);
       this.showToast({
-        title: '正在安装更新',
-        message: '安装程序已启动，AgentHub 即将退出以完成更新',
+        title: t('toast.installingUpdateTitle'),
+        message: t('toast.installingUpdateMsg'),
         type: 'info',
       });
     },
@@ -1009,8 +1050,8 @@ export const useAppStore = defineStore('app', {
         this.dshPluginsSyncStatus = await api.initDshPluginsSync(remoteUrl, branch);
         await this.loadConfig();
         this.showToast({
-          title: '插件同步仓库已连接',
-          message: `DSH 插件配置同步已初始化，远端: ${remoteUrl}`,
+          title: t('toast.pluginSyncInitTitle'),
+          message: t('toast.pluginSyncInitMsg', { url: remoteUrl }),
           type: 'success',
         });
       } finally {
@@ -1025,8 +1066,8 @@ export const useAppStore = defineStore('app', {
         this.loadDshPluginsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
-            title: '仓库镜像已拉取',
-            message: '远端仓库的 dsh/ 镜像已更新到本地（尚未改动本机插件配置）',
+            title: t('toast.pluginMirrorPulledTitle'),
+            message: t('toast.pluginMirrorPulledMsg'),
             type: 'success',
           });
         }
@@ -1034,8 +1075,8 @@ export const useAppStore = defineStore('app', {
         this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus().catch(() => this.dshPluginsSyncStatus);
         if (showToast) {
           this.showToast({
-            title: '拉取失败',
-            message: e?.message || '无法拉取远端插件配置',
+            title: t('toast.pullFailedTitle'),
+            message: translateError(e, 'toast.pluginPullFailedMsg'),
             type: 'error',
           });
         }
@@ -1052,15 +1093,15 @@ export const useAppStore = defineStore('app', {
         await this.reconcileDshPlugins();
         this.loadDshPluginsSyncDiff().catch(() => {});
         this.showToast({
-          title: '已上传到仓库',
-          message: '本机 DSH 插件配置已镜像并推送到远端仓库',
+          title: t('toast.pushDoneTitle'),
+          message: t('toast.pluginPushDoneMsg'),
           type: 'success',
         });
       } catch (e: any) {
         this.dshPluginsSyncStatus = await api.getDshPluginsSyncStatus().catch(() => this.dshPluginsSyncStatus);
         this.showToast({
-          title: '推送失败',
-          message: e?.message || '无法推送插件配置',
+          title: t('toast.pluginPushFailedTitle'),
+          message: translateError(e, 'toast.pluginPushFailedMsg'),
           type: 'error',
         });
         throw e;
@@ -1073,8 +1114,8 @@ export const useAppStore = defineStore('app', {
       await api.setDshPluginsSyncAutoPull(enabled);
       await this.loadConfig();
       this.showToast({
-        title: enabled ? '插件启动自动拉取已开启' : '插件启动自动拉取已关闭',
-        message: enabled ? '每次启动会静默拉取最新插件配置' : 'AgentHub 启动时将不再自动联网拉取插件配置',
+        title: t(enabled ? 'toast.pluginAutoPullOnTitle' : 'toast.pluginAutoPullOffTitle'),
+        message: t(enabled ? 'toast.pluginAutoPullOnMsg' : 'toast.pluginAutoPullOffMsg'),
         type: 'info',
       });
     },
@@ -1090,8 +1131,8 @@ export const useAppStore = defineStore('app', {
         await this.pullDshPluginsSync(false);
       } catch (e: any) {
         this.showToast({
-          title: '拉取仓库失败',
-          message: e?.message || '无法拉取远端插件配置',
+          title: t('toast.pluginPullRepoFailedTitle'),
+          message: translateError(e, 'toast.pluginPullFailedMsg'),
           type: 'error',
         });
         return;
@@ -1106,8 +1147,8 @@ export const useAppStore = defineStore('app', {
       await this.reconcileDshPlugins();
       if (profile) await this.loadDshInstallEntries(profile).catch(() => {});
       this.showToast({
-        title: '已应用仓库配置',
-        message: '本地插件配置已按所选方向写回并执行 pnpm install',
+        title: t('toast.pluginAlignDoneTitle'),
+        message: t('toast.pluginAlignDoneMsg'),
         type: 'success',
       });
     },
@@ -1128,8 +1169,8 @@ export const useAppStore = defineStore('app', {
       const snap = await api.createDshConfigSnapshot(profile, note);
       await this.loadDshSnapshots(profile);
       this.showToast({
-        title: '快照已创建',
-        message: `已为 profile [${profile}] 创建配置快照${note ? `：${note}` : ''}`,
+        title: t('toast.snapshotCreatedTitle'),
+        message: t('toast.snapshotCreatedMsg', { profile, note: note ? `：${note}` : '' }),
         type: 'success',
       });
       return snap;
@@ -1141,8 +1182,11 @@ export const useAppStore = defineStore('app', {
       await this.loadDshPlugins();
       await this.loadDshInstallEntries(result.profile).catch(() => {});
       this.showToast({
-        title: '配置已回滚',
-        message: `已回滚 profile [${result.profile}] 的配置文件（${result.restored.join(', ')}）。node_modules 未覆盖，若插件安装状态不一致请执行 pnpm install 对齐。`,
+        title: t('toast.snapshotRolledBackTitle'),
+        message: t('toast.snapshotRolledBackMsg', {
+          profile: result.profile,
+          files: result.restored.join(', '),
+        }),
         type: 'warning',
       });
       return result;
@@ -1152,7 +1196,7 @@ export const useAppStore = defineStore('app', {
       const snap = await api.setDshConfigSnapshotPermanent(snapshotId, permanent);
       await this.loadDshSnapshots(snap.profileName);
       this.showToast({
-        title: permanent ? '已标记永久保留' : '已取消永久保留',
+        title: t(permanent ? 'toast.snapshotMarkedTitle' : 'toast.snapshotUnmarkedTitle'),
         message: snap.id,
         type: 'info',
       });
@@ -1164,7 +1208,7 @@ export const useAppStore = defineStore('app', {
       await api.deleteDshConfigSnapshot(snapshotId);
       await this.loadDshSnapshots(snap?.profileName || this.dshPluginsScan?.profiles[0]?.name || 'web');
       this.showToast({
-        title: '快照已删除',
+        title: t('toast.snapshotDeletedTitle'),
         message: snapshotId,
         type: 'info',
       });
@@ -1196,8 +1240,8 @@ export const useAppStore = defineStore('app', {
       } catch (e: any) {
         this.dshAvailableVersions = null;
         this.showToast({
-          title: '拉取版本列表失败',
-          message: e?.message || '无法查询 npm registry',
+          title: t('toast.versionListFailedTitle'),
+          message: translateError(e, 'toast.versionListFailedMsg'),
           type: 'error',
         });
       } finally {
@@ -1213,27 +1257,27 @@ export const useAppStore = defineStore('app', {
       try {
         const result: DshLaunchResult = await api.launchDshWeb(profile);
         if (result.ok) {
-          this.showToast({ title: '已启动 dsh', message: result.message || 'dsh web 已拉起', type: 'success' });
+          this.showToast({ title: t('toast.launchDoneTitle'), message: result.message || t('toast.launchDoneMsg'), type: 'success' });
         } else {
           const raw = result.stderr || result.error || '';
           const isPortBusy = /EADDRINUSE|端口占用|端口已被占用/i.test(raw);
           if (isPortBusy) {
             this.showToast({
-              title: '端口占用',
-              message: '检测到端口已被占用（可能是另一个 DSH 实例正在运行），请先关闭现有实例后重试。',
+              title: t('toast.portBusyTitle'),
+              message: t('toast.portBusyMsg'),
               type: 'warning',
             });
           } else {
-            this.dshLaunchError = result.error || '无法启动 dsh';
+            this.dshLaunchError = result.error || t('toast.launchFailedMsg');
             this.dshLaunchStderr = result.stderr || result.error || '';
-            this.showToast({ title: '启动 dsh 失败', message: this.dshLaunchError ?? '无法启动 dsh', type: 'error' });
+            this.showToast({ title: t('toast.launchFailedTitle'), message: this.dshLaunchError ?? t('toast.launchFailedMsg'), type: 'error' });
           }
         }
         return result;
       } catch (e: any) {
-        this.dshLaunchError = e?.message || '无法启动 dsh';
-        this.dshLaunchStderr = e?.message || '';
-        this.showToast({ title: '启动 dsh 失败', message: this.dshLaunchError ?? '无法启动 dsh', type: 'error' });
+        this.dshLaunchError = translateError(e, 'toast.launchFailedMsg');
+        this.dshLaunchStderr = typeof e === 'string' ? e : (e?.message || '');
+        this.showToast({ title: t('toast.launchFailedTitle'), message: this.dshLaunchError ?? t('toast.launchFailedMsg'), type: 'error' });
         throw e;
       } finally {
         this.dshLaunching = false;
@@ -1263,19 +1307,22 @@ export const useAppStore = defineStore('app', {
         await this.loadDshPlugins().catch(() => {});
         if (result.massFailure) {
           this.showToast({
-            title: '升级后疑似插件大面积失效',
-            message: `失败插件数 ${result.diagnosisBefore} → ${result.diagnosisAfter}，建议一键回滚版本 + 配置`,
+            title: t('toast.upgradeMassFailTitle'),
+            message: t('toast.upgradeMassFailMsg', {
+              before: result.diagnosisBefore,
+              after: result.diagnosisAfter,
+            }),
             type: 'error',
           });
         } else if (result.ok) {
           this.showToast({
-            title: 'DSH 已升级',
-            message: `${result.beforeVersion || '未知'} → ${result.afterVersion || result.targetVersion}`,
+            title: t('toast.upgradeDoneTitle'),
+            message: `${result.beforeVersion || t('common.unknown')} → ${result.afterVersion || result.targetVersion}`,
             type: 'success',
           });
         } else {
           this.showToast({
-            title: 'DSH 升级未完成',
+            title: t('toast.upgradePartialTitle'),
             message: result.error || result.warnings.join('\n') || result.output,
             type: 'error',
           });
@@ -1302,19 +1349,22 @@ export const useAppStore = defineStore('app', {
         await this.loadDshPlugins().catch(() => {});
         if (result.massFailure) {
           this.showToast({
-            title: '版本切换后疑似插件大面积失效',
-            message: `失败插件数 ${result.diagnosisBefore} → ${result.diagnosisAfter}，建议一键回滚`,
+            title: t('toast.installVersionMassFailTitle'),
+            message: t('toast.installVersionMassFailMsg', {
+              before: result.diagnosisBefore,
+              after: result.diagnosisAfter,
+            }),
             type: 'error',
           });
         } else if (result.ok) {
           this.showToast({
-            title: 'DSH 版本已切换',
-            message: `${result.beforeVersion || '未知'} → ${result.afterVersion || result.targetVersion}`,
+            title: t('toast.installVersionDoneTitle'),
+            message: `${result.beforeVersion || t('common.unknown')} → ${result.afterVersion || result.targetVersion}`,
             type: 'success',
           });
         } else {
           this.showToast({
-            title: 'DSH 版本切换未完成',
+            title: t('toast.installVersionPartialTitle'),
             message: result.error || result.warnings.join('\n') || result.output,
             type: 'error',
           });
@@ -1340,13 +1390,18 @@ export const useAppStore = defineStore('app', {
         await this.loadDshPlugins().catch(() => {});
         if (result.ok) {
           this.showToast({
-            title: 'DSH 已回滚',
-            message: `已装回 ${result.version || previousVersion}${result.restoredSnapshots.length ? `，并回滚 ${result.restoredSnapshots.length} 份配置快照` : ''}`,
+            title: t('toast.rollbackDoneTitle'),
+            message: t('toast.rollbackDoneMsg', {
+              version: result.version || previousVersion,
+              snapshots: result.restoredSnapshots.length
+                ? t('toast.rollbackSnapshots', { count: result.restoredSnapshots.length })
+                : '',
+            }),
             type: 'success',
           });
         } else {
           this.showToast({
-            title: 'DSH 回滚失败',
+            title: t('toast.rollbackFailedTitle'),
             message: result.error || result.output,
             type: 'error',
           });
@@ -1377,10 +1432,10 @@ export const useAppStore = defineStore('app', {
         console.error('toggleSkillForAgent error:', e);
       }
       await this.loadSkills();
-      const action = enable ? '挂载 (Junction)' : '解绑';
+      const action = t(enable ? 'toast.skillMountAction' : 'toast.skillUnmountAction');
       this.showToast({
-        title: `Skill ${action}成功`,
-        message: `已为 ${agentId} ${action} ${skillName}`,
+        title: t('toast.skillToggleTitle', { action }),
+        message: t('toast.skillToggleMsg', { agent: agentId, action, skill: skillName }),
         type: 'info',
       });
     },
@@ -1406,8 +1461,11 @@ export const useAppStore = defineStore('app', {
       }
       await this.loadSkills();
       this.showToast({
-        title: enable ? '全局已启用' : '全局已停用',
-        message: `技能 [${skillName}] 已${enable ? '挂载至' : '移出'}所有活跃 Agent`,
+        title: t(enable ? 'toast.globalEnabledTitle' : 'toast.globalDisabledTitle'),
+        message: t('toast.globalToggleMsg', {
+          skill: skillName,
+          action: t(enable ? 'toast.globalMountAction' : 'toast.globalUnmountAction'),
+        }),
         type: 'success',
       });
     },
@@ -1419,8 +1477,8 @@ export const useAppStore = defineStore('app', {
       }
       await this.loadSkills();
       this.showToast({
-        title: '已分发至全部活跃 Agent',
-        message: `已为 ${activeAgents.length} 个 Agent 创建 NTFS 软链`,
+        title: t('toast.distributeDoneTitle'),
+        message: t('toast.distributeDoneMsg', { count: activeAgents.length }),
         type: 'success',
       });
     },
@@ -1431,8 +1489,8 @@ export const useAppStore = defineStore('app', {
       }
       await this.loadSkills();
       this.showToast({
-        title: '已全部解绑',
-        message: `已从所有 Agent 中移除软链`,
+        title: t('toast.unmountAllDoneTitle'),
+        message: t('toast.unmountAllDoneMsg'),
         type: 'info',
       });
     },
@@ -1446,8 +1504,11 @@ export const useAppStore = defineStore('app', {
       await this.loadSkills();
       this.selectedSkillIds = [];
       this.showToast({
-        title: '批量操作完成',
-        message: `已将选中的 ${skillNames.length} 个技能批量${enable ? '分发' : '解绑'}`,
+        title: t('toast.batchDoneTitle'),
+        message: t('toast.batchDoneMsg', {
+          count: skillNames.length,
+          action: t(enable ? 'toast.batchDistributeAction' : 'toast.batchUnmountAction'),
+        }),
         type: 'success',
       });
     },
@@ -1456,8 +1517,8 @@ export const useAppStore = defineStore('app', {
       await api.saveSkill(skillName, content);
       await this.loadSkills();
       this.showToast({
-        title: 'Skill 保存成功',
-        message: `技能 [${skillName}] 已写入中央库并实时同步`,
+        title: t('toast.skillSavedTitle'),
+        message: t('toast.skillSavedMsg', { skill: skillName }),
         type: 'success',
       });
     },
@@ -1469,8 +1530,8 @@ export const useAppStore = defineStore('app', {
         this.activeSkillId = null;
       }
       this.showToast({
-        title: '已删除 Skill',
-        message: `已从中央库和所有 Agent 中安全移除 ${skillName}`,
+        title: t('toast.skillDeletedTitle'),
+        message: t('toast.skillDeletedMsg', { skill: skillName }),
         type: 'warning',
       });
     },
@@ -1480,8 +1541,8 @@ export const useAppStore = defineStore('app', {
       await this.loadSkills();
       await this.scanUnmanaged();
       this.showToast({
-        title: '纳管成功',
-        message: `已成功纳管 ${agentId} 下的实体 Skill [${skillName}] 并替换为 Junction 软链`,
+        title: t('toast.takeoverDoneTitle'),
+        message: t('toast.takeoverDoneMsg', { agent: agentId, skill: skillName }),
         type: 'success',
       });
     },
@@ -1494,8 +1555,8 @@ export const useAppStore = defineStore('app', {
       await this.loadSkills();
       await this.scanUnmanaged();
       this.showToast({
-        title: '批量纳管完成',
-        message: `已纳管 ${agentId} 下的 ${list.length} 个实体技能并替换为中央受控链接`,
+        title: t('toast.takeoverAllDoneTitle'),
+        message: t('toast.takeoverAllDoneMsg', { agent: agentId, count: list.length }),
         type: 'success',
       });
     },
@@ -1508,8 +1569,8 @@ export const useAppStore = defineStore('app', {
       await this.loadSkills();
       await this.scanUnmanaged();
       this.showToast({
-        title: '全量纳管完成',
-        message: `已将所有 Agent 的 ${list.length} 个存量物理技能全部替换为中央受控链接`,
+        title: t('toast.takeoverAllUnmanagedTitle'),
+        message: t('toast.takeoverAllUnmanagedMsg', { count: list.length }),
         type: 'success',
       });
     },
@@ -1519,8 +1580,8 @@ export const useAppStore = defineStore('app', {
       await this.loadConfig();
       await this.scanUnmanaged();
       this.showToast({
-        title: '已忽略技能',
-        message: `已将 ${item.agentName} 下的 [${item.skillName}] 加入忽略名单，后续不再提示纳管`,
+        title: t('toast.ignoreDoneTitle'),
+        message: t('toast.ignoreDoneMsg', { agent: item.agentName, skill: item.skillName }),
         type: 'info',
       });
     },
@@ -1533,8 +1594,8 @@ export const useAppStore = defineStore('app', {
       await this.loadConfig();
       await this.scanUnmanaged();
       this.showToast({
-        title: '全部忽略',
-        message: `已将 ${agentId} 下的所有未纳管技能加入忽略名单`,
+        title: t('toast.ignoreAllDoneTitle'),
+        message: t('toast.ignoreAllDoneMsg', { agent: agentId }),
         type: 'info',
       });
     },
@@ -1544,8 +1605,8 @@ export const useAppStore = defineStore('app', {
       await this.loadConfig();
       await this.scanUnmanaged();
       this.showToast({
-        title: '已恢复纳管提示',
-        message: `已将 [${skillName}] 移出忽略名单`,
+        title: t('toast.unignoreDoneTitle'),
+        message: t('toast.unignoreDoneMsg', { skill: skillName }),
         type: 'success',
       });
     },
@@ -1558,8 +1619,8 @@ export const useAppStore = defineStore('app', {
       await this.loadConfig();
       await this.scanUnmanaged();
       this.showToast({
-        title: '已全部恢复',
-        message: `已清空 ${agentId} 的忽略列表`,
+        title: t('toast.unignoreAllDoneTitle'),
+        message: t('toast.unignoreAllDoneMsg', { agent: agentId }),
         type: 'success',
       });
     },
@@ -1588,8 +1649,8 @@ export const useAppStore = defineStore('app', {
       await this.loadProjects();
       this.activeProjectId = newProj.id;
       this.showToast({
-        title: '项目已纳管',
-        message: `成功添加项目 [${newProj.name}]`,
+        title: t('toast.projectAddedTitle'),
+        message: t('toast.projectAddedMsg', { name: newProj.name }),
         type: 'success',
       });
     },
@@ -1605,8 +1666,8 @@ export const useAppStore = defineStore('app', {
       await api.updateProjectRule(projectId, ruleMode, customContent, enabled, linkedAgents, preCommitGuard);
       await this.loadProjects();
       this.showToast({
-        title: '规则与守卫已生效',
-        message: `项目规则已应用 (${ruleMode === 'overwrite' ? '覆盖模式 + Git Hook 守卫' : '追加模式 + Git Exclude'})`,
+        title: t('toast.ruleAppliedTitle'),
+        message: t(ruleMode === 'overwrite' ? 'toast.ruleAppliedOverwriteMsg' : 'toast.ruleAppliedAppendMsg'),
         type: 'success',
       });
     },
@@ -1618,8 +1679,8 @@ export const useAppStore = defineStore('app', {
         this.activeProjectId = this.projects.length > 0 ? this.projects[0].id : null;
       }
       this.showToast({
-        title: '项目已移除',
-        message: '已解除纳管并还原规则文件',
+        title: t('toast.projectRemovedTitle'),
+        message: t('toast.projectRemovedMsg'),
         type: 'info',
       });
     },
@@ -1629,14 +1690,14 @@ export const useAppStore = defineStore('app', {
         await api.repairGitHooks(projectId);
         await this.loadProjects();
         this.showToast({
-          title: 'Git Hook 守卫就绪',
-          message: '已成功安装并修复 pre-checkout / post-checkout / pre-commit 守卫防护',
+          title: t('toast.hookReadyTitle'),
+          message: t('toast.hookReadyMsg'),
           type: 'success',
         });
       } catch (err: any) {
         this.showToast({
-          title: '修复失败',
-          message: err?.message || '安装 Git Hook 时发生异常',
+          title: t('toast.hookRepairFailedTitle'),
+          message: translateError(err, 'toast.hookRepairFailedMsg'),
           type: 'error',
         });
       }
@@ -1659,8 +1720,8 @@ export const useAppStore = defineStore('app', {
         skillName: params.skillName,
         localContent: params.localContent,
         remoteContent: params.remoteContent,
-        localLabel: params.localLabel || '本地实体版本 (Local)',
-        remoteLabel: params.remoteLabel || '中央库版本 (Central)',
+        localLabel: params.localLabel || t('diff.localLabel'),
+        remoteLabel: params.remoteLabel || t('diff.centralLabel'),
         onResolve: params.onResolve,
       };
     },

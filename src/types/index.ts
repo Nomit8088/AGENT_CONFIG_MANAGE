@@ -380,6 +380,7 @@ export interface AppUpdateDownload {
 export interface AppConfig {
   auto_start: boolean;
   theme: 'dark' | 'light' | 'system';
+  locale?: 'zh' | 'en';
   default_rule_mode: 'append' | 'overwrite';
   auto_capture_skills: boolean;
   toast_notifications: boolean;

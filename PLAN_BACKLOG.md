@@ -48,7 +48,7 @@
 | WI-009 | 已完成 | P1 | DSH 版本升级与版本管理 | 插件管理页新增 DSH 本体版本升级 + 版本管理，升级前自动快照，支持回滚 | 可查看当前/远端版本、升级、回滚到历史版本 | 插件管理页、WI-006 快照、`dsh_plugins.rs` 命令探测 | ✅ 已完成 v1.0.6：当前/远端版本 + 升级（自动快照 + 诊断对比）+ 一键回滚（版本 + 配置）+ 版本历史 |
 | WI-010 | 待开发 | P3 | MCP Server 配置总线 | 多 Agent 的 MCP Server 配置（claude_desktop_config.json / gemini/mcp / codex/mcp）集中可视化管理与共享 | 扫描 / 对账 / 启停 / 多端同步 | `syncRepo.ts`、`skills_sync.rs` 的 mcp/ 分类、新组件 | 既定 TODO；用户明确「要做但推后」 |
 | WI-011 | 已完成 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | ✅ 已完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`）；详见 `PLAN_WI011_MULTI_PLATFORM.md` |
-| WI-012 | 待开发 | P1 | 国际化（i18n） | UI 文案 + 后端错误消息多语言化，引入 vue-i18n，支持中/英切换 | 语言包覆盖全 UI 与后端提示；可切换并持久化 | 20+ `.vue` 组件、`useAppStore.ts`、`server/*.ts` 错误消息、`SettingsModal.vue` | 约 589 处 UI 中文硬编码；横切关注点，越早做越省 |
+| WI-012 | 已完成 | P1 | 国际化（i18n） | UI 文案 + 后端错误消息多语言化，引入 vue-i18n，支持中/英切换 | 语言包覆盖全 UI 与后端提示；可切换并持久化 | 20+ `.vue` 组件、`useAppStore.ts`、`server/*.ts` 错误消息、`SettingsModal.vue` | ✅ 已完成：vue-i18n v9 + `src/locales/zh|en.ts` + `src/i18n/index.ts`；语言切换（设置页）经 `AppConfig.locale` 双端持久化；后端错误码化（`src/shared/errorCodes.ts` ↔ `src-tauri/src/error_codes.rs`，同步/插件/git 家族已对齐） |
 | WI-013 | 已完成 | P1 | 同步交互重设计（方向化命名 + 逐条勾选对齐） | 同步按钮按数据流方向重组（上传到仓库 / 从仓库应用 / 预览差异）；DSH 插件对齐细化为逐插件 decisions，Skills 同步细化为逐文件 apply/push | 按钮方向与后果明确；覆盖操作强制前置差异预览；diff 逐条勾选方向并逐条应用 | `SyncView.vue`、`DshPluginSync.vue`、`DshPluginDiffModal.vue`、`SkillsDiffModal.vue`、`dshPlugins.ts`、`localApi.ts`、`dsh_plugins_sync.rs`、`skills_sync.rs` | ✅ 已完成（PR #19）；吸收 WI-005/WI-008；WI-006 快照继续兜底 |
 
 ---
@@ -180,6 +180,8 @@
 
 ### WI-012 — 国际化（i18n）
 
+> ✅ **已完成（本分支 feature/wi-012-i18n）**：引入 vue-i18n v9（`src/i18n/index.ts` + `src/locales/zh.ts`/`en.ts`），组件/页面命名空间拆分语言包；设置页新增语言切换（默认 zh，经 `AppConfig.locale` 走 config.json 双端持久化，localStorage 仅作启动缓存）；后端错误消息错误码化（`src/shared/errorCodes.ts` 与 Rust `src-tauri/src/error_codes.rs` 双端共享 code，前端 `translateError` 查语言包 + 动态 detail 兜底）。同步仓库 / git / pnpm / 插件 key / 孤儿纳入 等主要失败场景 Rust 与 Node 已返回同一错误码；`EADDRINUSE` 等程序性正则保持匹配后端原文，未被 i18n 破坏。
+
 - **背景**：UI 全中文硬编码（`\p{Han}` 匹配约 589 处，遍布 20+ 组件），README 中英双语文档但应用无 i18n。
 - **方案要点**：
   - 引入 `vue-i18n`，抽取模板内联中文 → 语言包（先 zh / en 两语言）。
@@ -228,7 +230,7 @@
 | | WI-005 | 插件选择性同步（按卡片勾选） |
 | | WI-006 | 配置快照与回滚（✅ 已完成 v1.0.6） |
 | | WI-009 | DSH 版本升级与版本管理（✅ 已完成 v1.0.6） |
-| | WI-012 | 国际化（i18n） |
+| | WI-012 | 国际化（i18n）（✅ 已完成 feature/wi-012-i18n） |
 | | WI-013 | 同步交互重设计（方向化命名 + 逐条勾选对齐）（✅ 已完成 PR #19） |
 | **P2 中** | WI-001 | 后台常驻与系统托盘 |
 | | WI-004 | 首启卡顿定位与研究 |
@@ -288,6 +290,7 @@
 | 2026-08-24 | 新增 1 项 | WI-013 同步交互重设计（方向化命名 + 逐插件对齐，P1，⭐ 下一步；吸收 WI-005/WI-008） |
 | 2026-08-24 | WI-013 完成 | DSH 插件同步与 Skills 同步均落地方向化命名 + 逐条勾选对齐（DSH 逐插件 decisions 合并 / Skills 逐文件 apply-push，双端 Node/Rust 对齐），提交 PR #19 |
 | 2026-08-25 | WI-003 完成 | 一键启动 dsh 已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制：Rust `launch_dsh_web` 改 async + 4s 宽限窗口捕获 stderr，Node `launchDshWeb` 同步对齐，UI 失败展示 stderr + 复制按钮，EADDRINUSE 给「端口占用」hint 不算失败 |
+| 2026-08-25 | WI-012 完成 | 国际化（i18n）落地：vue-i18n v9 + zh/en 语言包 + 设置页语言切换（AppConfig.locale 双端持久化）；后端错误消息错误码化（TS/Rust 双端共享 code，前端查语言包）；主要页面与 store toast 抽取为 `t()` |
 
 ---
 

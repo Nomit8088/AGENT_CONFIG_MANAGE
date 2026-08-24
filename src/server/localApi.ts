@@ -757,15 +757,15 @@ export function pullSkillsSync(): SkillsSyncStatus {
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const dirty = gitDirtyCountPaths(root, ['skills', '.gitignore']);
   if (dirty > 0) {
-    const msg = `技能同步：本地有 ${dirty} 个未提交修改（skills/.gitignore），已跳过拉取；请先推送或手动处理`;
+    const msg = `E_SYNC_DIRTY::${dirty}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
@@ -776,7 +776,7 @@ export function pullSkillsSync(): SkillsSyncStatus {
     updateLastSync('success');
     return getSkillsSyncStatus();
   } catch (e: any) {
-    const msg = `拉取失败: ${e.message}`;
+    const msg = `E_SYNC_PULL_FAILED::${e.message}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
@@ -787,10 +787,10 @@ export function pushSkillsSync(message?: string, paths?: string[]): SkillsSyncSt
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先在同步中心初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   // 按功能隔离：只暂存技能相关路径；传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
@@ -813,7 +813,7 @@ export function pushSkillsSync(message?: string, paths?: string[]): SkillsSyncSt
     updateLastSync('success');
     return getSkillsSyncStatus();
   } catch (e: any) {
-    const msg = `推送失败: ${e.message}`;
+    const msg = `E_SYNC_PUSH_FAILED::${e.message}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
@@ -830,16 +830,16 @@ export function testSkillsSyncConnection(): string {
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const branch = effectiveSkillsBranch(syncCfg);
   const out = gitExec(root, ['ls-remote', 'origin', `refs/heads/${branch}`]);
   if (!out.trim()) {
-    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+    throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
   }
   const head = out.trim().split(/\s+/)[0];
   return `连接成功，远端 ${branch} 分支 HEAD: ${head}`;
@@ -850,10 +850,10 @@ export function resetSkillsSyncToRemote(): SkillsSyncStatus {
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const branch = effectiveSkillsBranch(syncCfg);
@@ -862,7 +862,7 @@ export function resetSkillsSyncToRemote(): SkillsSyncStatus {
   const remoteRef = `origin/${branch}`;
   const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
   if (!head) {
-    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+    throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
   }
 
   // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
@@ -890,10 +890,10 @@ export function fetchSkillsSync(): void {
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const branch = effectiveSkillsBranch(syncCfg);
@@ -906,10 +906,10 @@ export function applySkillsFromRemote(decisions: SkillsSyncDecision[]): SkillsSy
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const branch = effectiveSkillsBranch(syncCfg);
@@ -918,7 +918,7 @@ export function applySkillsFromRemote(decisions: SkillsSyncDecision[]): SkillsSy
   const remoteRef = `origin/${branch}`;
   const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
   if (!head) {
-    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+    throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
   }
 
   for (const d of (Array.isArray(decisions) ? decisions : [])) {

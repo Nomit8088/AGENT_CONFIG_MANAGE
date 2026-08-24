@@ -8,7 +8,7 @@
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <h2 class="font-serif font-bold text-base text-slate-900 dark:text-white">DSH 插件中心</h2>
+            <h2 class="font-serif font-bold text-base text-slate-900 dark:text-white">{{ $t('dshPlugin.title') }}</h2>
             <span
               v-if="store.dshProfileCount > 0"
               class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25"
@@ -17,7 +17,7 @@
             </span>
           </div>
           <p class="text-xs text-slate-500 dark:text-white/50 mt-0.5 truncate">
-            管理本地 <span class="font-mono text-purple-600 dark:text-purple-400">~/.dsh/profiles/*</span> 插件：扫描、对账、诊断修复
+            {{ $t('dshPlugin.subtitle') }}
           </p>
         </div>
       </div>
@@ -28,7 +28,7 @@
           class="px-3.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-all duration-200 disabled:opacity-50"
         >
           <RefreshCw class="w-3.5 h-3.5 text-purple-500" :class="{ 'animate-spin': store.dshPluginsScanLoading }" />
-          <span>重新扫描</span>
+          <span>{{ $t('dshPlugin.rescan') }}</span>
         </button>
       </div>
     </div>
@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import { Puzzle, Stethoscope, RefreshCw, History, Rocket } from 'lucide-vue-next';
 import DshPluginList from './DshPluginList.vue';
 import DshDiagnose from './DshDiagnose.vue';
@@ -72,10 +73,10 @@ const store = useAppStore();
 const activeTab = ref<'panel' | 'diagnose' | 'snapshots' | 'version'>('panel');
 
 const tabs = [
-  { id: 'panel' as const, label: '插件面板', icon: Puzzle },
-  { id: 'diagnose' as const, label: '诊断修复', icon: Stethoscope },
-  { id: 'snapshots' as const, label: '快照回滚', icon: History },
-  { id: 'version' as const, label: 'DSH 版本', icon: Rocket },
+  { id: 'panel' as const, label: t('dshPlugin.tabPanel'), icon: Puzzle },
+  { id: 'diagnose' as const, label: t('dshPlugin.tabDiagnose'), icon: Stethoscope },
+  { id: 'snapshots' as const, label: t('dshPlugin.tabSnapshots'), icon: History },
+  { id: 'version' as const, label: t('dshPlugin.tabVersion'), icon: Rocket },
 ];
 
 onMounted(async () => {

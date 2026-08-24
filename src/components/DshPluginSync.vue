@@ -8,11 +8,11 @@
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 插件配置对账</h3>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('dshPlugin.reconcileTitle') }}</h3>
             <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">dsh/</span>
           </div>
           <p class="text-[10px] font-mono text-slate-400 dark:text-white/40 truncate">
-            本地 ~/.dsh ↔ 同步镜像 dsh/
+            {{ $t('dshPlugin.reconcileSubtitle') }}
           </p>
         </div>
       </div>
@@ -23,7 +23,7 @@
           class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
         >
           <GitCompare class="w-3.5 h-3.5" />
-          <span>预览差异</span>
+          <span>{{ $t('dshPlugin.reconcilePreview') }}</span>
         </button>
       </div>
     </div>
@@ -38,7 +38,7 @@
               : 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30'
           ]"
         >
-          {{ diff.compatible ? '配置一致，无需对齐' : `${diff.items.length} 处差异` }}
+          {{ diff.compatible ? $t('dshPlugin.reconcileConsistent') : $t('dshPlugin.reconcileDiffCount', { count: diff.items.length }) }}
         </div>
 
         <div v-if="diff.warnings.length > 0" class="space-y-1">
@@ -56,11 +56,11 @@
           @click="store.dshPluginDiffModal = { visible: true, mode: 'preview' }"
           class="text-xs text-[#8b5cf6] hover:underline transition-colors duration-200"
         >
-          查看差异详情 →
+          {{ $t('dshPlugin.reconcileView') }}
         </button>
       </div>
       <p v-else class="text-[11px] text-slate-400 dark:text-white/50">
-        点击「预览差异」比较本地 <span class="font-mono">~/.dsh/profiles/*</span> 与同步镜像 <span class="font-mono">dsh/profiles/*</span>；以仓库覆盖本地的操作统一走上方「从仓库应用」，应用前会先展示差异
+        {{ $t('dshPlugin.reconcileDesc') }}
       </p>
     </div>
   </div>
@@ -69,6 +69,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import { GitCompare } from 'lucide-vue-next';
 
 const store = useAppStore();
@@ -81,7 +82,7 @@ async function handlePreview() {
     await store.reconcileDshPlugins();
     store.dshPluginDiffModal = { visible: true, mode: 'preview' };
   } catch (e: any) {
-    store.showToast({ title: '预览差异失败', message: e?.message || '无法执行对账', type: 'error' });
+    store.showToast({ title: t('dshPlugin.reconcileToastFailed'), message: translateError(e, 'dshPlugin.reconcileToastFailedMsg'), type: 'error' });
   }
 }
 </script>

@@ -12,8 +12,8 @@
             <PackageOpen class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">检查更新</h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">GitHub Releases 在线更新</p>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('update.title') }}</h3>
+            <p class="text-xs text-slate-500 dark:text-white/50">{{ $t('update.subtitle') }}</p>
           </div>
         </div>
         <button
@@ -27,20 +27,20 @@
       <!-- 检查中 -->
       <div v-if="store.appUpdateChecking" class="flex items-center justify-center gap-2 py-6 text-slate-500 dark:text-white/60 text-xs">
         <RefreshCw class="w-4 h-4 animate-spin" />
-        <span>正在检查最新版本…</span>
+        <span>{{ $t('update.checking') }}</span>
       </div>
 
       <!-- 检查失败 / 无数据 -->
       <div v-else-if="!store.appUpdate" class="space-y-3">
         <div class="text-xs text-slate-500 dark:text-white/60 text-center py-4">
-          尚未检查更新
+          {{ $t('update.notChecked') }}
         </div>
         <button
           @click="store.checkAppUpdate()"
           class="w-full px-3 py-2 rounded-lg bg-[#3b82f6]/10 hover:bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
         >
           <RefreshCw class="w-3.5 h-3.5" />
-          <span>检查更新</span>
+          <span>{{ $t('update.check') }}</span>
         </button>
       </div>
 
@@ -48,7 +48,7 @@
       <div v-else-if="!store.appUpdate.updateAvailable" class="space-y-4">
         <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20 text-[#22c55e] text-xs">
           <CheckCircle2 class="w-4 h-4 flex-shrink-0" />
-          <span>当前已是最新版本</span>
+          <span>{{ $t('update.latest') }}</span>
         </div>
         <div class="font-mono text-[11px] text-slate-500 dark:text-white/60 px-1">
           v{{ store.appUpdate.currentVersion }}
@@ -61,7 +61,7 @@
           class="w-full px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#1c1d22] dark:hover:bg-white/10 text-slate-700 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5"
         >
           <RefreshCw class="w-3.5 h-3.5" />
-          <span>重新检查</span>
+          <span>{{ $t('update.recheck') }}</span>
         </button>
       </div>
 
@@ -75,13 +75,13 @@
             <span class="font-mono font-semibold text-[#3b82f6]">v{{ store.appUpdate.latestVersion }}</span>
           </div>
           <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 font-medium">
-            可更新
+            {{ $t('update.available') }}
           </span>
         </div>
 
         <!-- 更新日志 -->
         <div v-if="store.appUpdate.releaseNotes" class="space-y-1.5">
-          <div class="text-[11px] text-slate-500 dark:text-white/50 font-medium">更新说明</div>
+          <div class="text-[11px] text-slate-500 dark:text-white/50 font-medium">{{ $t('update.notes') }}</div>
           <div class="max-h-40 overflow-y-auto p-3 rounded-lg bg-black/[0.03] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 font-mono text-[11px] leading-relaxed text-slate-600 dark:text-white/70 whitespace-pre-wrap">
             {{ store.appUpdate.releaseNotes }}
           </div>
@@ -90,7 +90,7 @@
         <!-- 下载进度 -->
         <div v-if="store.appUpdateDownloading" class="space-y-2">
           <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-white/60">
-            <span>正在下载安装包…</span>
+            <span>{{ $t('update.downloading') }}</span>
             <span class="font-mono">{{ store.appUpdateProgress }}%</span>
           </div>
           <div class="h-1.5 rounded-full bg-black/8 dark:bg-white/8 overflow-hidden">
@@ -114,7 +114,7 @@
             class="w-full px-3 py-2 rounded-lg bg-[#3b82f6] hover:bg-[#3b82f6]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
           >
             <Download class="w-3.5 h-3.5" />
-            <span>下载更新</span>
+            <span>{{ $t('update.download') }}</span>
           </button>
           <button
             v-else
@@ -122,13 +122,13 @@
             class="w-full px-3 py-2 rounded-lg bg-[#22c55e] hover:bg-[#22c55e]/90 text-white text-xs font-medium transition-colors duration-200 flex items-center justify-center gap-1.5"
           >
             <Rocket class="w-3.5 h-3.5" />
-            <span>安装并重启</span>
+            <span>{{ $t('update.installRestart') }}</span>
           </button>
           <button
             @click="store.closeUpdateModal()"
             class="w-full px-3 py-2 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
           >
-            稍后再说
+            {{ $t('update.later') }}
           </button>
         </div>
       </div>
@@ -138,6 +138,7 @@
 
 <script setup lang="ts">
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import {
   PackageOpen,
   X,
@@ -163,8 +164,8 @@ async function onInstall() {
     await store.installAppUpdate();
   } catch (e: any) {
     store.showToast({
-      title: '安装失败',
-      message: e?.message || '无法启动安装程序',
+      title: t('update.toastInstallFailed'),
+      message: translateError(e, 'update.toastInstallFailedMsg'),
       type: 'error',
     });
   }

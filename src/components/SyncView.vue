@@ -9,21 +9,21 @@
         <UploadCloud class="w-6 h-6" />
       </div>
       <div class="space-y-1">
-        <div class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">同步仓库未配置</div>
+        <div class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.repoUnconfiguredTitle') }}</div>
         <p class="text-xs text-slate-500 dark:text-white/50 max-w-md leading-relaxed">
-          当前还未配置或校验 Git 同步仓库。配置后即可在同一仓库内按功能分别同步中央技能库（<span class="font-mono">skills/</span>）与 DSH 插件配置（<span class="font-mono">dsh/</span>）。
+          {{ $t('sync.repoUnconfiguredDesc') }}
         </p>
       </div>
 
       <!-- 仓库格式规范指引 -->
       <div class="w-full max-w-lg rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 p-4 text-left space-y-2 text-xs transition-colors duration-200">
-        <div class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">仓库格式规范</div>
+        <div class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">{{ $t('sync.formatTitle') }}</div>
         <ul class="space-y-1.5 text-[11px] text-slate-500 dark:text-white/60 leading-relaxed">
-          <li>• 单个 Git 仓库，根目录必须包含 <span class="font-mono text-slate-700 dark:text-white/80">skills/</span> 与 <span class="font-mono text-slate-700 dark:text-white/80">dsh/</span> 两个目录（校验时会检查）</li>
-          <li>• <span class="font-mono text-slate-700 dark:text-white/80">skills/</span> 存放中央技能库（各技能目录内的 SKILL.md）</li>
-          <li>• <span class="font-mono text-slate-700 dark:text-white/80">dsh/profiles/&lt;name&gt;/</span> 存放 DSH 插件配置镜像（package.json / cordis.patch.yml / pnpm-lock.yaml / pnpm-workspace.yaml）</li>
-          <li>• 建议使用 HTTPS 地址；私有仓库需在本机 Git 凭据中登录 GitHub，或使用带 PAT 的 URL</li>
-          <li>• AgentHub 会在 <span class="font-mono text-slate-700 dark:text-white/80">%APPDATA%\AgentHub\</span> 初始化本地仓库，只提交 <span class="font-mono">skills/ dsh/ .gitignore</span>，不会触碰本机私有配置</li>
+          <li>{{ $t('sync.formatLi1') }}</li>
+          <li>{{ $t('sync.formatLi2') }}</li>
+          <li>{{ $t('sync.formatLi3') }}</li>
+          <li>{{ $t('sync.formatLi4') }}</li>
+          <li>{{ $t('sync.formatLi5') }}</li>
         </ul>
       </div>
 
@@ -31,7 +31,7 @@
         @click="store.settingsModal.visible = true"
         class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
       >
-        打开全局设置配置仓库
+        {{ $t('sync.openSettings') }}
       </button>
     </div>
 
@@ -45,7 +45,7 @@
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">同步仓库</h2>
+                <h2 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.repoTitle') }}</h2>
                 <span
                   :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border transition-colors duration-200',
@@ -54,11 +54,11 @@
                       : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
                   ]"
                 >
-                  {{ repoStatus.initialized ? '已就绪' : '未初始化' }}
+                  {{ repoStatus.initialized ? $t('sync.ready') : $t('sync.notInit') }}
                 </span>
               </div>
               <p class="text-[11px] font-mono text-slate-400 dark:text-white/40 truncate" :title="repoStatus.remoteUrl || ''">
-                {{ repoStatus.remoteUrl || '未配置远端仓库' }}
+                {{ repoStatus.remoteUrl || $t('sync.noRemote') }}
               </p>
             </div>
           </div>
@@ -68,21 +68,21 @@
             class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             <Wifi class="w-3.5 h-3.5 text-sky-500" />
-            <span>{{ skillsLoading ? '测试中…' : '测试连接' }}</span>
+            <span>{{ skillsLoading ? $t('sync.testing') : $t('sync.testConn') }}</span>
           </button>
         </div>
 
         <div class="grid grid-cols-3 divide-x divide-black/6 dark:divide-white/6">
           <div class="px-3 py-2.5 text-center">
-            <div class="text-[10px] text-slate-400 dark:text-white/40">当前分支</div>
+            <div class="text-[10px] text-slate-400 dark:text-white/40">{{ $t('sync.currentBranch') }}</div>
             <div class="mt-0.5 font-mono text-sm text-slate-900 dark:text-white/95 font-medium">{{ repoStatus.branch || '—' }}</div>
           </div>
           <div class="px-3 py-2.5 text-center">
-            <div class="text-[10px] text-slate-400 dark:text-white/40">领先 (Ahead)</div>
+            <div class="text-[10px] text-slate-400 dark:text-white/40">{{ $t('sync.ahead') }}</div>
             <div class="mt-0.5 font-mono text-sm font-medium" :class="repoStatus.ahead > 0 ? 'text-[#3b82f6] font-bold' : 'text-slate-900 dark:text-white/95'">{{ repoStatus.ahead }}</div>
           </div>
           <div class="px-3 py-2.5 text-center">
-            <div class="text-[10px] text-slate-400 dark:text-white/40">落后 (Behind)</div>
+            <div class="text-[10px] text-slate-400 dark:text-white/40">{{ $t('sync.behind') }}</div>
             <div class="mt-0.5 font-mono text-sm font-medium" :class="repoStatus.behind > 0 ? 'text-[#f59e0b] font-bold' : 'text-slate-900 dark:text-white/95'">{{ repoStatus.behind }}</div>
           </div>
         </div>
@@ -92,7 +92,7 @@
           class="px-4 py-3 bg-amber-500/5 border-t border-amber-500/20 text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2"
         >
           <AlertTriangle class="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>本地同步仓库尚未初始化，请打开全局设置重新保存仓库配置。</span>
+          <span>{{ $t('sync.notInitHint') }}</span>
         </div>
       </div>
 
@@ -105,7 +105,7 @@
               <div class="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                 <BookOpen class="w-3.5 h-3.5" />
               </div>
-              <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">技能同步</h3>
+              <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.skillsSyncTitle') }}</h3>
               <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">skills/</span>
             </div>
             <span
@@ -125,11 +125,11 @@
           <div class="p-4 space-y-3">
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8">
-                <div class="text-slate-500 dark:text-white/50">未提交修改</div>
+                <div class="text-slate-500 dark:text-white/50">{{ $t('sync.dirty') }}</div>
                 <div class="mt-0.5 font-mono text-slate-800 dark:text-white/90">{{ skillsStatus.dirtyCount }}</div>
               </div>
               <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8">
-                <div class="text-slate-500 dark:text-white/50">最后同步</div>
+                <div class="text-slate-500 dark:text-white/50">{{ $t('sync.lastSync') }}</div>
                 <div class="mt-0.5 font-mono text-[11px] text-slate-800 dark:text-white/90">{{ skillsLastSyncLabel }}</div>
               </div>
             </div>
@@ -139,12 +139,12 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-white/70">
                   <GitCompare class="w-3.5 h-3.5" />
-                  <span>本地 ↔ 远端 文件差异</span>
+                  <span>{{ $t('sync.diffTitle') }}</span>
                 </div>
-                <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">{{ skillsDiff.length }} 个文件</span>
+                <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">{{ $t('sync.diffFiles', { count: skillsDiff.length }) }}</span>
               </div>
               <p v-if="skillsDiff.length === 0" class="text-[11px] text-slate-400 dark:text-white/50">
-                与远端无文件差异
+                {{ $t('sync.noDiff') }}
               </p>
               <ul v-else class="max-h-28 overflow-y-auto space-y-1 pr-1">
                 <li v-for="e in skillsDiff" :key="`${e.side}:${e.status}:${e.path}`" class="flex items-center gap-1.5 text-[11px]">
@@ -163,7 +163,7 @@
                   class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <DownloadCloud class="w-3.5 h-3.5" />
-                  <span>从仓库应用</span>
+                  <span>{{ $t('sync.applyFromRepo') }}</span>
                 </button>
                 <button
                   @click="handleSkillsPush"
@@ -171,19 +171,19 @@
                   class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UploadCloud class="w-3.5 h-3.5" />
-                  <span>上传到仓库</span>
+                  <span>{{ $t('sync.uploadToRepo') }}</span>
                 </button>
               </div>
 
               <p class="text-[10px] leading-relaxed text-slate-400 dark:text-white/50">
-                <span class="text-[#3b82f6]">↓ 从仓库应用</span>：仓库 → 本机，先逐文件选方向再写回；
-                <span class="text-[#22c55e]">↑ 上传到仓库</span>：本机 → 仓库，先勾选再提交。
+                {{ $t('sync.applyDesc') }}
+                {{ $t('sync.uploadDesc') }}
               </p>
 
               <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
                 <div>
-                  <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动自动拉取</div>
-                  <div class="text-[11px] text-slate-500 dark:text-white/50">仅 fast-forward，有本地修改/冲突时自动跳过</div>
+                  <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('sync.autoPullTitle') }}</div>
+                  <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('sync.autoPullDesc') }}</div>
                 </div>
                 <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
                   <button
@@ -196,7 +196,7 @@
                         : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                     ]"
                   >
-                    <span>开启</span>
+                    <span>{{ $t('common.on') }}</span>
                   </button>
                   <button
                     type="button"
@@ -208,7 +208,7 @@
                         : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                     ]"
                   >
-                    <span>关闭</span>
+                    <span>{{ $t('common.off') }}</span>
                   </button>
                 </div>
               </div>
@@ -222,9 +222,9 @@
               <div class="flex items-start gap-2">
                 <AlertTriangle class="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <div class="space-y-1">
-                  <div class="font-serif font-semibold text-xs text-slate-900 dark:text-white/90">本地与远端历史分叉，无法安全快进拉取</div>
+                  <div class="font-serif font-semibold text-xs text-slate-900 dark:text-white/90">{{ $t('sync.forkedTitle') }}</div>
                   <p class="text-[11px] leading-relaxed text-slate-500 dark:text-white/50">
-                    「以远端为准」会用远端中央技能库覆盖本地 <span class="font-mono">skills/</span>，但不会触碰 <span class="font-mono">config.json / agents.json / projects.json / backups/</span> 等本地私有文件。
+                    {{ $t('sync.forkedDesc') }}
                   </p>
                 </div>
               </div>
@@ -239,7 +239,7 @@
                 ]"
               >
                 <RotateCcw class="w-3.5 h-3.5" />
-                <span>{{ confirmReset ? '再次点击确认：以远端为准（覆盖本地 skills）' : '以远端为准（重置本地）' }}</span>
+                <span>{{ confirmReset ? $t('sync.resetConfirm') : $t('sync.resetAction') }}</span>
               </button>
             </div>
 
@@ -267,7 +267,7 @@
                 <div class="w-7 h-7 rounded-lg bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 text-[#8b5cf6] flex items-center justify-center shrink-0">
                   <Puzzle class="w-3.5 h-3.5" />
                 </div>
-                <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 插件同步</h3>
+                <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.dshSyncTitle') }}</h3>
                 <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">dsh/</span>
               </div>
               <span
@@ -287,11 +287,11 @@
             <div class="p-4 space-y-3">
               <div class="grid grid-cols-2 gap-2 text-xs">
                 <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8">
-                  <div class="text-slate-500 dark:text-white/50">未提交修改</div>
+                  <div class="text-slate-500 dark:text-white/50">{{ $t('sync.dirty') }}</div>
                   <div class="mt-0.5 font-mono text-slate-800 dark:text-white/90">{{ dshStatus.dirtyCount }}</div>
                 </div>
                 <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8">
-                  <div class="text-slate-500 dark:text-white/50">最后同步</div>
+                  <div class="text-slate-500 dark:text-white/50">{{ $t('sync.lastSync') }}</div>
                   <div class="mt-0.5 font-mono text-[11px] text-slate-800 dark:text-white/90">{{ dshLastSyncLabel }}</div>
                 </div>
               </div>
@@ -301,12 +301,12 @@
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-white/70">
                     <GitCompare class="w-3.5 h-3.5" />
-                    <span>本地 ↔ 远端 文件差异</span>
+                    <span>{{ $t('sync.diffTitle') }}</span>
                   </div>
-                  <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">{{ dshDiff.length }} 个文件</span>
+                  <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">{{ $t('sync.diffFiles', { count: dshDiff.length }) }}</span>
                 </div>
                 <p v-if="dshDiff.length === 0" class="text-[11px] text-slate-400 dark:text-white/50">
-                  与远端无文件差异
+                  {{ $t('sync.noDiff') }}
                 </p>
                 <ul v-else class="max-h-28 overflow-y-auto space-y-1 pr-1">
                   <li v-for="e in dshDiff" :key="`${e.side}:${e.status}:${e.path}`" class="flex items-center gap-1.5 text-[11px]">
@@ -325,7 +325,7 @@
                     class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <DownloadCloud class="w-3.5 h-3.5" />
-                    <span>从仓库应用</span>
+                    <span>{{ $t('sync.applyFromRepo') }}</span>
                   </button>
                   <button
                     @click="handleDshPush"
@@ -333,19 +333,19 @@
                     class="flex-1 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <UploadCloud class="w-3.5 h-3.5" />
-                    <span>上传到仓库</span>
+                    <span>{{ $t('sync.uploadToRepo') }}</span>
                   </button>
                 </div>
 
                 <p class="text-[10px] leading-relaxed text-slate-400 dark:text-white/50">
-                  <span class="text-[#3b82f6]">↓ 从仓库应用</span>：仓库 → 本机，先预览差异再覆盖本地插件配置；
-                  <span class="text-[#22c55e]">↑ 上传到仓库</span>：本机 → 仓库，把当前插件配置发上去。
+                  {{ $t('sync.applyDescDsh') }}
+                  {{ $t('sync.uploadDescDsh') }}
                 </p>
 
                 <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
                   <div>
-                    <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动自动拉取</div>
-                    <div class="text-[11px] text-slate-500 dark:text-white/50">仅 fast-forward 拉取镜像，不改动本机插件配置；有本地修改/冲突时自动跳过</div>
+                    <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('sync.autoPullTitle') }}</div>
+                    <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('sync.autoPullDescDsh') }}</div>
                   </div>
                   <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
                     <button
@@ -358,7 +358,7 @@
                           : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                       ]"
                     >
-                      <span>开启</span>
+                      <span>{{ $t('common.on') }}</span>
                     </button>
                     <button
                       type="button"
@@ -370,7 +370,7 @@
                           : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
                       ]"
                     >
-                      <span>关闭</span>
+                      <span>{{ $t('common.off') }}</span>
                     </button>
                   </div>
                 </div>
@@ -401,6 +401,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import {
   DownloadCloud,
   UploadCloud,
@@ -443,29 +444,29 @@ const dshAutoPull = computed(() => store.config.dsh_plugins?.sync?.autoPullOnSta
 
 const skillsStatusLabel = computed(() => {
   switch (skillsStatus.value.lastSyncStatus) {
-    case 'success': return '已同步';
-    case 'error': return '同步错误';
-    case 'syncing': return '同步中';
-    default: return '待机';
+    case 'success': return t('sync.statusSynced');
+    case 'error': return t('sync.statusError');
+    case 'syncing': return t('sync.statusSyncing');
+    default: return t('sync.statusIdle');
   }
 });
 
 const dshStatusLabel = computed(() => {
   switch (dshStatus.value.lastSyncStatus) {
-    case 'success': return '已同步';
-    case 'error': return '同步错误';
-    case 'syncing': return '同步中';
-    default: return '待机';
+    case 'success': return t('sync.statusSynced');
+    case 'error': return t('sync.statusError');
+    case 'syncing': return t('sync.statusSyncing');
+    default: return t('sync.statusIdle');
   }
 });
 
 const skillsLastSyncLabel = computed(() => {
-  if (!skillsStatus.value.lastSyncAt) return '从未同步';
+  if (!skillsStatus.value.lastSyncAt) return t('sync.neverSynced');
   return new Date(skillsStatus.value.lastSyncAt).toLocaleString();
 });
 
 const dshLastSyncLabel = computed(() => {
-  if (!dshStatus.value.lastSyncAt) return '从未同步';
+  if (!dshStatus.value.lastSyncAt) return t('sync.neverSynced');
   return new Date(dshStatus.value.lastSyncAt).toLocaleString();
 });
 
@@ -483,9 +484,9 @@ function sideArrow(side: string): string {
 }
 
 function sideTitle(side: string): string {
-  if (side === 'local') return '本地领先 / 未提交';
-  if (side === 'remote') return '远端领先（可拉取）';
-  return '本地与远端均修改';
+  if (side === 'local') return t('sync.sideLocal');
+  if (side === 'remote') return t('sync.sideRemote');
+  return t('sync.sideBoth');
 }
 
 function sideColor(side: string): string {
@@ -497,13 +498,13 @@ function sideColor(side: string): string {
 const errorHint = computed(() => {
   const e = skillsStatus.value.lastError || '';
   if (/unable to access|connection was reset|failed to connect|could not connect|schannel|recv failure|timed out/i.test(e)) {
-    return '看起来是网络或代理问题。AgentHub 已自动注入 Windows 系统代理，请确认代理软件正在运行；私有仓库还需在系统凭据管理器登录 GitHub，或改用带 PAT 的 URL。';
+    return t('sync.hintNetwork');
   }
   if (/authentication|credential|permission|403|404|repository not found|not found|access denied/i.test(e)) {
-    return '远端地址可能有误，或该仓库为私有仓库但当前没有访问凭据。请检查 URL，并在系统凭据管理器登录 GitHub（或使用带 Personal Access Token 的 URL）。';
+    return t('sync.hintRemote');
   }
   if (/diverging|fast-forward|not possible to fast-forward|non-fast-forward|rejected|fetch first/i.test(e)) {
-    return '本地与远端历史分叉。若希望把远端的中央技能库拉到本地，请使用下方「以远端为准（重置本地）」。';
+    return t('sync.hintFork');
   }
   return '';
 });

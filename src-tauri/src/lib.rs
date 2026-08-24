@@ -11,6 +11,7 @@ pub mod dsh_plugins_sync;
 pub mod sync_repo;
 pub mod app_update;
 pub mod watcher;
+pub mod error_codes;
 
 use std::collections::{HashMap, HashSet};
 use std::fs;

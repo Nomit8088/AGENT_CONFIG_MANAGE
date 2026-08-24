@@ -19,10 +19,10 @@
         <button
           @click="copyContent"
           class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
-          title="复制 SKILL.md 内容"
+          :title="$t('skill.drawerCopyTitle')"
         >
           <Copy class="w-3.5 h-3.5" />
-          <span>{{ copied ? '已复制' : '复制' }}</span>
+          <span>{{ copied ? $t('common.copied') : $t('common.copy') }}</span>
         </button>
 
         <button
@@ -30,7 +30,7 @@
           class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
         >
           <Edit class="w-3.5 h-3.5" />
-          <span>编辑</span>
+          <span>{{ $t('common.edit') }}</span>
         </button>
 
         <button
@@ -46,22 +46,22 @@
     <div class="flex-1 overflow-y-auto p-6 space-y-5">
       <!-- Frontmatter & Metadata Card -->
       <div class="bg-black/[0.02] dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-3">
-        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">元数据 (Frontmatter)</div>
+        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">{{ $t('skill.drawerMetadata') }}</div>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div>
-            <span class="text-slate-400 dark:text-white/40">技能名称:</span>
+            <span class="text-slate-400 dark:text-white/40">{{ $t('skill.drawerName') }}</span>
             <span class="ml-1 text-slate-800 dark:text-white/90 font-mono font-medium">{{ store.activeSkill.name }}</span>
           </div>
           <div>
-            <span class="text-slate-400 dark:text-white/40">版本号:</span>
+            <span class="text-slate-400 dark:text-white/40">{{ $t('skill.drawerVersion') }}</span>
             <span class="ml-1 text-slate-800 dark:text-white/90 font-mono font-medium">v{{ store.activeSkill.version }}</span>
           </div>
           <div class="col-span-2">
-            <span class="text-slate-400 dark:text-white/40">功能描述:</span>
+            <span class="text-slate-400 dark:text-white/40">{{ $t('skill.drawerDesc') }}</span>
             <p class="mt-0.5 text-slate-600 dark:text-white/70 text-xs leading-relaxed">{{ store.activeSkill.description }}</p>
           </div>
           <div v-if="store.activeSkill.metadata?.slash_commands" class="col-span-2">
-            <span class="text-slate-400 dark:text-white/40">斜杠命令:</span>
+            <span class="text-slate-400 dark:text-white/40">{{ $t('skill.drawerCommands') }}</span>
             <div class="flex flex-wrap gap-1.5 mt-1">
               <span
                 v-for="cmd in store.activeSkill.metadata.slash_commands"
@@ -77,7 +77,7 @@
 
       <!-- Agent Mount Status -->
       <div class="bg-black/[0.02] dark:bg-[#1c1d22] rounded-xl p-4 border border-black/8 dark:border-white/8 space-y-2">
-        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">Agent 挂载状态 (NTFS Hardlink / Junction)</div>
+        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">{{ $t('skill.drawerMount') }}</div>
         <div class="flex flex-wrap gap-2">
           <div
             v-for="agent in store.agents"
@@ -102,7 +102,7 @@
 
       <!-- Raw Markdown Content Preview -->
       <div class="space-y-2">
-        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">SKILL.md 原始内容</div>
+        <div class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90 tracking-wider">{{ $t('skill.drawerContent') }}</div>
         <div class="rounded-xl bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 p-4 font-mono text-xs text-slate-800 dark:text-white/80 whitespace-pre-wrap leading-relaxed overflow-x-auto select-text">
           {{ store.activeSkill.content }}
         </div>

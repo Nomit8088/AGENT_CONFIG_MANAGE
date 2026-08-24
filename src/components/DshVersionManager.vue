@@ -8,9 +8,9 @@
             <Rocket class="w-3.5 h-3.5" />
           </div>
           <div class="min-w-0">
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 版本</h3>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('version.title') }}</h3>
             <p class="text-[10px] font-mono text-slate-400 dark:text-white/40 truncate">
-              全局 npm 包 · 影响所有 profile
+              {{ $t('version.subtitle') }}
             </p>
           </div>
         </div>
@@ -19,18 +19,18 @@
       <div class="p-3">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-[11px] text-slate-500 dark:text-white/50 mb-1">当前版本</p>
+            <p class="text-[11px] text-slate-500 dark:text-white/50 mb-1">{{ $t('version.currentVersion') }}</p>
             <div class="flex items-baseline gap-2 flex-wrap">
               <span class="font-mono text-2xl font-semibold text-slate-900 dark:text-white/95">
-                {{ info?.current || '未检测到' }}
+                {{ info?.current || $t('version.notDetected') }}
               </span>
               <span class="font-mono text-[11px] text-slate-400 dark:text-white/40">{{ info?.packageName }}</span>
             </div>
             <p class="text-[10px] font-mono text-slate-400 dark:text-white/40 mt-1.5 truncate">
-              dsh: {{ info?.dshCommand || '（未探测到）' }}
+              dsh: {{ info?.dshCommand || $t('version.notDetectedCmd') }}
             </p>
             <p class="text-[10px] font-mono text-slate-400 dark:text-white/40 truncate">
-              npm: {{ info?.npmCommand || '（未探测到）' }}
+              npm: {{ info?.npmCommand || $t('version.notDetectedCmd') }}
             </p>
           </div>
 
@@ -42,7 +42,7 @@
               class="px-3 py-1.5 rounded-lg bg-[#30d158]/10 hover:bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
             >
               <Play class="w-3.5 h-3.5" />
-              <span>{{ store.dshLaunching ? '启动中…' : '启动 dsh' }}</span>
+              <span>{{ store.dshLaunching ? $t('version.launching') : $t('version.launch') }}</span>
             </button>
             <button
               type="button"
@@ -51,7 +51,7 @@
               class="px-3 py-1.5 rounded-lg bg-white dark:bg-[#1c1d22] hover:bg-black/5 dark:hover:bg-white/5 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
             >
               <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': store.dshVersionChecking }" />
-              <span>检测远端</span>
+              <span>{{ $t('version.checkRemote') }}</span>
             </button>
             <button
               v-if="check?.updateAvailable"
@@ -61,26 +61,26 @@
               class="px-3 py-1.5 rounded-lg bg-[#8b5cf6]/10 hover:bg-[#8b5cf6]/15 text-[#8b5cf6] border border-[#8b5cf6]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
             >
               <ArrowUp class="w-3.5 h-3.5" />
-              <span>升级到 {{ check.latest }}</span>
+              <span>{{ $t('version.upgradeTo', { version: check.latest }) }}</span>
             </button>
           </div>
         </div>
 
         <div v-if="check" class="mt-3 pt-3 border-t border-black/8 dark:border-white/8 space-y-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-[11px] text-slate-500 dark:text-white/50">远端最新：</span>
+            <span class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('version.remoteLatest') }}</span>
             <span class="font-mono text-xs text-slate-900 dark:text-white/90">{{ check.latest || '—' }}</span>
             <span
               v-if="check.updateAvailable"
               class="px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30"
             >
-              有更新
+              {{ $t('version.hasUpdate') }}
             </span>
             <span
               v-else-if="!check.error"
               class="px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-black/5 dark:bg-white/5 text-slate-500 dark:text-white/50 border-black/10 dark:border-white/10"
             >
-              已是最新
+              {{ $t('version.latest') }}
             </span>
           </div>
           <p v-if="check.error" class="text-[11px] text-[#ff453a] dark:text-[#ff453a]/90">{{ check.error }}</p>
@@ -96,16 +96,16 @@
       <div class="px-3 py-2 border-b border-[#ff453a]/20 dark:border-[#ff453a]/30 bg-[#ff453a]/5 dark:bg-[#ff453a]/10 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0">
           <AlertTriangle class="w-3.5 h-3.5 text-[#ff453a] shrink-0" />
-          <span class="text-xs font-serif font-semibold text-[#ff453a]">启动 dsh 失败</span>
+          <span class="text-xs font-serif font-semibold text-[#ff453a]">{{ $t('version.launchFailedTitle') }}</span>
         </div>
         <button
           type="button"
           @click="copyLaunchStderr"
           class="px-2 py-0.5 rounded-md bg-[#ff453a]/10 hover:bg-[#ff453a]/15 text-[#ff453a] text-[11px] font-medium flex items-center gap-1 transition-colors duration-200 shrink-0"
-          title="复制 stderr"
+          :title="$t('version.copyStderr')"
         >
           <Copy class="w-3 h-3" />
-          <span>{{ launchStderrCopied ? '已复制' : '复制日志' }}</span>
+          <span>{{ launchStderrCopied ? $t('common.copied') : $t('version.copyLog') }}</span>
         </button>
       </div>
       <pre class="p-3 overflow-x-auto font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/70 whitespace-pre-wrap select-text max-h-64">{{ store.dshLaunchStderr }}</pre>
@@ -121,12 +121,12 @@
           <div class="w-7 h-7 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center shrink-0">
             <Package class="w-3.5 h-3.5" />
           </div>
-          <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">安装指定版本</h3>
+          <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('version.installVersionTitle') }}</h3>
           <span
             v-if="available"
             class="text-[10px] px-1.5 py-0.5 rounded-md font-mono border bg-black/5 dark:bg-white/10 text-slate-500 dark:text-white/50 border-black/8 dark:border-white/10 shrink-0"
           >
-            {{ available.versions.length }} 个版本
+            {{ $t('version.versionsCount', { count: available.versions.length }) }}
           </span>
         </div>
         <button
@@ -136,7 +136,7 @@
           class="px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#1c1d22] hover:bg-black/5 dark:hover:bg-white/5 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50 shrink-0"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': store.dshAvailableVersionsLoading }" />
-          <span>刷新</span>
+          <span>{{ $t('common.refresh') }}</span>
         </button>
       </div>
 
@@ -149,7 +149,7 @@
           :disabled="store.dshAvailableVersionsLoading"
           class="mt-2 px-3 py-1.5 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium transition-colors duration-200 disabled:opacity-50"
         >
-          重试
+          {{ $t('common.retry') }}
         </button>
       </div>
 
@@ -159,13 +159,13 @@
           v-if="store.dshAvailableVersionsLoading && availableVersions.length === 0"
           class="p-6 text-center text-xs text-slate-500 dark:text-white/50"
         >
-          正在拉取 npm registry 版本列表…
+          {{ $t('version.pulling') }}
         </div>
         <div
           v-else-if="availableVersions.length === 0"
           class="p-6 text-center text-xs text-slate-500 dark:text-white/50"
         >
-          暂无可安装版本
+          {{ $t('version.noVersions') }}
         </div>
 
         <!-- 平铺版本列表 -->
@@ -188,13 +188,13 @@
                     v-if="v === info?.current"
                     class="px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30 shrink-0"
                   >
-                    当前
+                    {{ $t('version.currentBadge') }}
                   </span>
                   <span
                     v-else-if="v === available?.latest"
                     class="px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-[#8b5cf6]/10 text-[#8b5cf6] border-[#8b5cf6]/30 shrink-0"
                   >
-                    最新
+                    {{ $t('version.latestBadge') }}
                   </span>
                 </div>
                 <p class="text-[10px] font-mono text-slate-400 dark:text-white/40 mt-0.5 truncate">
@@ -210,7 +210,7 @@
               class="px-3 py-1.5 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50 shrink-0"
             >
               <ArrowDown class="w-3.5 h-3.5" />
-              <span>{{ v === info?.current ? '当前版本' : '安装' }}</span>
+              <span>{{ v === info?.current ? $t('version.currentVersionBtn') : $t('version.installBtn') }}</span>
             </button>
           </div>
         </div>
@@ -221,14 +221,14 @@
           class="flex items-center justify-between gap-3 px-3 py-2 border-t border-black/8 dark:border-white/8"
         >
           <span class="text-[11px] font-mono text-slate-400 dark:text-white/40">
-            第 {{ currentVersionPage }} / {{ totalVersionPages }} 页
+            {{ $t('version.page', { page: currentVersionPage, total: totalVersionPages }) }}
           </span>
           <div class="flex items-center gap-2 flex-wrap">
             <div v-if="totalVersionPages > 1" class="flex items-center gap-1">
               <button
                 type="button"
                 :disabled="currentVersionPage <= 1"
-                title="第一页"
+                :title="$t('version.firstPage')"
                 @click="goVersionPage(1)"
                 class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
               >
@@ -237,7 +237,7 @@
               <button
                 type="button"
                 :disabled="currentVersionPage <= 1"
-                title="上一页"
+                :title="$t('version.prevPage')"
                 @click="goVersionPage(currentVersionPage - 1)"
                 class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
               >
@@ -260,7 +260,7 @@
               <button
                 type="button"
                 :disabled="currentVersionPage >= totalVersionPages"
-                title="下一页"
+                :title="$t('version.nextPage')"
                 @click="goVersionPage(currentVersionPage + 1)"
                 class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
               >
@@ -269,7 +269,7 @@
               <button
                 type="button"
                 :disabled="currentVersionPage >= totalVersionPages"
-                title="最后一页"
+                :title="$t('version.lastPage')"
                 @click="goVersionPage(totalVersionPages)"
                 class="w-7 h-7 rounded-md flex items-center justify-center text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-200"
               >
@@ -278,7 +278,7 @@
             </div>
 
             <div class="flex items-center gap-1.5">
-              <span class="text-[11px] text-slate-400 dark:text-white/40">每页</span>
+              <span class="text-[11px] text-slate-400 dark:text-white/40">{{ $t('version.perPage') }}</span>
               <select
                 v-model.number="versionPageSize"
                 class="bg-white dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 rounded-lg pl-2 pr-5 py-1 text-[11px] font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
@@ -300,32 +300,32 @@
       class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 p-3 space-y-2 transition-colors duration-200"
     >
       <div class="flex items-center justify-between gap-2">
-        <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">最近变更结果</h4>
+        <h4 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">{{ $t('version.lastResultTitle') }}</h4>
         <span
           :class="[
             'px-1.5 py-0.5 rounded-md text-[10px] font-medium border',
             result.ok ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30' : 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30'
           ]"
         >
-          {{ result.ok ? '成功' : '需关注' }}
+          {{ result.ok ? $t('common.success') : $t('version.attention') }}
         </span>
       </div>
 
       <div class="grid grid-cols-2 gap-2 text-[11px]">
         <div class="rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/8 dark:border-white/8 px-2.5 py-2">
-          <p class="text-slate-400 dark:text-white/40">变更前</p>
-          <p class="font-mono text-slate-900 dark:text-white/90">{{ result.beforeVersion || '未知' }}</p>
+          <p class="text-slate-400 dark:text-white/40">{{ $t('version.before') }}</p>
+          <p class="font-mono text-slate-900 dark:text-white/90">{{ result.beforeVersion || $t('common.unknown') }}</p>
         </div>
         <div class="rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/8 dark:border-white/8 px-2.5 py-2">
-          <p class="text-slate-400 dark:text-white/40">变更后</p>
+          <p class="text-slate-400 dark:text-white/40">{{ $t('version.after') }}</p>
           <p class="font-mono text-slate-900 dark:text-white/90">{{ result.afterVersion || result.targetVersion }}</p>
         </div>
         <div class="rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/8 dark:border-white/8 px-2.5 py-2">
-          <p class="text-slate-400 dark:text-white/40">失败插件（前）</p>
+          <p class="text-slate-400 dark:text-white/40">{{ $t('version.failedBefore') }}</p>
           <p class="font-mono text-slate-900 dark:text-white/90">{{ result.diagnosisBefore }}</p>
         </div>
         <div class="rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/8 dark:border-white/8 px-2.5 py-2">
-          <p class="text-slate-400 dark:text-white/40">失败插件（后）</p>
+          <p class="text-slate-400 dark:text-white/40">{{ $t('version.failedAfter') }}</p>
           <p class="font-mono text-slate-900 dark:text-white/90">{{ result.diagnosisAfter }}</p>
         </div>
       </div>
@@ -334,7 +334,7 @@
         v-if="result.massFailure"
         class="rounded-lg bg-[#ff453a]/10 border border-[#ff453a]/30 px-3 py-2 text-[11px] text-[#ff453a]"
       >
-        检测到插件大面积失效（失败数 {{ result.diagnosisBefore }} → {{ result.diagnosisAfter }}），建议立即回滚。
+        {{ $t('version.massFailure', { before: result.diagnosisBefore, after: result.diagnosisAfter }) }}
       </div>
 
       <p v-if="result.error" class="text-[11px] text-[#ff453a]">{{ result.error }}</p>
@@ -352,7 +352,7 @@
         class="w-full px-3 py-2 rounded-lg bg-[#ff453a]/10 hover:bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
       >
         <RotateCcw class="w-3.5 h-3.5" />
-        <span>一键回滚（装回 {{ result.beforeVersion }} + 回滚配置快照）</span>
+        <span>{{ $t('version.rollbackAll', { version: result.beforeVersion }) }}</span>
       </button>
     </div>
 
@@ -362,14 +362,14 @@
         <div class="w-7 h-7 rounded-lg bg-[#ff9f0a]/10 border border-[#ff9f0a]/20 text-[#ff9f0a] flex items-center justify-center shrink-0">
           <History class="w-3.5 h-3.5" />
         </div>
-        <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">版本历史</h3>
+        <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('version.historyTitle') }}</h3>
       </div>
 
       <div
         v-if="versions.length === 0"
         class="p-6 text-center text-xs text-slate-500 dark:text-white/50"
       >
-        暂无版本记录。执行升级 / 降级 / 回滚后，这里会记录本机装过的版本。
+        {{ $t('version.historyEmpty') }}
       </div>
 
       <div v-else class="divide-y divide-black/5 dark:divide-white/5">
@@ -388,7 +388,7 @@
                 </span>
               </div>
               <p class="text-[10px] text-slate-400 dark:text-white/40 mt-0.5">
-                {{ formatTime(v.installedAt) }}<template v-if="v.fromVersion"> · 来自 {{ v.fromVersion }}</template><template v-if="v.note"> · {{ v.note }}</template>
+                {{ formatTime(v.installedAt) }}<template v-if="v.fromVersion"> · {{ $t('version.from', { version: v.fromVersion }) }}</template><template v-if="v.note"> · {{ v.note }}</template>
               </p>
             </div>
           </div>
@@ -400,7 +400,7 @@
             class="px-2.5 py-1.5 rounded-lg bg-[#0a84ff]/10 hover:bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50 shrink-0"
           >
             <ArrowDown class="w-3.5 h-3.5" />
-            <span>安装</span>
+            <span>{{ $t('version.installBtn') }}</span>
           </button>
         </div>
       </div>
@@ -411,6 +411,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import {
   AlertTriangle,
   ArrowDown,
@@ -499,7 +500,7 @@ function formatTime(ts: number): string {
 }
 
 function actionLabel(a: DshVersionAction): string {
-  return a === 'upgrade' ? '升级' : a === 'rollback' ? '回滚' : '安装';
+  return a === 'upgrade' ? t('version.actionUpgrade') : a === 'rollback' ? t('version.actionRollback') : t('version.actionInstall');
 }
 
 function actionBadge(a: DshVersionAction): string {
@@ -535,14 +536,12 @@ async function checkUpdate() {
   try {
     await store.checkDshVersionUpdate();
   } catch (e: any) {
-    store.showToast({ title: '检测远端失败', message: e?.message || '无法查询 npm registry', type: 'error' });
+    store.showToast({ title: t('version.toastCheckRemoteFailed'), message: translateError(e, 'version.toastCheckRemoteFailedMsg'), type: 'error' });
   }
 }
 
 function confirmGlobal(): boolean {
-  return window.confirm(
-    'DSH 版本变更会修改全局 npm 包，影响所有 profile。\n\n操作前会自动创建配置快照，变更后自动运行诊断对比失败插件数。确认继续？'
-  );
+  return window.confirm(t('version.changeConfirm'));
 }
 
 async function upgrade() {
@@ -550,7 +549,7 @@ async function upgrade() {
   try {
     await store.upgradeDsh();
   } catch (e: any) {
-    store.showToast({ title: '升级失败', message: e?.message || '无法升级 DSH', type: 'error' });
+    store.showToast({ title: t('version.toastUpgradeFailed'), message: translateError(e, 'version.toastUpgradeFailedMsg'), type: 'error' });
   }
 }
 
@@ -559,18 +558,18 @@ async function installVersion(version: string) {
   try {
     await store.installDshVersion(version);
   } catch (e: any) {
-    store.showToast({ title: '安装失败', message: e?.message || '无法安装指定版本', type: 'error' });
+    store.showToast({ title: t('version.toastInstallFailed'), message: translateError(e, 'version.toastInstallFailedMsg'), type: 'error' });
   }
 }
 
 async function rollback() {
   const r = result.value;
   if (!r || !r.beforeVersion) return;
-  if (!window.confirm(`确认回滚 DSH？\n\n将装回版本 ${r.beforeVersion}，并回滚升级前创建的 ${r.snapshotIds.length} 份配置快照。`)) return;
+  if (!window.confirm(t('version.rollbackConfirm', { version: r.beforeVersion, count: r.snapshotIds.length }))) return;
   try {
     await store.rollbackDsh(r.beforeVersion, r.snapshotIds);
   } catch (e: any) {
-    store.showToast({ title: '回滚失败', message: e?.message || '无法回滚 DSH', type: 'error' });
+    store.showToast({ title: t('version.toastRollbackFailed'), message: translateError(e, 'version.toastRollbackFailedMsg'), type: 'error' });
   }
 }
 </script>

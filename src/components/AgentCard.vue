@@ -13,11 +13,11 @@
         <div class="min-w-0">
           <div class="flex items-center gap-1.5">
             <h3 class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95 truncate">{{ agent.name }}</h3>
-            <span v-if="agent.isCustom" class="text-[10px] px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8 font-mono shrink-0">自定义</span>
+            <span v-if="agent.isCustom" class="text-[10px] px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8 font-mono shrink-0">{{ $t('agent.custom') }}</span>
           </div>
           <div class="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500 dark:text-white/60 min-w-0">
             <span class="w-1.5 h-1.5 rounded-sm shrink-0" :class="agent.detected ? 'bg-[#22c55e]' : 'bg-[#f59e0b]'"></span>
-            <span class="truncate">{{ agent.detected ? '环境已就绪 · 软链可用' : '本地未探测到目录' }}</span>
+            <span class="truncate">{{ agent.detected ? $t('agent.ready') : $t('agent.notDetected') }}</span>
           </div>
         </div>
       </div>
@@ -34,7 +34,7 @@
           ]"
         >
           <span v-if="agent.enabled" class="w-1.5 h-1.5 rounded-sm bg-[#22c55e]"></span>
-          <span>启用</span>
+          <span>{{ $t('common.enable') }}</span>
         </button>
         <button
           type="button"
@@ -46,7 +46,7 @@
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
-          <span>停用</span>
+          <span>{{ $t('common.disable') }}</span>
         </button>
       </div>
     </div>
@@ -65,24 +65,24 @@
             ? 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30'
             : 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/30'
         ]"
-        :title="unmanagedCount > 0 ? '待纳管：该 Agent 本地技能目录中尚未纳入中央库的实体技能数量' : '存量受控：该 Agent 本地技能已全部由中央库软链受控'"
+        :title="unmanagedCount > 0 ? $t('agent.unmanagedTitle') : $t('agent.managedTitle')"
       >
-        {{ unmanagedCount > 0 ? `${unmanagedCount} 待纳管` : '存量受控' }}
+        {{ unmanagedCount > 0 ? $t('agent.unmanagedCount', { count: unmanagedCount }) : $t('agent.managed') }}
       </span>
 
       <span
         v-if="ignoredCount > 0"
         class="px-1.5 py-0.5 rounded-md border font-mono text-[10px] bg-black/5 dark:bg-white/10 text-slate-500 dark:text-white/50 border-black/8 dark:border-white/10"
-        title="忽略：该 Agent 被标记为私有的本地技能数量，不参与中央库纳管"
+        :title="$t('agent.ignoredTitle')"
       >
-        {{ ignoredCount }} 忽略
+        {{ $t('agent.ignoredCount', { count: ignoredCount }) }}
       </span>
 
       <span
         class="px-1.5 py-0.5 rounded-md border font-mono text-[10px] bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30"
-        title="已挂载：中央技能库中已软链分发到该 Agent 的技能数量"
+        :title="$t('agent.mountedTitle')"
       >
-        {{ mountedCount }} 已挂载
+        {{ $t('agent.mountedCount', { count: mountedCount }) }}
       </span>
     </div>
 
@@ -90,22 +90,22 @@
     <div class="mt-3 pt-2 border-t border-black/8 dark:border-white/8 flex items-center justify-between gap-2">
       <div class="min-w-0 flex items-center gap-2 text-[10px] font-mono text-slate-400 dark:text-white/40">
         <span class="shrink-0">{{ linkStrategyFor(agent.id) === 'hardlinkTree' ? 'Hardlink' : 'Junction' }}</span>
-        <span class="truncate" :title="agent.localRuleFilename">私有规则 {{ agent.localRuleFilename }}</span>
+        <span class="truncate" :title="agent.localRuleFilename">{{ $t('agent.privateRule', { name: agent.localRuleFilename }) }}</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
         <button
           @click="openManager"
-          title="打开该 Agent 的技能管理：存量纳管 / 忽略 / 中央技能分发"
+          :title="$t('agent.skillManageTitle')"
           class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1 transition-colors duration-200"
         >
           <FolderSearch class="w-3.5 h-3.5" />
-          <span>技能管理</span>
+          <span>{{ $t('agent.skillManage') }}</span>
           <ChevronRight class="w-3 h-3" />
         </button>
         <button
           v-if="agent.isCustom"
           @click="deleteCustomAgent"
-          title="移除自定义 Agent"
+          :title="$t('agent.removeTitle')"
           class="p-1.5 rounded-lg text-slate-400 hover:text-[#ef4444] dark:text-white/50 dark:hover:text-[#ef4444] transition-colors duration-200"
         >
           <Trash2 class="w-3.5 h-3.5" />
@@ -128,7 +128,7 @@
           <h3 class="font-serif font-semibold text-xs text-slate-600 dark:text-white/70 truncate">{{ agent.name }}</h3>
           <div class="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400 dark:text-white/40">
             <span class="w-1.5 h-1.5 rounded-sm bg-slate-300 dark:bg-white/30 shrink-0"></span>
-            <span>已从技能矩阵与规则中心隐藏</span>
+            <span>{{ $t('agent.hiddenHint') }}</span>
           </div>
         </div>
       </div>
@@ -144,7 +144,7 @@
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
-          <span>启用</span>
+          <span>{{ $t('common.enable') }}</span>
         </button>
         <button
           type="button"
@@ -156,7 +156,7 @@
               : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
           ]"
         >
-          <span>停用</span>
+          <span>{{ $t('common.disable') }}</span>
         </button>
       </div>
     </div>
@@ -174,6 +174,7 @@
 import { computed } from 'vue';
 import { AgentInfo } from '../types';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import AgentBrandIcon from './AgentBrandIcon.vue';
 import { linkStrategyFor } from '../shared/linkStrategy';
 import {
@@ -207,7 +208,7 @@ function openManager() {
 }
 
 function deleteCustomAgent() {
-  if (confirm(`确定要移除自定义 Agent [${props.agent.name}] 吗？`)) {
+  if (confirm(t('agent.removeConfirm', { name: props.agent.name }))) {
     store.deleteCustomAgent(props.agent.id);
   }
 }
