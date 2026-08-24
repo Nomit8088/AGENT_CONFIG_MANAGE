@@ -13,6 +13,8 @@ import {
   DshPluginUpdateCheck,
   DshRecoveryAction,
   DshSnapshotRollbackResult,
+  DshAvailableVersions,
+  DshLaunchResult,
   DshVersionCheck,
   DshVersionHistoryEntry,
   DshVersionInfo,
@@ -565,6 +567,125 @@ export const api = {
       return invokeTauri<DshVersionRollbackResult>('rollback_dsh_version', { previousVersion, snapshotIds });
     }
     return requestApi<DshVersionRollbackResult>('/api/dsh/version/rollback', 'POST', { previousVersion, snapshotIds });
+  },
+
+  async listDshAvailableVersions(): Promise<DshAvailableVersions> {
+    if (isTauri()) {
+      return invokeTauri<DshAvailableVersions>('list_dsh_available_versions');
+    }
+    return requestApi<DshAvailableVersions>('/api/dsh/version/available');
+  },
+
+  async launchDshWeb(profile?: string): Promise<DshLaunchResult> {
+    if (isTauri()) {
+      return invokeTauri<DshLaunchResult>('launch_dsh_web', { profile });
+    }
+    return requestApi<DshLaunchResult>('/api/dsh/launch', 'POST', { profile });
+  },
+
+  async upgradeDshStreamed(onLine: (line: string) => void): Promise<DshVersionUpgradeResult> {
+    if (isTauri()) {
+      const { Channel, invoke } = await import('@tauri-apps/api/core');
+      const onEvent = new Channel<string>();
+      onEvent.onmessage = (line: string) => onLine(line);
+      return invoke<DshVersionUpgradeResult>('upgrade_dsh_version_streamed', { onEvent });
+    }
+    return new Promise<DshVersionUpgradeResult>((resolve, reject) => {
+      const es = new EventSource('/api/dsh/version/upgrade/stream');
+      es.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'line' && typeof msg.line === 'string') {
+            onLine(msg.line);
+          } else if (msg.type === 'done') {
+            es.close();
+            resolve(msg.report as DshVersionUpgradeResult);
+          } else if (msg.type === 'error') {
+            es.close();
+            reject(new Error(msg.error || '升级失败'));
+          }
+        } catch (e) {
+          es.close();
+          reject(e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+      };
+    });
+  },
+
+  async installDshVersionStreamed(version: string, onLine: (line: string) => void): Promise<DshVersionUpgradeResult> {
+    if (isTauri()) {
+      const { Channel, invoke } = await import('@tauri-apps/api/core');
+      const onEvent = new Channel<string>();
+      onEvent.onmessage = (line: string) => onLine(line);
+      return invoke<DshVersionUpgradeResult>('install_dsh_version_streamed', { targetVersion: version, onEvent });
+    }
+    return new Promise<DshVersionUpgradeResult>((resolve, reject) => {
+      const es = new EventSource(`/api/dsh/version/install/stream?version=${encodeURIComponent(version)}`);
+      es.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'line' && typeof msg.line === 'string') {
+            onLine(msg.line);
+          } else if (msg.type === 'done') {
+            es.close();
+            resolve(msg.report as DshVersionUpgradeResult);
+          } else if (msg.type === 'error') {
+            es.close();
+            reject(new Error(msg.error || '安装失败'));
+          }
+        } catch (e) {
+          es.close();
+          reject(e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+      };
+    });
+  },
+
+  async rollbackDshStreamed(
+    previousVersion: string,
+    snapshotIds: string[],
+    onLine: (line: string) => void,
+  ): Promise<DshVersionRollbackResult> {
+    if (isTauri()) {
+      const { Channel, invoke } = await import('@tauri-apps/api/core');
+      const onEvent = new Channel<string>();
+      onEvent.onmessage = (line: string) => onLine(line);
+      return invoke<DshVersionRollbackResult>('rollback_dsh_version_streamed', { previousVersion, snapshotIds, onEvent });
+    }
+    return new Promise<DshVersionRollbackResult>((resolve, reject) => {
+      const es = new EventSource(
+        `/api/dsh/version/rollback/stream?previousVersion=${encodeURIComponent(previousVersion)}&snapshotIds=${encodeURIComponent(JSON.stringify(snapshotIds))}`,
+      );
+      es.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'line' && typeof msg.line === 'string') {
+            onLine(msg.line);
+          } else if (msg.type === 'done') {
+            es.close();
+            resolve(msg.report as DshVersionRollbackResult);
+          } else if (msg.type === 'error') {
+            es.close();
+            reject(new Error(msg.error || '回滚失败'));
+          }
+        } catch (e) {
+          es.close();
+          reject(e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+      };
+    });
   },
 
   // ==================== 应用本体在线更新 (cc-switch 风格) ====================

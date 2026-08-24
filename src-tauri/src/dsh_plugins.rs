@@ -1175,6 +1175,36 @@ fn query_npm_latest(pkg_name: &str) -> Result<String, String> {
         .ok_or_else(|| "npm registry 响应缺少 version".to_string())
 }
 
+/// 查询 npm registry 的全量版本列表（packument 的 versions 键），返回 (latest, 按版本号降序排列的版本列表)。
+fn query_npm_versions(pkg_name: &str) -> Result<(Option<String>, Vec<String>), String> {
+    let encoded = pkg_name.replace('/', "%2F");
+    let url = format!("https://registry.npmjs.org/{}", encoded);
+    let resp = build_http_agent()
+        .get(&url)
+        .call()
+        .map_err(|e| format!("请求 npm registry 失败: {}", e))?;
+    if resp.status() != 200 {
+        return Err(format!("npm registry 返回 HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("读取响应失败: {}", e))?;
+    let v: JsonValue = serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {}", e))?;
+
+    let latest = v
+        .get("dist-tags")
+        .and_then(|d| d.get("latest"))
+        .and_then(|s| s.as_str())
+        .map(|s| s.to_string());
+
+    let mut versions: Vec<String> = v
+        .get("versions")
+        .and_then(|o| o.as_object())
+        .map(|o| o.keys().cloned().collect())
+        .unwrap_or_default();
+    versions.sort_by(|a, b| semver_parts(b).cmp(&semver_parts(a)));
+
+    Ok((latest, versions))
+}
+
 /// 从 spec 中解析 GitHub Release 资产 URL 的 owner/repo/tag（可带 gh-proxy 等镜像前缀）。
 fn parse_github_release_spec(spec: &str) -> Option<(String, String, String)> {
     let re = regex::Regex::new(r"github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/").unwrap();
@@ -3064,6 +3094,82 @@ pub fn check_dsh_version_update() -> DshVersionCheck {
     }
 }
 
+/// 列出 npm registry 上该包的所有已发布版本（降序），供「安装指定版本」下拉选择。
+#[tauri::command]
+pub fn list_dsh_available_versions() -> DshAvailableVersions {
+    let current = get_current_dsh_version();
+    match query_npm_versions(DSH_PACKAGE_NAME) {
+        Ok((latest, versions)) => DshAvailableVersions {
+            package_name: DSH_PACKAGE_NAME.to_string(),
+            current,
+            latest,
+            versions,
+            error: None,
+        },
+        Err(e) => DshAvailableVersions {
+            package_name: DSH_PACKAGE_NAME.to_string(),
+            current,
+            latest: None,
+            versions: Vec::new(),
+            error: Some(e),
+        },
+    }
+}
+
+/// 一键启动 `dsh web`（常驻进程，detached 不阻塞）。
+#[tauri::command]
+pub fn launch_dsh_web(profile: Option<String>) -> DshLaunchResult {
+    let cfg = load_config();
+    let dsh_cmd = match resolve_dsh_command(&cfg) {
+        Some(c) => c,
+        None => {
+            return DshLaunchResult {
+                ok: false,
+                pid: None,
+                message: None,
+                error: Some("未找到 dsh 命令，请在「设置」中配置 dshCommand，或先安装 DeepSeek Harness".to_string()),
+            }
+        }
+    };
+
+    let profile_name = profile
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(|| "web".to_string());
+
+    let mut args: Vec<String> = Vec::new();
+    if profile_name == "web" {
+        args.push("web".to_string());
+    } else {
+        args.push("--profile".to_string());
+        args.push(profile_name.clone());
+    }
+
+    let cwd = resolve_dsh_home().join("profiles").join(&profile_name);
+    let mut command = spawn_cmd(&dsh_cmd);
+    command
+        .args(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if cwd.exists() {
+        command.current_dir(&cwd);
+    }
+
+    match command.spawn() {
+        Ok(child) => DshLaunchResult {
+            ok: true,
+            pid: Some(child.id()),
+            message: Some(format!("已启动 dsh web（profile: {}）", profile_name)),
+            error: None,
+        },
+        Err(e) => DshLaunchResult {
+            ok: false,
+            pid: None,
+            message: None,
+            error: Some(format!("无法启动 dsh: {}", e)),
+        },
+    }
+}
+
 fn version_history_file() -> PathBuf {
     crate::storage::get_app_data_dir().join("dsh_version_history.json")
 }
@@ -3112,7 +3218,11 @@ fn count_dsh_failures() -> u32 {
     total
 }
 
-fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResult {
+fn version_change_inner(
+    target: String,
+    action: String,
+    on_line: Option<&mut dyn FnMut(String)>,
+) -> DshVersionUpgradeResult {
     let cfg = load_config();
     let before_version = get_current_dsh_version();
     let safe_target = if target.trim().is_empty() {
@@ -3154,10 +3264,30 @@ fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResu
         }
     }
 
-    // 1) 升级前诊断基准
+    let mut noop = |_line: String| {};
+    let line_sink: &mut dyn FnMut(String) = match on_line {
+        Some(f) => f,
+        None => &mut noop,
+    };
+    let action_label = if action == "upgrade" { "升级" } else { "安装" };
+    let spec = if safe_target == "latest" {
+        format!("{}@latest", DSH_PACKAGE_NAME)
+    } else {
+        format!("{}@{}", DSH_PACKAGE_NAME, safe_target)
+    };
+    line_sink(format!("→ 开始{} DSH：{}", action_label, spec));
+    line_sink(format!(
+        "→ 当前版本：{}",
+        before_version.as_deref().unwrap_or("未知")
+    ));
+
+    // 1) 升级前诊断基准（每个 profile 跑一次 dsh web 诊断，可能耗时）
+    line_sink("→ 诊断插件失败基线（变更前）…".to_string());
     let diagnosis_before = count_dsh_failures();
+    line_sink(format!("→ 变更前诊断完成：失败插件 {} 个", diagnosis_before));
 
     // 2) 升级前自动快照（所有 profile，复用 WI-006）
+    line_sink("→ 创建变更前配置快照…".to_string());
     let mut snapshot_ids = Vec::new();
     let profiles = list_profile_dirs(&resolve_dsh_home().join("profiles"));
     let snapshot_targets: Vec<String> = if profiles.is_empty() {
@@ -3166,28 +3296,29 @@ fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResu
         profiles
     };
     for p in snapshot_targets {
-        if let Ok(snap) = create_dsh_config_snapshot(
-            p,
+        match create_dsh_config_snapshot(
+            p.clone(),
             "upgrade".to_string(),
             Some("DSH 升级前自动快照".to_string()),
         ) {
-            snapshot_ids.push(snap.id);
+            Ok(snap) => {
+                line_sink(format!("→ 已创建快照 profile [{}]：{}", p, snap.id));
+                snapshot_ids.push(snap.id);
+            }
+            Err(_) => {
+                line_sink(format!("→ profile [{}] 快照创建失败（跳过）", p));
+            }
         }
     }
 
     // 3) npm install -g（复用 run_pnpm_streaming 的 spawn + 代理注入 + 超时能力）
-    let spec = if safe_target == "latest" {
-        format!("{}@latest", DSH_PACKAGE_NAME)
-    } else {
-        format!("{}@{}", DSH_PACKAGE_NAME, safe_target)
-    };
     let cwd = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    let mut noop = |_line: String| {};
+    line_sink(format!("→ 执行 npm install -g {} …", spec));
     let run = run_pnpm_streaming(
         &npm_cmd,
         &vec!["install".to_string(), "-g".to_string(), spec],
         &cwd,
-        &mut noop,
+        &mut *line_sink,
     );
 
     let mut r = base();
@@ -3214,8 +3345,10 @@ fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResu
     };
     r.output = run_output;
 
+    line_sink("→ npm install 结束，正在诊断插件失败基线（变更后）…".to_string());
     r.after_version = get_current_dsh_version();
     r.diagnosis_after = count_dsh_failures();
+    line_sink(format!("→ 变更后诊断完成：失败插件 {} 个", r.diagnosis_after));
     r.mass_failure = r.diagnosis_after > r.diagnosis_before;
     r.ok = install_ok && !r.mass_failure;
     if r.mass_failure {
@@ -3243,7 +3376,7 @@ fn version_change_inner(target: String, action: String) -> DshVersionUpgradeResu
 #[tauri::command]
 pub async fn upgrade_dsh_version() -> Result<DshVersionUpgradeResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        version_change_inner("latest".to_string(), "upgrade".to_string())
+        version_change_inner("latest".to_string(), "upgrade".to_string(), None)
     })
     .await
     .map_err(|e| format!("升级执行失败: {}", e))
@@ -3252,7 +3385,44 @@ pub async fn upgrade_dsh_version() -> Result<DshVersionUpgradeResult, String> {
 #[tauri::command]
 pub async fn install_dsh_version(target_version: String) -> Result<DshVersionUpgradeResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        version_change_inner(target_version, "install".to_string())
+        version_change_inner(target_version, "install".to_string(), None)
+    })
+    .await
+    .map_err(|e| format!("安装执行失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn upgrade_dsh_version_streamed(
+    on_event: tauri::ipc::Channel<String>,
+) -> Result<DshVersionUpgradeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut on_line = |line: String| {
+            let _ = on_event.send(line);
+        };
+        version_change_inner(
+            "latest".to_string(),
+            "upgrade".to_string(),
+            Some(&mut on_line),
+        )
+    })
+    .await
+    .map_err(|e| format!("升级执行失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn install_dsh_version_streamed(
+    target_version: String,
+    on_event: tauri::ipc::Channel<String>,
+) -> Result<DshVersionUpgradeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut on_line = |line: String| {
+            let _ = on_event.send(line);
+        };
+        version_change_inner(
+            target_version,
+            "install".to_string(),
+            Some(&mut on_line),
+        )
     })
     .await
     .map_err(|e| format!("安装执行失败: {}", e))
@@ -3262,6 +3432,7 @@ pub async fn install_dsh_version(target_version: String) -> Result<DshVersionUpg
 fn rollback_inner(
     previous_version: String,
     snapshot_ids: Vec<String>,
+    on_line: Option<&mut dyn FnMut(String)>,
 ) -> Result<DshVersionRollbackResult, String> {
     let cfg = load_config();
     let npm_cmd = resolve_npm_command(&cfg).ok_or_else(|| "未找到 npm 命令".to_string())?;
@@ -3270,17 +3441,31 @@ fn rollback_inner(
         return Err("缺少回滚目标版本（previousVersion）".to_string());
     }
 
+    let mut noop = |_line: String| {};
+    let line_sink: &mut dyn FnMut(String) = match on_line {
+        Some(f) => f,
+        None => &mut noop,
+    };
+    line_sink(format!("→ 开始回滚 DSH：目标版本 {}", prev));
+
     // 1) 回滚配置快照（复用 WI-006）
+    line_sink(format!("→ 回滚配置快照（{} 份）…", snapshot_ids.len()));
     let mut restored_snapshots = Vec::new();
     for id in &snapshot_ids {
-        if let Ok(r) = rollback_dsh_config_snapshot(id.clone()) {
-            restored_snapshots.push(r);
+        match rollback_dsh_config_snapshot(id.clone()) {
+            Ok(r) => {
+                line_sink(format!("→ 已回滚快照 {}", id));
+                restored_snapshots.push(r);
+            }
+            Err(_) => {
+                line_sink(format!("→ 快照 {} 回滚失败（跳过）", id));
+            }
         }
     }
 
     // 2) 装回旧版本
     let cwd = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    let mut noop = |_line: String| {};
+    line_sink(format!("→ 执行 npm install -g {}@{} …", DSH_PACKAGE_NAME, prev));
     let run = run_pnpm_streaming(
         &npm_cmd,
         &vec![
@@ -3289,12 +3474,13 @@ fn rollback_inner(
             format!("{}@{}", DSH_PACKAGE_NAME, prev),
         ],
         &cwd,
-        &mut noop,
+        &mut *line_sink,
     )
     .map_err(|e| e)?;
 
     let version = get_current_dsh_version();
     let ok = run.exit_code == Some(0) && !run.timed_out;
+    line_sink(format!("→ 回滚完成：当前版本 {}", version.clone().unwrap_or_else(|| prev.clone())));
 
     append_version_history(&DshVersionHistoryEntry {
         version: version.clone().unwrap_or_else(|| prev.clone()),
@@ -3318,7 +3504,25 @@ pub async fn rollback_dsh_version(
     previous_version: String,
     snapshot_ids: Vec<String>,
 ) -> Result<DshVersionRollbackResult, String> {
-    tauri::async_runtime::spawn_blocking(move || rollback_inner(previous_version, snapshot_ids))
-        .await
-        .map_err(|e| format!("回滚执行失败: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        rollback_inner(previous_version, snapshot_ids, None)
+    })
+    .await
+    .map_err(|e| format!("回滚执行失败: {}", e))?
+}
+
+#[tauri::command]
+pub async fn rollback_dsh_version_streamed(
+    previous_version: String,
+    snapshot_ids: Vec<String>,
+    on_event: tauri::ipc::Channel<String>,
+) -> Result<DshVersionRollbackResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut on_line = |line: String| {
+            let _ = on_event.send(line);
+        };
+        rollback_inner(previous_version, snapshot_ids, Some(&mut on_line))
+    })
+    .await
+    .map_err(|e| format!("回滚执行失败: {}", e))?
 }

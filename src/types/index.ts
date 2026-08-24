@@ -323,6 +323,21 @@ export interface DshVersionRollbackResult {
   error?: string;
 }
 
+export interface DshAvailableVersions {
+  packageName: string;
+  current: string | null;
+  latest: string | null;
+  versions: string[];         // npm registry 已发布版本（降序）
+  error?: string;
+}
+
+export interface DshLaunchResult {
+  ok: boolean;
+  pid: number | null;
+  message: string | null;
+  error: string | null;
+}
+
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================
 
 export interface AppUpdateCheck {

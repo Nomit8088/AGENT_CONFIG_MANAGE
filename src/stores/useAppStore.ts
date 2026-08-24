@@ -12,6 +12,8 @@ import {
   DshPluginScanResult,
   DshPluginUpdateCheck,
   DshRecoveryAction,
+  DshAvailableVersions,
+  DshLaunchResult,
   DshVersionCheck,
   DshVersionHistoryEntry,
   DshVersionInfo,
@@ -151,6 +153,14 @@ export const useAppStore = defineStore('app', {
     dshVersionUpgrading: false,
     dshVersionResult: null as DshVersionUpgradeResult | null,
     dshVersionRollingBack: false,
+    dshAvailableVersions: null as DshAvailableVersions | null,
+    dshAvailableVersionsLoading: false,
+    dshLaunching: false,
+    dshVersionTerminal: {
+      visible: false,
+      lines: [] as string[],
+      running: false,
+    },
 
     // DSH 插件面板 V2：安装状态对账 + 安装器 + 实时终端
     dshInstallEntries: [] as DshPluginInstallEntry[],
@@ -1114,6 +1124,41 @@ export const useAppStore = defineStore('app', {
       }
     },
 
+    async loadDshAvailableVersions() {
+      this.dshAvailableVersionsLoading = true;
+      try {
+        this.dshAvailableVersions = await api.listDshAvailableVersions();
+      } catch (e: any) {
+        this.dshAvailableVersions = null;
+        this.showToast({
+          title: '拉取版本列表失败',
+          message: e?.message || '无法查询 npm registry',
+          type: 'error',
+        });
+      } finally {
+        this.dshAvailableVersionsLoading = false;
+      }
+      return this.dshAvailableVersions;
+    },
+
+    async launchDsh(profile?: string) {
+      this.dshLaunching = true;
+      try {
+        const result: DshLaunchResult = await api.launchDshWeb(profile);
+        if (result.ok) {
+          this.showToast({ title: '已启动 dsh', message: result.message || 'dsh web 已拉起', type: 'success' });
+        } else {
+          this.showToast({ title: '启动 dsh 失败', message: result.error || '无法启动 dsh', type: 'error' });
+        }
+        return result;
+      } catch (e: any) {
+        this.showToast({ title: '启动 dsh 失败', message: e?.message || '无法启动 dsh', type: 'error' });
+        throw e;
+      } finally {
+        this.dshLaunching = false;
+      }
+    },
+
     async checkDshVersionUpdate() {
       this.dshVersionChecking = true;
       try {
@@ -1126,8 +1171,12 @@ export const useAppStore = defineStore('app', {
 
     async upgradeDsh() {
       this.dshVersionUpgrading = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.upgradeDsh();
+        const result = await api.upgradeDshStreamed(line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         this.dshVersionResult = result;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
@@ -1151,6 +1200,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionUpgrading = false;
       }
@@ -1158,8 +1210,12 @@ export const useAppStore = defineStore('app', {
 
     async installDshVersion(version: string) {
       this.dshVersionUpgrading = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.installDshVersion(version);
+        const result = await api.installDshVersionStreamed(version, line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         this.dshVersionResult = result;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
@@ -1183,6 +1239,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionUpgrading = false;
       }
@@ -1190,8 +1249,12 @@ export const useAppStore = defineStore('app', {
 
     async rollbackDsh(previousVersion: string, snapshotIds: string[]) {
       this.dshVersionRollingBack = true;
+      this.dshVersionTerminal = { visible: true, lines: [], running: true };
       try {
-        const result = await api.rollbackDsh(previousVersion, snapshotIds);
+        const result = await api.rollbackDshStreamed(previousVersion, snapshotIds, line => {
+          this.dshVersionTerminal.lines.push(line);
+        });
+        this.dshVersionTerminal.running = false;
         await this.loadDshVersion();
         await this.loadDshPlugins().catch(() => {});
         if (result.ok) {
@@ -1208,6 +1271,9 @@ export const useAppStore = defineStore('app', {
           });
         }
         return result;
+      } catch (e: any) {
+        this.dshVersionTerminal.running = false;
+        throw e;
       } finally {
         this.dshVersionRollingBack = false;
       }

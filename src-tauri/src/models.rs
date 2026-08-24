@@ -434,6 +434,31 @@ pub struct DshVersionRollbackResult {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshAvailableVersions {
+    #[serde(rename = "packageName")]
+    pub package_name: String,
+    #[serde(default)]
+    pub current: Option<String>,
+    #[serde(default)]
+    pub latest: Option<String>,
+    #[serde(default)]
+    pub versions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshLaunchResult {
+    pub ok: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 // ==================== 应用本体在线更新 (cc-switch 风格) ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

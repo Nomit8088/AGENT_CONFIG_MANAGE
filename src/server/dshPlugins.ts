@@ -2733,6 +2733,91 @@ export function checkDshVersionUpdate(): DshVersionCheck {
   };
 }
 
+/** 列出 npm registry 上该包的所有已发布版本（降序），供「安装指定版本」下拉选择。 */
+export function listDshAvailableVersions(): DshAvailableVersions {
+  const current = getCurrentDshVersion();
+  const npmCmd = resolveNpmCommand();
+  if (!npmCmd) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      versions: [],
+      error: '未找到 npm 命令，请先安装 Node.js / npm',
+    };
+  }
+
+  const r = runNpmSync(npmCmd, ['view', DSH_PACKAGE_NAME, 'version', 'versions', '--json']);
+  if (r.status !== 0) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      versions: [],
+      error: r.stderr || '查询 npm registry 失败',
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(r.stdout);
+    const raw: unknown = Array.isArray(parsed) ? null : (parsed as any).versions;
+    let versions: string[] = Array.isArray(raw) ? (raw as unknown[]).filter((v): v is string => typeof v === 'string') : [];
+    const latest = typeof (parsed as any).version === 'string' ? (parsed as any).version : null;
+    versions.sort((a, b) => (semverNewer(a, b) ? -1 : semverNewer(b, a) ? 1 : 0));
+    return { packageName: DSH_PACKAGE_NAME, current, latest, versions };
+  } catch (e: any) {
+    return {
+      packageName: DSH_PACKAGE_NAME,
+      current,
+      latest: null,
+      versions: [],
+      error: `解析版本列表失败: ${e?.message || String(e)}`,
+    };
+  }
+}
+
+/** 一键启动 `dsh web`（detached 常驻，不阻塞当前请求）。 */
+export function launchDshWeb(profile?: string): DshLaunchResult {
+  const cfg = readConfigFile();
+  const dshCmd = resolveDshCommand(cfg);
+  if (!dshCmd) {
+    return {
+      ok: false,
+      pid: null,
+      message: null,
+      error: '未找到 dsh 命令，请在「设置」中配置 dshCommand，或先安装 DeepSeek Harness',
+    };
+  }
+
+  const profileName = (profile || '').trim() || 'web';
+  const args = profileName === 'web' ? ['web'] : ['--profile', profileName];
+  const cwd = path.join(resolveDshHome(), 'profiles', profileName);
+
+  try {
+    const child = spawn(dshCmd, args, {
+      cwd: fs.existsSync(cwd) ? cwd : undefined,
+      shell: process.platform === 'win32',
+      stdio: 'ignore',
+      detached: true,
+      windowsHide: false,
+    });
+    child.unref();
+    return {
+      ok: true,
+      pid: child.pid ?? null,
+      message: `已启动 dsh web（profile: ${profileName}）`,
+      error: null,
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      pid: null,
+      message: null,
+      error: `无法启动 dsh: ${e?.message || String(e)}`,
+    };
+  }
+}
+
 function versionHistoryFile(): string {
   return path.join(appDataDir(), 'dsh_version_history.json');
 }
@@ -2763,15 +2848,19 @@ export function listDshVersions(): DshVersionHistoryEntry[] {
 }
 
 /** 升级前后诊断对比：对每个 profile 跑一次 `diagnose_dsh_web`，累计失败插件条目数。 */
-async function countDshFailures(): Promise<number> {
+async function countDshFailures(onLine?: (line: string) => void): Promise<number> {
+  const collect = onLine || (() => {});
   const profiles = listProfileDirs(path.join(resolveDshHome(), 'profiles'));
   const targets = profiles.length > 0 ? profiles : ['web'];
   let total = 0;
   for (const p of targets) {
+    collect(`→ 诊断 profile [${p}] 失败插件基线…`);
     try {
       const r = await diagnoseDshWeb(p);
       total += r.failedPlugins.length;
-    } catch {}
+    } catch {
+      collect(`→ profile [${p}] 诊断失败（跳过）`);
+    }
   }
   return total;
 }
@@ -2806,10 +2895,19 @@ async function runDshVersionChange(
     return { ...base(), error: `非法版本号: ${safeTarget}` };
   }
 
-  // 1) 升级前诊断基准
-  const diagnosisBefore = await countDshFailures();
+  const collect = onLine || (() => {});
+  const spec = safeTarget === 'latest' ? `${DSH_PACKAGE_NAME}@latest` : `${DSH_PACKAGE_NAME}@${safeTarget}`;
+
+  collect(`→ 开始${action === 'upgrade' ? '升级' : '安装'} DSH：${spec}`);
+  collect(`→ 当前版本：${beforeVersion || '未知'}`);
+
+  // 1) 升级前诊断基准（每个 profile 跑一次 dsh web 诊断，可能耗时）
+  collect('→ 诊断插件失败基线（变更前）…');
+  const diagnosisBefore = await countDshFailures(collect);
+  collect(`→ 变更前诊断完成：失败插件 ${diagnosisBefore} 个`);
 
   // 2) 升级前自动快照（所有 profile，复用 WI-006 create_dsh_config_snapshot）
+  collect('→ 创建变更前配置快照…');
   const snapshotIds: string[] = [];
   const profiles = listProfileDirs(path.join(resolveDshHome(), 'profiles'));
   const snapshotTargets = profiles.length > 0 ? profiles : ['web'];
@@ -2817,16 +2915,20 @@ async function runDshVersionChange(
     try {
       const snap = createDshConfigSnapshot(p, 'upgrade', 'DSH 升级前自动快照');
       snapshotIds.push(snap.id);
-    } catch {}
+      collect(`→ 已创建快照 profile [${p}]：${snap.id}`);
+    } catch {
+      collect(`→ profile [${p}] 快照创建失败（跳过）`);
+    }
   }
 
   // 3) npm install -g（复用 runPnpmStream 的 spawn + 代理注入 + 超时能力）
-  const spec = safeTarget === 'latest' ? `${DSH_PACKAGE_NAME}@latest` : `${DSH_PACKAGE_NAME}@${safeTarget}`;
-  const collect = onLine || (() => {});
+  collect(`→ 执行 npm install -g ${spec} …`);
   const run = await runPnpmStream(npmCmd, ['install', '-g', spec], os.homedir(), collect, 600000);
 
   const afterVersion = getCurrentDshVersion();
-  const diagnosisAfter = await countDshFailures();
+  collect(`→ npm install 结束（退出码 ${run.exitCode ?? 'timeout'}），正在诊断插件失败基线（变更后）…`);
+  const diagnosisAfter = await countDshFailures(collect);
+  collect(`→ 变更后诊断完成：失败插件 ${diagnosisAfter} 个`);
   const massFailure = diagnosisAfter > diagnosisBefore;
   const installOk = run.exitCode === 0 && !run.timedOut;
   const ok = installOk && !massFailure;
@@ -2885,19 +2987,28 @@ export async function rollbackDshVersion(
     return { ok: false, version: null, restoredSnapshots: [], output: '', error: '缺少回滚目标版本（previousVersion）' };
   }
 
+  const collect = onLine || (() => {});
+  collect(`→ 开始回滚 DSH：目标版本 ${prev}`);
+
   // 1) 回滚配置快照（复用 WI-006）
+  collect(`→ 回滚配置快照（${(snapshotIds || []).length} 份）…`);
   const restoredSnapshots: DshSnapshotRollbackResult[] = [];
   for (const id of snapshotIds || []) {
     try {
-      restoredSnapshots.push(rollbackDshConfigSnapshot(id));
-    } catch {}
+      const r = rollbackDshConfigSnapshot(id);
+      restoredSnapshots.push(r);
+      collect(`→ 已回滚快照 ${id}`);
+    } catch {
+      collect(`→ 快照 ${id} 回滚失败（跳过）`);
+    }
   }
 
   // 2) 装回旧版本
-  const collect = onLine || (() => {});
+  collect(`→ 执行 npm install -g ${DSH_PACKAGE_NAME}@${prev} …`);
   const run = await runPnpmStream(npmCmd, ['install', '-g', `${DSH_PACKAGE_NAME}@${prev}`], os.homedir(), collect, 600000);
   const version = getCurrentDshVersion();
   const ok = run.exitCode === 0 && !run.timedOut;
+  collect(`→ 回滚完成：当前版本 ${version || prev}`);
 
   appendVersionHistory({
     version: version || prev,
