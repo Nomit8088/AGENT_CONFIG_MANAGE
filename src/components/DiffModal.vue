@@ -12,7 +12,7 @@
           </div>
           <div>
             <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ store.diffModal.title }}</h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">检测到同名 Skill 或内容差异，请选择冲突处理策略</p>
+            <p class="text-xs text-slate-500 dark:text-white/50">{{ $t('diff.subtitle') }}</p>
           </div>
         </div>
         <button
@@ -51,7 +51,7 @@
       <!-- Decision Actions -->
       <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-black/8 dark:border-white/8 flex-shrink-0">
         <div class="text-[11px] text-slate-400 dark:text-white/50">
-          决策后将自动完成文件移入与软链替换
+          {{ $t('diff.autoHint') }}
         </div>
 
         <div class="flex items-center gap-2">
@@ -59,19 +59,19 @@
             @click="handleAction('skip')"
             class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
           >
-            跳过 (Skip)
+            {{ $t('diff.skip') }}
           </button>
           <button
             @click="handleAction('rename')"
             class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
           >
-            保留两者并重命名 (Keep Both)
+            {{ $t('diff.keepBoth') }}
           </button>
           <button
             @click="handleAction('overwrite')"
             class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
           >
-            覆盖现有版本 (Overwrite)
+            {{ $t('diff.overwrite') }}
           </button>
         </div>
       </div>

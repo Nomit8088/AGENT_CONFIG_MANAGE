@@ -6,7 +6,7 @@
         <div class="w-7 h-7 rounded-lg bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center text-[#8b5cf6]">
           <Stethoscope class="w-3.5 h-3.5" />
         </div>
-        <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">启动失败诊断</h3>
+        <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">{{ $t('dshPlugin.diagnoseTitle') }}</h3>
       </div>
 
       <div class="flex items-end gap-3">
@@ -25,12 +25,12 @@
           class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium flex items-center gap-1.5 transition-colors duration-200 disabled:opacity-50"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': store.dshDiagnosing }" />
-          <span>{{ store.dshDiagnosing ? '诊断中…' : '开始诊断' }}</span>
+          <span>{{ store.dshDiagnosing ? $t('dshPlugin.diagnoseDiagnosing') : $t('dshPlugin.diagnoseStart') }}</span>
         </button>
       </div>
 
       <p class="text-[11px] text-slate-400 dark:text-white/50">
-        将拉起 <span class="font-mono">dsh web</span> 并捕获崩溃输出；15 秒内未退出则判定健康并自动结束诊断实例。
+        {{ $t('dshPlugin.diagnoseDesc') }}
       </p>
     </div>
 
@@ -42,7 +42,7 @@
         class="rounded-xl bg-[#22c55e]/5 border border-[#22c55e]/20 p-3 flex items-center gap-2 text-xs text-[#22c55e] transition-colors duration-200"
       >
         <CheckCircle class="w-4 h-4 shrink-0" />
-        <span>诊断通过：DSH 在 15 秒内稳定运行，未发现插件启动失败。</span>
+        <span>{{ $t('dshPlugin.diagnosePassed') }}</span>
       </div>
 
       <template v-else>
@@ -64,7 +64,7 @@
             <div class="w-7 h-7 rounded-lg bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
               <Bug class="w-3.5 h-3.5" />
             </div>
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">建议修复动作</h3>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/90">{{ $t('dshPlugin.diagnoseSuggestTitle') }}</h3>
           </div>
 
           <div
@@ -80,7 +80,7 @@
               @click="applyAction(action)"
               class="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200 shrink-0"
             >
-              关闭并重试
+              {{ $t('dshPlugin.diagnoseCloseRetry') }}
             </button>
           </div>
         </div>
@@ -89,20 +89,20 @@
         <div class="rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 overflow-hidden transition-colors duration-200">
           <div class="px-3 py-2 border-b border-black/8 dark:border-white/8 bg-black/[0.02] dark:bg-[#121316] flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90">崩溃输出</span>
+              <span class="text-xs font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('dshPlugin.diagnoseCrashOutput') }}</span>
               <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">exit {{ store.dshDiagnose.exitCode ?? '?' }}</span>
             </div>
             <button
               v-if="store.dshDiagnose.rawStderr"
               @click="copyStderr"
               class="px-2 py-0.5 rounded-md bg-black/5 hover:bg-black/10 dark:bg-white/6 dark:hover:bg-white/10 text-[11px] font-medium text-slate-600 dark:text-white/70 flex items-center gap-1 transition-colors duration-200"
-              title="复制崩溃输出"
+              :title="$t('dshPlugin.diagnoseCopyOutput')"
             >
               <Copy class="w-3 h-3" />
-              <span>{{ copiedStderr ? '已复制' : '复制日志' }}</span>
+              <span>{{ copiedStderr ? $t('common.copied') : $t('dshPlugin.diagnoseCopyLog') }}</span>
             </button>
           </div>
-          <pre class="p-3 overflow-x-auto font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/70 whitespace-pre-wrap select-text max-h-64">{{ store.dshDiagnose.rawStderr || '(无输出)' }}</pre>
+          <pre class="p-3 overflow-x-auto font-mono text-[11px] leading-relaxed text-slate-700 dark:text-white/70 whitespace-pre-wrap select-text max-h-64">{{ store.dshDiagnose.rawStderr || $t('dshPlugin.diagnoseNoOutput') }}</pre>
         </div>
       </template>
     </template>
@@ -112,6 +112,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import { Stethoscope, RefreshCw, AlertTriangle, Bug, CheckCircle, Copy } from 'lucide-vue-next';
 import type { DshRecoveryAction } from '../types';
 
@@ -124,8 +125,8 @@ async function handleDiagnose() {
     await store.diagnoseDshWeb(profile.value.trim() || 'web');
   } catch (e: any) {
     store.showToast({
-      title: '诊断失败',
-      message: e?.message || '无法执行诊断',
+      title: t('dshPlugin.diagnoseToastFailed'),
+      message: translateError(e, 'dshPlugin.diagnoseToastFailedMsg'),
       type: 'error',
     });
   }
@@ -138,8 +139,8 @@ async function applyAction(action: DshRecoveryAction) {
     await store.diagnoseDshWeb(profile.value.trim() || 'web');
   } catch (e: any) {
     store.showToast({
-      title: '修复失败',
-      message: e?.message || '无法应用恢复动作',
+      title: t('dshPlugin.diagnoseToastFixFailed'),
+      message: translateError(e, 'dshPlugin.diagnoseToastFixFailedMsg'),
       type: 'error',
     });
   }

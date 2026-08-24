@@ -11,8 +11,8 @@
             <Settings class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">全局偏好设置</h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">管理 AgentHub 客户端与数据存储策略</p>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('settings.title') }}</h3>
+            <p class="text-xs text-slate-500 dark:text-white/50">{{ $t('settings.subtitle') }}</p>
           </div>
         </div>
         <button
@@ -27,7 +27,7 @@
       <div class="space-y-4 text-xs">
         <!-- Storage Path info -->
         <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-1">
-          <div class="text-slate-500 dark:text-white/60 font-medium">数据存储路径 (Single Source of Truth)</div>
+          <div class="text-slate-500 dark:text-white/60 font-medium">{{ $t('settings.storageTitle') }}</div>
           <div class="font-mono text-slate-800 dark:text-white/90 text-[11px] truncate">
             %APPDATA%\AgentHub\skills\
           </div>
@@ -36,8 +36,8 @@
         <!-- Theme Switcher (Dark / Light / System) -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">外观主题设置</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">切换深色模式、浅色模式或跟随系统设置</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.themeTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.themeSubtitle') }}</div>
           </div>
           <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
@@ -51,7 +51,7 @@
               ]"
             >
               <Moon class="w-3.5 h-3.5" />
-              <span>深色</span>
+              <span>{{ $t('settings.dark') }}</span>
             </button>
             <button
               type="button"
@@ -64,7 +64,7 @@
               ]"
             >
               <Sun class="w-3.5 h-3.5" />
-              <span>浅色</span>
+              <span>{{ $t('settings.light') }}</span>
             </button>
             <button
               type="button"
@@ -77,7 +77,41 @@
               ]"
             >
               <Monitor class="w-3.5 h-3.5" />
-              <span>跟随系统</span>
+              <span>{{ $t('settings.system') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Language Switcher -->
+        <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.languageTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.languageSubtitle') }}</div>
+          </div>
+          <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
+            <button
+              type="button"
+              @click="setLocale('zh')"
+              :class="[
+                'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
+                form.locale === 'zh'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+              ]"
+            >
+              <span>中文</span>
+            </button>
+            <button
+              type="button"
+              @click="setLocale('en')"
+              :class="[
+                'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium',
+                form.locale === 'en'
+                  ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+              ]"
+            >
+              <span>English</span>
             </button>
           </div>
         </div>
@@ -85,8 +119,8 @@
         <!-- Default Rule Mode -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">默认项目规则模式</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">新建纳管项目时的默认规则应用策略</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.ruleModeTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.ruleModeSubtitle') }}</div>
           </div>
           <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
@@ -99,7 +133,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>追加 (推荐)</span>
+              <span>{{ $t('settings.append') }}</span>
             </button>
             <button
               type="button"
@@ -111,7 +145,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>覆盖</span>
+              <span>{{ $t('settings.overwrite') }}</span>
             </button>
           </div>
         </div>
@@ -119,8 +153,8 @@
         <!-- Auto capture skills -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">自动捕获外部安装 (File Watcher)</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">检测 npx skills add -g 或外部技能创建并自动同步</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.autoCaptureTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.autoCaptureSubtitle') }}</div>
           </div>
           <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
@@ -133,7 +167,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>开启</span>
+              <span>{{ $t('common.on') }}</span>
             </button>
             <button
               type="button"
@@ -145,7 +179,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>关闭</span>
+              <span>{{ $t('common.off') }}</span>
             </button>
           </div>
         </div>
@@ -153,8 +187,8 @@
         <!-- Toast Notifications -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">桌面操作 Toast 提示</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">挂载/解绑及冲突处理完成时展示通知</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.toastTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.toastSubtitle') }}</div>
           </div>
           <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
@@ -167,7 +201,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>开启</span>
+              <span>{{ $t('common.on') }}</span>
             </button>
             <button
               type="button"
@@ -179,7 +213,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>关闭</span>
+              <span>{{ $t('common.off') }}</span>
             </button>
           </div>
         </div>
@@ -187,8 +221,8 @@
         <!-- Auto Check Update -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">启动时自动检查更新</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">每次启动静默检测 GitHub Releases 新版本</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.autoCheckTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.autoCheckSubtitle') }}</div>
           </div>
           <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
             <button
@@ -201,7 +235,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>开启</span>
+              <span>{{ $t('common.on') }}</span>
             </button>
             <button
               type="button"
@@ -213,7 +247,7 @@
                   : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
               ]"
             >
-              <span>关闭</span>
+              <span>{{ $t('common.off') }}</span>
             </button>
           </div>
         </div>
@@ -221,8 +255,8 @@
         <!-- Check Update Manually -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">检查更新</div>
-            <div class="text-[11px] text-slate-500 dark:text-white/50">手动检查并下载安装最新版本</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.checkUpdateTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.checkUpdateSubtitle') }}</div>
           </div>
           <button
             type="button"
@@ -230,16 +264,16 @@
             class="px-2.5 py-1 rounded-lg bg-[#3b82f6]/10 hover:bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
           >
             <PackageOpen class="w-3.5 h-3.5" />
-            <span>检查更新</span>
+            <span>{{ $t('settings.checkUpdateTitle') }}</span>
           </button>
         </div>
 
         <!-- DSH 插件 GitHub 镜像 -->
         <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-2">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">DSH 插件 GitHub 镜像</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.mirrorTitle') }}</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">
-              检查/更新 github: 依赖时经此镜像访问 GitHub（如 https://gh-proxy.com/）；留空则直连并自动走系统代理
+              {{ $t('settings.mirrorSubtitle') }}
             </div>
           </div>
           <input
@@ -253,14 +287,14 @@
         <!-- Sync Repo Config (Global) -->
         <div class="p-3 rounded-xl bg-black/[0.02] dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 space-y-3">
           <div>
-            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">同步仓库配置（全局）</div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.repoTitle') }}</div>
             <div class="text-[11px] text-slate-500 dark:text-white/50">
-              技能与 DSH 插件共用同一仓库；点击「保存仓库配置并启用同步」将自动完成连通性 / 初始化校验，通过后保存并解锁同步中心
+              {{ $t('settings.repoSubtitle') }}
             </div>
           </div>
 
           <div class="space-y-2">
-            <label class="block text-xs text-slate-500 dark:text-white/50">GitHub 仓库 URL</label>
+            <label class="block text-xs text-slate-500 dark:text-white/50">{{ $t('settings.repoUrlLabel') }}</label>
             <input
               v-model="repoForm.remoteUrl"
               type="text"
@@ -269,7 +303,7 @@
             />
           </div>
           <div class="space-y-2">
-            <label class="block text-xs text-slate-500 dark:text-white/50">分支</label>
+            <label class="block text-xs text-slate-500 dark:text-white/50">{{ $t('settings.branchLabel') }}</label>
             <input
               v-model="repoForm.branch"
               type="text"
@@ -297,7 +331,7 @@
           >
             <RefreshCw v-if="store.syncRepoValidating" class="w-3.5 h-3.5 animate-spin" />
             <Save v-else class="w-3.5 h-3.5" />
-            <span>{{ store.syncRepoValidating ? '校验中…' : '保存仓库配置并启用同步' }}</span>
+            <span>{{ store.syncRepoValidating ? $t('settings.validating') : $t('settings.saveRepo') }}</span>
           </button>
 
           <!-- 已绑定仓库：解绑入口 -->
@@ -305,12 +339,12 @@
             v-if="store.syncRepoConfigured"
             class="space-y-2 border-t border-black/8 dark:border-white/8 pt-3"
           >
-            <div class="text-[11px] text-slate-500 dark:text-white/50">当前绑定仓库</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.currentRepo') }}</div>
             <div class="font-mono text-[11px] text-slate-800 dark:text-white/90 break-all leading-relaxed">
               {{ store.syncRepo?.remoteUrl }}
             </div>
             <div class="font-mono text-[11px] text-slate-500 dark:text-white/50">
-              分支：{{ store.syncRepo?.branch || 'main' }}
+              {{ $t('settings.branch', { branch: store.syncRepo?.branch || 'main' }) }}
             </div>
             <button
               @click="unbindRepo"
@@ -324,7 +358,7 @@
             >
               <RefreshCw v-if="store.syncRepoUnbinding" class="w-3.5 h-3.5 animate-spin" />
               <Unlink v-else class="w-3.5 h-3.5" />
-              <span>{{ store.syncRepoUnbinding ? '解绑中…' : confirmUnbind ? '再次点击确认解绑' : '解绑仓库' }}</span>
+              <span>{{ store.syncRepoUnbinding ? $t('settings.unbinding') : confirmUnbind ? $t('settings.confirmUnbind') : $t('settings.unbind') }}</span>
             </button>
           </div>
         </div>
@@ -336,14 +370,14 @@
           @click="close"
           class="px-4 py-2 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
         >
-          关闭
+          {{ $t('common.close') }}
         </button>
         <button
           @click="save"
           class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 text-xs font-medium border border-black/8 dark:border-white/8 transition-colors duration-200 flex items-center gap-1.5"
         >
           <Save class="w-3.5 h-3.5 text-slate-700 dark:text-white/90" />
-          <span>保存偏好设置</span>
+          <span>{{ $t('settings.savePrefs') }}</span>
         </button>
       </div>
     </div>
@@ -353,6 +387,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, onBeforeUnmount } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t, translateError } from '../i18n';
 import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink, PackageOpen } from 'lucide-vue-next';
 
 const store = useAppStore();
@@ -360,6 +395,7 @@ const store = useAppStore();
 const form = reactive({
   auto_start: store.config.auto_start,
   theme: store.config.theme,
+  locale: store.config.locale ?? 'zh',
   default_rule_mode: store.config.default_rule_mode,
   auto_capture_skills: store.config.auto_capture_skills,
   toast_notifications: store.config.toast_notifications,
@@ -385,6 +421,7 @@ watch(
   (cfg) => {
     form.auto_start = cfg.auto_start;
     form.theme = cfg.theme;
+    form.locale = cfg.locale ?? 'zh';
     form.default_rule_mode = cfg.default_rule_mode;
     form.auto_capture_skills = cfg.auto_capture_skills;
     form.toast_notifications = cfg.toast_notifications;
@@ -412,10 +449,10 @@ const repoValidationMessage = computed(() => {
   // 只展示与当前输入匹配的校验结果，避免 HMR/组件重载后旧结果残留造成误导。
   if (store.syncRepoValidatedKey !== repoKey.value) return '';
   if (v.ok) {
-    return `校验通过：分支 ${v.resolvedBranch || repoForm.branch}，仓库已初始化且格式符合预期（skills/ + dsh/）`;
+    return t('settings.repoValidated', { branch: v.resolvedBranch || repoForm.branch });
   }
-  if (v.error) return v.error;
-  return '校验未通过';
+  if (v.error) return translateError(v.error);
+  return t('settings.repoNotValidated');
 });
 const canSaveRepo = computed(() =>
   !!repoForm.remoteUrl.trim() && !store.syncRepoValidating
@@ -430,6 +467,11 @@ onBeforeUnmount(() => {
 function setTheme(theme: 'dark' | 'light' | 'system') {
   form.theme = theme;
   store.applyTheme(theme);
+}
+
+function setLocale(locale: 'zh' | 'en') {
+  form.locale = locale;
+  store.setLocale(locale);
 }
 
 function openUpdate() {
@@ -450,6 +492,7 @@ async function save() {
     ...store.config,
     auto_start: form.auto_start,
     theme: form.theme,
+    locale: form.locale,
     default_rule_mode: form.default_rule_mode,
     auto_capture_skills: form.auto_capture_skills,
     toast_notifications: form.toast_notifications,
@@ -473,13 +516,13 @@ async function saveRepo() {
     try {
       await store.validateSyncRepo(remoteUrl, branch);
     } catch (e: any) {
-      store.showToast({ title: '仓库校验失败', message: e?.message || '无法执行校验', type: 'error' });
+      store.showToast({ title: t('settings.repoValidateFailedTitle'), message: translateError(e, 'settings.repoValidateFailedMsg'), type: 'error' });
       return;
     }
     if (!store.syncRepoValidation?.ok) {
       store.showToast({
-        title: '仓库校验未通过',
-        message: store.syncRepoValidation?.error || '请检查仓库地址、分支与目录格式（skills/ + dsh/）',
+        title: t('settings.repoValidateRejectedTitle'),
+        message: translateError(store.syncRepoValidation?.error, 'settings.repoValidateRejectedMsg'),
         type: 'error',
       });
       return;
@@ -488,11 +531,11 @@ async function saveRepo() {
 
   try {
     await store.saveSyncRepo(remoteUrl, branch);
-    store.showToast({ title: '仓库配置已保存', message: '同步功能已启用，可在同步中心执行拉取/推送', type: 'success' });
+    store.showToast({ title: t('settings.repoValidateSavedTitle'), message: t('settings.repoValidateSavedMsg'), type: 'success' });
   } catch (e: any) {
-    store.syncRepoValidation = { ok: false, error: e?.message || '保存失败', initialized: false, formatOk: false };
+    store.syncRepoValidation = { ok: false, error: translateError(e, 'settings.repoValidateErrorMsg'), initialized: false, formatOk: false };
     store.syncRepoValidatedKey = repoKey.value;
-    store.showToast({ title: '保存仓库配置失败', message: e?.message || '请先通过校验', type: 'error' });
+    store.showToast({ title: t('settings.repoValidateSaveFailedTitle'), message: translateError(e, 'settings.repoValidateSaveFailedMsg'), type: 'error' });
   }
 }
 

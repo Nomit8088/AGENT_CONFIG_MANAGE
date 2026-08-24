@@ -12,6 +12,7 @@ use serde_yaml::Value as YamlValue;
 
 use crate::models::*;
 use crate::storage::{get_backups_dir, load_config};
+use crate::error_codes::*;
 
 pub(crate) const BUILTIN_BUNDLE_PREFIX: &str = "@deepseek-ai/dsh-";
 
@@ -1332,12 +1333,12 @@ fn update_one_inner(profile: String, key: String) -> Result<DshInstallReport, St
     } else if let Some(p) = key.strip_prefix("dep:") {
         p.to_string()
     } else {
-        return Err(format!("无法识别的插件 key: {}", key));
+        return Err(coded(E_PLUGIN_KEY_UNKNOWN, key));
     };
 
     let cfg = load_config();
     let pnpm_cmd = resolve_pnpm_command(&cfg)
-        .ok_or_else(|| "未找到 pnpm 命令，请在「设置」中配置 pnpmCommand".to_string())?;
+        .ok_or_else(|| E_PNPM_NOT_FOUND.to_string())?;
 
     let pkg_file = profile_dir.join("package.json");
     let patch_file = profile_dir.join("cordis.patch.yml");
@@ -1747,7 +1748,7 @@ pub(crate) fn write_pkg(profile_dir: &Path, pkg: &JsonValue) {
 fn ensure_profile_dir(profile: &str) -> Result<PathBuf, String> {
     let dir = resolve_dsh_home().join("profiles").join(profile);
     if !dir.exists() {
-        return Err(format!("profile 目录不存在: {}", dir.to_string_lossy()));
+        return Err(coded(E_PROFILE_DIR_MISSING, dir.to_string_lossy()));
     }
     Ok(dir)
 }
@@ -1874,7 +1875,7 @@ fn add_dependency_and_bundle(
     pkg_name: &str,
     spec: &str,
 ) -> Result<(bool, bool), String> {
-    let mut pkg = read_pkg(profile_dir).ok_or_else(|| "profile package.json 不存在".to_string())?;
+    let mut pkg = read_pkg(profile_dir).ok_or_else(|| E_PROFILE_PKG_MISSING.to_string())?;
 
     let mut dep_changed = false;
     if pkg.get("dependencies").is_none() {
@@ -2229,7 +2230,7 @@ pub fn toggle_dsh_plugin(profile: String, key: String, enabled: bool) -> Result<
         return Ok(());
     }
 
-    Err(format!("无法识别的插件 key: {}", key))
+    Err(coded(E_PLUGIN_KEY_UNKNOWN, key))
 }
 
 /// 卸载：从配置中彻底移除（bundle/dep 同时移出 dependencies + bundles，row 从 patch 删除），并尽力清理 node_modules。
@@ -2261,7 +2262,7 @@ pub fn remove_dsh_plugin(profile: String, key: String) -> Result<(), String> {
         return Ok(());
     }
 
-    Err(format!("无法识别的插件 key: {}", key))
+    Err(coded(E_PLUGIN_KEY_UNKNOWN, key))
 }
 
 /// 纳入配置：把本机 link/junction 安装的孤儿包写回 dependencies(link:) + bundles。
@@ -2271,46 +2272,39 @@ pub fn adopt_dsh_orphan(profile: String, pkg_name: String) -> Result<(), String>
     let profile_dir = ensure_profile_dir(&profile)?;
     let pkg_name = pkg_name.trim();
     if pkg_name.is_empty() {
-        return Err("包名不能为空".to_string());
+        return Err(E_PKG_NAME_EMPTY.to_string());
     }
 
     let nm_root = profile_dir.join("node_modules");
     let mut nm_pkg = nm_root.clone();
     for part in pkg_name.split('/') {
         if part.is_empty() || part == "." || part == ".." {
-            return Err(format!("非法包名: {}", pkg_name));
+            return Err(coded(E_PKG_NAME_INVALID, pkg_name));
         }
         nm_pkg = nm_pkg.join(part);
     }
     if !nm_pkg.exists() {
-        return Err(format!("本机未安装 {}，无法纳入配置", pkg_name));
+        return Err(coded(E_PKG_NOT_INSTALLED, pkg_name));
     }
 
     // 仅允许本地 link/junction 安装：canonicalize 后目标必须落在 node_modules 之外。
     let nm_root_real = fs::canonicalize(&nm_root)
-        .map_err(|e| format!("无法解析 node_modules: {}", e))?;
+        .map_err(|e| coded(E_ADOPT_LINK_TARGET, e))?;
     let target_real = fs::canonicalize(&nm_pkg)
-        .map_err(|e| format!("无法解析 {} 的链接目标: {}", pkg_name, e))?;
+        .map_err(|e| coded(E_ADOPT_LINK_TARGET, format!("{}: {}", pkg_name, e)))?;
     if target_real.starts_with(&nm_root_real) {
-        return Err(format!(
-            "{} 不是本地 link 安装（目标位于 node_modules 内），无法纳入配置",
-            pkg_name
-        ));
+        return Err(coded(E_ADOPT_NOT_LINK, pkg_name));
     }
 
     // 校验链接目标 package.json 的包名一致。
     let target_pkg_file = target_real.join("package.json");
     let target_text = read_to_string_opt(&target_pkg_file)
-        .ok_or_else(|| format!("链接目标缺少 package.json: {}", target_real.to_string_lossy()))?;
+        .ok_or_else(|| coded(E_ADOPT_NO_PKG_JSON, target_real.to_string_lossy()))?;
     let target_json: JsonValue = serde_json::from_str(&target_text)
-        .map_err(|e| format!("链接目标 package.json 解析失败: {}", e))?;
+        .map_err(|e| coded(E_ADOPT_NO_PKG_JSON, e))?;
     let target_name = target_json.get("name").and_then(|v| v.as_str()).unwrap_or("");
     if target_name != pkg_name {
-        return Err(format!(
-            "链接目标包名不匹配：期望 {}，实际 {}",
-            pkg_name,
-            if target_name.is_empty() { "?" } else { target_name }
-        ));
+        return Err(coded(E_ADOPT_NAME_MISMATCH, format!("期望 {}，实际 {}", pkg_name, if target_name.is_empty() { "?" } else { target_name })));
     }
 
     // 优先写入可移植的 git+http(s) spec（源目录为 git 仓库且 origin 为 http(s) 时），
@@ -2338,7 +2332,7 @@ pub fn apply_dsh_recovery(action: DshRecoveryAction) -> Result<(), String> {
             add_disabled_row(&patch_file, &action.target);
             Ok(())
         }
-        other => Err(format!("未知的恢复动作: {}", other)),
+        other => Err(coded(E_RECOVERY_UNKNOWN, other)),
     }
 }
 
@@ -2586,7 +2580,7 @@ fn parse_git_prepare_not_allowed(output: &str) -> Vec<String> {
 fn install_inner(profile: String, mode: String, on_line: Option<&mut dyn FnMut(String)>) -> Result<DshInstallReport, String> {
     let cfg = load_config();
     let pnpm_cmd = resolve_pnpm_command(&cfg)
-        .ok_or_else(|| "未找到 pnpm 命令，请在「设置」中配置 pnpmCommand".to_string())?;
+        .ok_or_else(|| E_PNPM_NOT_FOUND.to_string())?;
     let profile_name = if profile.trim().is_empty() {
         "web".to_string()
     } else {

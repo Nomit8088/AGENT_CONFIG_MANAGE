@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::git_sync::run_git;
+use crate::error_codes::*;
 
 use serde_json::Value as JsonValue;
 
@@ -287,10 +288,10 @@ pub fn pull_dsh_plugins_sync() -> Result<SkillsSyncStatus, String> {
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先在插件同步中初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let dirty = git_dirty_count_paths(&root, &["dsh", ".gitignore"]);
@@ -528,10 +529,10 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先在插件同步中初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let _warnings = snapshot_local_to_mirror();

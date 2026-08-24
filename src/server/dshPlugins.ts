@@ -810,14 +810,14 @@ export async function updateDshPlugin(profile: string, key: string, onLine?: (li
     ? key.slice(0, key.indexOf(':'))
     : null;
   if (!prefix) {
-    throw new Error(`无法识别的插件 key: ${key}`);
+    throw new Error(`E_PLUGIN_KEY_UNKNOWN::${key}`);
   }
   const pkgName = key.slice(prefix.length + 1);
 
   const cfg = readConfigFile();
   const pnpmCmd = resolvePnpmCommand(cfg);
   if (!pnpmCmd) {
-    throw new Error('未找到 pnpm 命令，请在「设置」中配置 pnpmCommand');
+    throw new Error('E_PNPM_NOT_FOUND');
   }
 
   const pkgFile = path.join(profileDir, 'package.json');
@@ -959,7 +959,7 @@ export async function installDshPluginsV2(profile: string, mode: DshInstallMode,
   const cfg = readConfigFile();
   const pnpmCmd = resolvePnpmCommand(cfg);
   if (!pnpmCmd) {
-    throw new Error('未找到 pnpm 命令，请在「设置」中配置 pnpmCommand');
+    throw new Error('E_PNPM_NOT_FOUND');
   }
   const profileDir = ensureProfileDir(profileName);
   const safeMode: DshInstallMode = ['incremental', 'update', 'reinstall-all', 'reinstall-failed'].includes(mode) ? mode : 'incremental';
@@ -1374,7 +1374,7 @@ function writePkg(profileDir: string, pkg: any): void {
 function ensureProfileDir(profile: string): string {
   const profileDir = path.join(resolveDshHome(), 'profiles', profile);
   if (!fs.existsSync(profileDir)) {
-    throw new Error(`profile 目录不存在: ${profileDir}`);
+    throw new Error(`E_PROFILE_DIR_MISSING::${profileDir}`);
   }
   return profileDir;
 }
@@ -1688,7 +1688,7 @@ export function toggleDshPlugin(profile: string, key: string, enabled: boolean):
     return;
   }
 
-  throw new Error(`无法识别的插件 key: ${key}`);
+  throw new Error(`E_PLUGIN_KEY_UNKNOWN::${key}`);
 }
 
 /** 卸载：从配置中彻底移除（bundle/dep 同时移出 dependencies + bundles，row 从 patch 删除），并尽力清理 node_modules。 */
@@ -1723,7 +1723,7 @@ export async function removeDshPlugin(profile: string, key: string): Promise<voi
     return;
   }
 
-  throw new Error(`无法识别的插件 key: ${key}`);
+  throw new Error(`E_PLUGIN_KEY_UNKNOWN::${key}`);
 }
 
 /** 孤儿纳入配置时优先探测可移植 git spec：
@@ -1752,17 +1752,17 @@ function portableGitSpec(target: string): string | undefined {
 export function adoptDshOrphan(profile: string, pkgName: string): void {
   const profileDir = ensureProfileDir(profile);
   const name = pkgName.trim();
-  if (!name) throw new Error('包名不能为空');
+  if (!name) throw new Error('E_PKG_NAME_EMPTY');
 
   const parts = name.split('/').filter(Boolean);
   if (parts.length === 0 || parts.some(p => p === '.' || p === '..')) {
-    throw new Error(`非法包名: ${name}`);
+    throw new Error(`E_PKG_NAME_INVALID::${name}`);
   }
 
   const nmRoot = path.join(profileDir, 'node_modules');
   const nmPkg = path.join(nmRoot, ...parts);
   if (!fs.existsSync(nmPkg)) {
-    throw new Error(`本机未安装 ${name}，无法纳入配置`);
+    throw new Error(`E_PKG_NOT_INSTALLED::${name}`);
   }
 
   // 仅允许本地 link/junction 安装：realpath 后目标必须落在 node_modules 之外。
@@ -1772,10 +1772,10 @@ export function adoptDshOrphan(profile: string, pkgName: string): void {
     nmRootReal = fs.realpathSync(nmRoot);
     targetReal = fs.realpathSync(nmPkg);
   } catch (e: any) {
-    throw new Error(`无法解析 ${name} 的链接目标: ${e?.message || e}`);
+    throw new Error(`E_ADOPT_LINK_TARGET::${name}: ${e?.message || e}`);
   }
   if (targetReal === nmRootReal || targetReal.startsWith(nmRootReal + path.sep)) {
-    throw new Error(`${name} 不是本地 link 安装（目标位于 node_modules 内），无法纳入配置`);
+    throw new Error(`E_ADOPT_NOT_LINK::${name}`);
   }
 
   // 校验链接目标 package.json 的包名一致。
@@ -1784,15 +1784,15 @@ export function adoptDshOrphan(profile: string, pkgName: string): void {
   try {
     targetPkg = JSON.parse(fs.readFileSync(targetPkgFile, 'utf-8'));
   } catch {
-    throw new Error(`链接目标缺少 package.json: ${targetReal}`);
+    throw new Error(`E_ADOPT_NO_PKG_JSON::${targetReal}`);
   }
   if (targetPkg?.name !== name) {
-    throw new Error(`链接目标包名不匹配：期望 ${name}，实际 ${targetPkg?.name || '?'}`);
+    throw new Error(`E_ADOPT_NAME_MISMATCH::期望 ${name}，实际 ${targetPkg?.name || '?'}`);
   }
 
   const spec = portableGitSpec(targetReal) || `link:${targetReal.replace(/\\/g, '/')}`;
   const pkg = readPkg(profileDir);
-  if (!pkg) throw new Error('profile package.json 不存在');
+  if (!pkg) throw new Error('E_PROFILE_PKG_MISSING');
 
   let depChanged = false;
   if (!pkg.dependencies) pkg.dependencies = {};
@@ -1832,7 +1832,7 @@ export function applyDshRecovery(action: DshRecoveryAction): void {
     return;
   }
 
-  throw new Error(`未知的恢复动作: ${action.kind}`);
+  throw new Error(`E_RECOVERY_UNKNOWN::${action.kind}`);
 }
 
 // ==================== 同步 / 对账 ====================
@@ -2065,15 +2065,15 @@ export function pullDshPluginsSync(): SkillsSyncStatus {
   const syncCfg = readDshSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveDshRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   const dirty = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
   if (dirty > 0) {
-    const msg = `DSH 插件同步：本地有 ${dirty} 个未提交修改（dsh/.gitignore），已跳过拉取；请先推送或手动处理`;
+    const msg = `E_SYNC_DIRTY::${dirty}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
@@ -2084,7 +2084,7 @@ export function pullDshPluginsSync(): SkillsSyncStatus {
     updateLastSync('success');
     return getDshPluginsSyncStatus();
   } catch (e: any) {
-    const msg = `拉取失败: ${e.message}`;
+    const msg = `E_SYNC_PULL_FAILED::${e.message}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }
@@ -2228,10 +2228,10 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
   const syncCfg = readDshSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
-    throw new Error('尚未初始化同步仓库，请先在插件同步中初始化');
+    throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveDshRemoteUrl(syncCfg)) {
-    throw new Error('尚未配置远端仓库地址');
+    throw new Error('E_SYNC_NO_REMOTE');
   }
 
   snapshotLocalToMirror();
@@ -2256,7 +2256,7 @@ export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
     updateLastSync('success');
     return getDshPluginsSyncStatus();
   } catch (e: any) {
-    const msg = `推送失败: ${e.message}`;
+    const msg = `E_SYNC_PUSH_FAILED::${e.message}`;
     updateLastSync('error', msg);
     throw new Error(msg);
   }

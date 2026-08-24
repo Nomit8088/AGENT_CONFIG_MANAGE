@@ -13,7 +13,7 @@
       ]"
     >
       <Plus class="w-3 h-3 text-slate-600 dark:text-white/80" />
-      <span>分发至 Agent...</span>
+      <span>{{ $t('skill.pickerTitle') }}</span>
       <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 font-mono text-slate-600 dark:text-white/70 font-semibold">
         {{ mountedEnabledCount }}/{{ store.enabledAgents.length }}
       </span>
@@ -31,7 +31,7 @@
         <!-- Popover Top Header: Quick Actions -->
         <div class="flex items-center justify-between border-b border-black/8 dark:border-white/8 pb-2">
           <div class="flex items-center gap-1.5">
-            <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">挂载 Agent 目标</span>
+            <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">{{ $t('skill.pickerMountTitle') }}</span>
             <span class="text-[10px] px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 text-slate-600 dark:text-white/60 font-mono">
               {{ skill.name }}
             </span>
@@ -41,13 +41,13 @@
               @click="selectAllActive"
               class="text-[10px] px-1.5 py-0.5 rounded-md bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/12 font-medium transition-colors duration-200"
             >
-              ⚡ 全选活跃
+              {{ $t('skill.pickerAll') }}
             </button>
             <button
               @click="unmountAll"
               class="text-[10px] px-1.5 py-0.5 rounded-md bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-400 hover:text-slate-700 dark:text-white/50 dark:hover:text-white/80 border border-black/8 dark:border-white/8 transition-colors duration-200"
             >
-              清空
+              {{ $t('skill.pickerClear') }}
             </button>
           </div>
         </div>
@@ -57,7 +57,7 @@
           <input
             v-model="search"
             type="text"
-            placeholder="搜索/过滤 Agent..."
+            :placeholder="$t('skill.pickerSearch')"
             class="w-full bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 placeholder-slate-400 dark:placeholder-white/30 transition-colors duration-200"
           />
         </div>
@@ -110,12 +110,12 @@
                   : 'text-slate-400 dark:text-white/30 border-transparent'
               ]"
             >
-              {{ isMounted(agent.id) ? '已软链' : '未挂载' }}
+              {{ isMounted(agent.id) ? $t('skill.pickerLinked') : $t('skill.pickerUnmounted') }}
             </span>
           </div>
 
           <div v-if="filteredAgents.length === 0" class="py-4 text-center text-slate-400 dark:text-white/40 text-xs">
-            未找到匹配的 Agent
+            {{ $t('skill.pickerEmpty') }}
           </div>
         </div>
       </div>

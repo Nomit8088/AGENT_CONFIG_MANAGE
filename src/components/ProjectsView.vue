@@ -6,12 +6,12 @@
       <div class="p-3 border-b border-black/8 dark:border-white/8 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <FolderGit2 class="w-4 h-4 text-slate-700 dark:text-white/80" />
-          <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">纳管项目 ({{ filteredProjects.length }}/{{ store.projects.length }})</span>
+          <span class="font-serif font-semibold text-xs text-slate-900 dark:text-white/95">{{ $t('project.managedProjects', { current: filteredProjects.length, total: store.projects.length }) }}</span>
         </div>
         <button
           @click="store.addProjectModal.visible = true"
           class="p-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs transition-colors duration-200"
-          title="纳管新项目"
+          :title="$t('project.addTitle')"
         >
           <Plus class="w-3.5 h-3.5" />
         </button>
@@ -24,7 +24,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索项目名称或路径..."
+            :placeholder="$t('project.searchPlaceholder')"
             class="w-full bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
           />
           <button
@@ -63,7 +63,7 @@
             <button
               @click.stop="handleDelete(p)"
               class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#ef4444] dark:text-white/40 dark:hover:text-[#ef4444] p-1 transition-colors duration-200"
-              title="解除纳管"
+              :title="$t('project.unbindTitle')"
             >
               <Trash2 class="w-3.5 h-3.5" />
             </button>
@@ -71,7 +71,7 @@
 
           <div class="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-white/40">
             <span class="px-1.5 py-0.2 rounded-md bg-black/5 dark:bg-white/6 font-mono text-slate-600 dark:text-white/70 border border-black/8 dark:border-white/8">
-              {{ p.ruleMode === 'overwrite' ? '覆盖模式' : '追加模式' }}
+              {{ p.ruleMode === 'overwrite' ? $t('project.overwriteMode') : $t('project.appendMode') }}
             </span>
             <span v-if="p.gitBranch" class="flex items-center gap-0.5 text-slate-500 dark:text-white/50 font-mono">
               <GitBranch class="w-2.5 h-2.5" />
@@ -81,7 +81,7 @@
         </div>
 
         <div v-if="filteredProjects.length === 0" class="p-6 text-center text-slate-400 dark:text-white/40 text-xs">
-          {{ searchQuery ? '未搜索到匹配的项目' : '暂无已纳管项目，点击上方加号纳管本地代码仓库。' }}
+          {{ searchQuery ? $t('project.searchEmpty') : $t('project.empty') }}
         </div>
       </div>
     </div>
@@ -94,7 +94,7 @@
       />
       <div v-else class="h-full flex flex-col items-center justify-center text-slate-400 dark:text-white/40 text-xs space-y-3">
         <FolderGit2 class="w-12 h-12 text-slate-300 dark:text-white/20" />
-        <p>请在左侧选择项目或纳管新项目以配置规则</p>
+        <p>{{ $t('project.selectHint') }}</p>
       </div>
     </div>
   </div>
@@ -103,6 +103,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
+import { t } from '../i18n';
 import { ProjectInfo } from '../types';
 import ProjectEditor from './ProjectEditor.vue';
 import { FolderGit2, Plus, GitBranch, Trash2, Search, X } from 'lucide-vue-next';
@@ -121,7 +122,7 @@ const filteredProjects = computed(() => {
 });
 
 function handleDelete(proj: ProjectInfo) {
-  if (confirm(`确定要解除对项目 [${proj.name}] 的规则纳管吗？将还原原版文件并卸载 Git Hook。`)) {
+  if (confirm(t('project.unbindConfirm', { name: proj.name }))) {
     store.deleteProject(proj.id);
   }
 }

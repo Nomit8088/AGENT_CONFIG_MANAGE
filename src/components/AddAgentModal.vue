@@ -11,8 +11,8 @@
             <Plus class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">添加自定义 Agent</h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">配置新 Agent 的技能软链目录与私有规则映射</p>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('agent.addTitle') }}</h3>
+            <p class="text-xs text-slate-500 dark:text-white/50">{{ $t('agent.addSubtitle') }}</p>
           </div>
         </div>
         <button
@@ -26,7 +26,7 @@
       <!-- Form Inputs -->
       <div class="space-y-4 text-xs">
         <div>
-          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">Agent 名称</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('agent.nameLabel') }}</label>
           <input
             v-model="form.name"
             @input="autoGenerateId"
@@ -38,7 +38,7 @@
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">唯一标识 (ID)</label>
+            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('agent.idLabel') }}</label>
             <input
               v-model="form.id"
               type="text"
@@ -47,22 +47,22 @@
             />
           </div>
           <div>
-            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">图标</label>
+            <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('agent.iconLabel') }}</label>
             <select
               v-model="form.icon"
               class="w-full bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white/90 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
             >
-              <option value="bot">Bot (通用机器人)</option>
-              <option value="sparkles">Sparkles (智能增强)</option>
-              <option value="terminal">Terminal (终端命令行)</option>
-              <option value="code">Code (编辑器)</option>
-              <option value="cpu">CPU (核心驱动)</option>
+              <option value="bot">{{ $t('agent.iconBot') }}</option>
+              <option value="sparkles">{{ $t('agent.iconSparkles') }}</option>
+              <option value="terminal">{{ $t('agent.iconTerminal') }}</option>
+              <option value="code">{{ $t('agent.iconCode') }}</option>
+              <option value="cpu">{{ $t('agent.iconCpu') }}</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">Skills 挂载目录 (支持 ~ 相对主目录)</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('agent.skillsDirLabel') }}</label>
           <input
             v-model="form.skillsDir"
             type="text"
@@ -72,7 +72,7 @@
         </div>
 
         <div>
-          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">私有本地规则文件名 (项目根目录下)</label>
+          <label class="block text-slate-700 dark:text-white/70 font-medium mb-1">{{ $t('agent.ruleFileLabel') }}</label>
           <input
             v-model="form.localRuleFilename"
             type="text"
@@ -86,7 +86,7 @@
           <div class="flex items-center gap-2">
             <ShieldCheck class="w-4 h-4 text-slate-700 dark:text-white/80" />
             <span class="text-slate-600 dark:text-white/60 text-xs">
-              {{ validationStatus.message || '系统将自动校验 NTFS Junction 软链权限' }}
+              {{ validationStatus.message || $t('agent.validateHint') }}
             </span>
           </div>
           <button
@@ -94,7 +94,7 @@
             type="button"
             class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
           >
-            即时校验
+            {{ $t('agent.validate') }}
           </button>
         </div>
       </div>
@@ -105,14 +105,14 @@
           @click="close"
           class="px-4 py-2 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 hover:text-slate-900 dark:hover:text-white/95 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
         >
-          取消
+          {{ $t('common.cancel') }}
         </button>
         <button
           @click="handleSubmit"
           :disabled="!isValid"
           class="px-4 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#282a32] dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-white/90 border border-black/8 dark:border-white/8 text-xs font-medium transition-colors duration-200"
         >
-          确认注册
+          {{ $t('agent.confirmRegister') }}
         </button>
       </div>
     </div>

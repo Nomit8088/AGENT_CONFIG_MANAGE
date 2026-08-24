@@ -415,7 +415,7 @@ export const api = {
       };
       es.onerror = () => {
         es.close();
-        reject(new Error('安装终端连接中断（SSE 流不可用）'));
+        reject(new Error('E_STREAM_INTERRUPTED'));
       };
     });
   },
@@ -618,7 +618,7 @@ export const api = {
             resolve(msg.report as DshVersionUpgradeResult);
           } else if (msg.type === 'error') {
             es.close();
-            reject(new Error(msg.error || '升级失败'));
+            reject(new Error(msg.error || 'E_VERSION_UPGRADE_FAILED'));
           }
         } catch (e) {
           es.close();
@@ -627,7 +627,7 @@ export const api = {
       };
       es.onerror = () => {
         es.close();
-        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+        reject(new Error('E_STREAM_INTERRUPTED'));
       };
     });
   },
@@ -651,7 +651,7 @@ export const api = {
             resolve(msg.report as DshVersionUpgradeResult);
           } else if (msg.type === 'error') {
             es.close();
-            reject(new Error(msg.error || '安装失败'));
+            reject(new Error(msg.error || 'E_VERSION_INSTALL_FAILED'));
           }
         } catch (e) {
           es.close();
@@ -660,7 +660,7 @@ export const api = {
       };
       es.onerror = () => {
         es.close();
-        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+        reject(new Error('E_STREAM_INTERRUPTED'));
       };
     });
   },
@@ -690,7 +690,7 @@ export const api = {
             resolve(msg.report as DshVersionRollbackResult);
           } else if (msg.type === 'error') {
             es.close();
-            reject(new Error(msg.error || '回滚失败'));
+            reject(new Error(msg.error || 'E_VERSION_ROLLBACK_FAILED'));
           }
         } catch (e) {
           es.close();
@@ -699,7 +699,7 @@ export const api = {
       };
       es.onerror = () => {
         es.close();
-        reject(new Error('版本变更终端连接中断（SSE 流不可用）'));
+        reject(new Error('E_STREAM_INTERRUPTED'));
       };
     });
   },
@@ -743,7 +743,7 @@ export const api = {
             resolve(msg.report as AppUpdateDownload);
           } else if (msg.type === 'error') {
             es.close();
-            reject(new Error(msg.error || '下载失败'));
+            reject(new Error(msg.error || 'E_APP_UPDATE_DOWNLOAD_FAILED'));
           }
         } catch (e) {
           es.close();
@@ -752,7 +752,7 @@ export const api = {
       };
       es.onerror = () => {
         es.close();
-        reject(new Error('下载连接中断（SSE 流不可用）'));
+        reject(new Error('E_STREAM_INTERRUPTED'));
       };
     });
   },

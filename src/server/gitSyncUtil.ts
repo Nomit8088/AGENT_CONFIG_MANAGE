@@ -116,10 +116,10 @@ export function runGit(cwd: string, args: string[], timeoutMs: number = DEFAULT_
     }).trim();
   } catch (e: any) {
     if (e?.code === 'ENOENT') {
-      throw new Error('未找到 git 命令，请先安装 Git 并加入 PATH');
+      throw new Error('E_GIT_NOT_FOUND');
     }
     if (e?.killed || e?.signal === 'SIGTERM') {
-      throw new Error(`git 命令超时（${Math.round(timeoutMs / 1000)}s）：${args.join(' ')}`);
+      throw new Error(`E_GIT_TIMEOUT::${Math.round(timeoutMs / 1000)}s ${args.join(' ')}`);
     }
     const stderr = (e?.stderr?.toString() || '').trim();
     const stdout = (e?.stdout?.toString() || '').trim();

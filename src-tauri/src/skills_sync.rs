@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::git_sync::run_git;
+use crate::error_codes::*;
 
 use crate::models::{SkillsSyncConfig, SkillsSyncDecision, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -263,15 +264,15 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先在同步中心初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let dirty = git_dirty_count_paths(&root, &["skills", ".gitignore"]);
     if dirty > 0 {
-        let msg = format!("技能同步：本地有 {} 个未提交修改（skills/.gitignore），已跳过拉取；请先推送或手动处理", dirty);
+        let msg = coded(E_SYNC_DIRTY, dirty.to_string());
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);
     }
@@ -283,7 +284,7 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
             Ok(get_skills_sync_status())
         }
         Err(e) => {
-            let msg = format!("拉取失败: {}", e);
+            let msg = coded(E_SYNC_PULL_FAILED, e);
             let _ = update_last_sync("error", Some(&msg));
             Err(msg)
         }
@@ -296,10 +297,10 @@ pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<S
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先在同步中心初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     // 按功能隔离：传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
@@ -334,7 +335,7 @@ pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<S
 
     let branch = effective_branch(&cfg);
     if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
-        let msg = format!("推送失败: {}", e);
+        let msg = coded(E_SYNC_PUSH_FAILED, e);
         let _ = update_last_sync("error", Some(&msg));
         return Err(msg);
     }
@@ -356,19 +357,19 @@ pub fn test_skills_sync_connection() -> Result<String, String> {
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let branch = effective_branch(&cfg);
     let refspec = format!("refs/heads/{}", branch);
     let out = run_git(&root, ["ls-remote", "origin", refspec.as_str()])
-        .map_err(|e| format!("连接失败: {}", e))?;
+        .map_err(|e| coded(E_SYNC_CONNECT_FAILED, e))?;
 
     if out.trim().is_empty() {
-        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+        return Err(coded(E_SYNC_BRANCH_MISSING, branch));
     }
     let head = out
         .lines()
@@ -384,10 +385,10 @@ pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let branch = effective_branch(&cfg);
@@ -395,7 +396,7 @@ pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
 
     let remote_ref = format!("origin/{}", branch);
     if run_git(&root, ["rev-parse", "--verify", remote_ref.as_str()]).is_err() {
-        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+        return Err(coded(E_SYNC_BRANCH_MISSING, branch));
     }
 
     // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
@@ -431,15 +432,15 @@ pub fn fetch_skills_sync() -> Result<(), String> {
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let branch = effective_branch(&cfg);
     run_git(&root, ["fetch", "origin", branch.as_str()])
-        .map_err(|e| format!("拉取远端失败: {}", e))?;
+        .map_err(|e| coded(E_SYNC_FETCH_FAILED, e))?;
     Ok(())
 }
 
@@ -452,19 +453,19 @@ pub fn apply_skills_from_remote(
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
-        return Err("尚未初始化同步仓库，请先初始化".to_string());
+        return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
-        return Err("尚未配置远端仓库地址".to_string());
+        return Err(E_SYNC_NO_REMOTE.to_string());
     }
 
     let branch = effective_branch(&cfg);
     run_git(&root, ["fetch", "origin", branch.as_str()])
-        .map_err(|e| format!("拉取远端失败: {}", e))?;
+        .map_err(|e| coded(E_SYNC_FETCH_FAILED, e))?;
 
     let remote_ref = format!("origin/{}", branch);
     if run_git(&root, ["rev-parse", "--verify", remote_ref.as_str()]).is_err() {
-        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+        return Err(coded(E_SYNC_BRANCH_MISSING, branch));
     }
 
     for d in &decisions {
