@@ -7,6 +7,7 @@ import { runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as resolveAppDataDir } from './appPaths';
 import { linkStrategyFor } from '../shared/linkStrategy';
+import type { SkillsSyncDecision } from '../types';
 export { linkStrategyFor };
 
 export function expandTilde(p: string): string {
@@ -781,7 +782,7 @@ export function pullSkillsSync(): SkillsSyncStatus {
   }
 }
 
-export function pushSkillsSync(message?: string): SkillsSyncStatus {
+export function pushSkillsSync(message?: string, paths?: string[]): SkillsSyncStatus {
   const root = getAppDataDir();
   const syncCfg = readSkillsSyncConfig();
 
@@ -792,8 +793,10 @@ export function pushSkillsSync(message?: string): SkillsSyncStatus {
     throw new Error('尚未配置远端仓库地址');
   }
 
-  // 按功能隔离：只暂存技能相关路径（skills/ 与共享的 .gitignore），不把 dsh/ 等其他功能改动卷进技能提交
-  const stagePaths = ['skills', '.gitignore'].filter(p => fs.existsSync(path.join(root, p)));
+  // 按功能隔离：只暂存技能相关路径；传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
+  const stagePaths = (paths && paths.length > 0)
+    ? paths
+    : ['skills', '.gitignore'].filter(p => fs.existsSync(path.join(root, p)));
   if (stagePaths.length > 0) {
     gitExec(root, ['add', '-A', '--', ...stagePaths]);
   }
@@ -877,6 +880,64 @@ export function resetSkillsSyncToRemote(): SkillsSyncStatus {
   if (checkoutPaths.length > 0) {
     gitTry(root, ['checkout', '--', ...checkoutPaths]);
   }
+  updateLastSync('success');
+  return getSkillsSyncStatus();
+}
+
+/** 仅 fetch 远端（不合并、不改工作区），用于弹窗前刷新 origin/<branch> 引用。 */
+export function fetchSkillsSync(): void {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先初始化');
+  }
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  const branch = effectiveSkillsBranch(syncCfg);
+  gitExec(root, ['fetch', 'origin', branch]);
+}
+
+/** 「从仓库应用」逐文件：fetch 远端后，对 direction=remote 的文件 checkout 远端版本（远端已删除则删除本地）。 */
+export function applySkillsFromRemote(decisions: SkillsSyncDecision[]): SkillsSyncStatus {
+  const root = getAppDataDir();
+  const syncCfg = readSkillsSyncConfig();
+
+  if (!fs.existsSync(path.join(root, '.git'))) {
+    throw new Error('尚未初始化同步仓库，请先初始化');
+  }
+  if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    throw new Error('尚未配置远端仓库地址');
+  }
+
+  const branch = effectiveSkillsBranch(syncCfg);
+  gitExec(root, ['fetch', 'origin', branch]);
+
+  const remoteRef = `origin/${branch}`;
+  const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
+  if (!head) {
+    throw new Error(`远端分支 ${branch} 不存在或仓库为空`);
+  }
+
+  for (const d of (Array.isArray(decisions) ? decisions : [])) {
+    if (d.direction !== 'remote') continue;
+    const p = (d.path || '').trim();
+    if (!p) continue;
+    const existsInRemote = gitOk(root, ['cat-file', '-e', `${remoteRef}:${p}`]);
+    if (existsInRemote) {
+      gitTry(root, ['checkout', remoteRef, '--', p]);
+    } else {
+      // 远端已删除：删除本地文件（工作区 + index）
+      gitTry(root, ['rm', '--force', '--', p]);
+      const abs = path.join(root, p);
+      if (fs.existsSync(abs)) {
+        try { fs.unlinkSync(abs); } catch {}
+      }
+    }
+  }
+
   updateLastSync('success');
   return getSkillsSyncStatus();
 }

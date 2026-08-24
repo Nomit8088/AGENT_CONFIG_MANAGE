@@ -70,6 +70,13 @@ pub struct SyncDiffEntry {
     pub side: String,   // "local" | "remote" | "both"
 }
 
+/// 逐文件同步决策（WI-013 延伸）：skills 文件级逐条方向。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillsSyncDecision {
+    pub path: String,
+    pub direction: String, // "remote" | "local"
+}
+
 /// 全局同步仓库配置（技能与 DSH 插件共用同一 remote/branch）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncRepoConfig {
@@ -275,6 +282,16 @@ pub struct DshPluginDiff {
     pub compatible: bool,
     pub items: Vec<DshPluginDiffItem>,
     pub warnings: Vec<String>,
+}
+
+/// 逐插件对齐决策（WI-013）：name = dep 名 / "bundle:<pkg>" / "cordis.patch.yml"；
+/// direction = "remote"（采用仓库，默认）| "local"（保留本地）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DshAlignDecision {
+    #[serde(rename = "profileName")]
+    pub profile_name: String,
+    pub name: String,
+    pub direction: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -7,6 +7,8 @@ import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './g
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as appDataDir } from './appPaths';
 import type {
+  DshAlignDecision,
+  DshAlignDirection,
   DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallFailure,
@@ -2356,9 +2358,18 @@ export function reconcileDshPlugins(): DshPluginDiff {
   return { compatible: items.length === 0, items, warnings };
 }
 
-export async function alignDshPlugins(profile?: string): Promise<void> {
+export async function alignDshPlugins(profile?: string, decisions?: DshAlignDecision[]): Promise<void> {
   const profilesDir = path.join(resolveDshHome(), 'profiles');
   const mirrorRoot = path.join(dshMirrorDir(), 'profiles');
+
+  // 逐插件决策：按 profile 分组，key = dep 名 / "bundle:<pkg>" / "cordis.patch.yml"
+  const byProfile = new Map<string, Map<string, DshAlignDirection>>();
+  for (const d of (Array.isArray(decisions) ? decisions : [])) {
+    const p = (d.profileName || '').trim();
+    if (!p) continue;
+    if (!byProfile.has(p)) byProfile.set(p, new Map());
+    byProfile.get(p)!.set(d.name, d.direction === 'local' ? 'local' : 'remote');
+  }
 
   const targets = (profile && profile.trim())
     ? [profile.trim()]
@@ -2384,7 +2395,10 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
 
     const localPkg = readPkg(localDir) || {};
 
-    // 内置 bundle 保留本地默认；本地不可移植依赖保留
+    const decisionsByName = byProfile.get(name) || new Map<string, DshAlignDirection>();
+    const dirOf = (key: string): DshAlignDirection => decisionsByName.get(key) || 'remote';
+
+    // 内置 bundle 保留本地默认；本地不可移植依赖始终保留
     const builtinBundles = Array.isArray(localPkg?.dsh?.profile?.bundles)
       ? localPkg.dsh.profile.bundles.filter((b: string) => b.startsWith(BUILTIN_BUNDLE_PREFIX))
       : [];
@@ -2393,11 +2407,46 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
       if (!isPortableSpec(spec)) localUnportableDeps[dep] = spec;
     }
 
-    const mergedDeps: Record<string, string> = {
-      ...portableDeps(mirrorPkg),
-      ...localUnportableDeps,
-    };
-    const mergedBundles = [...builtinBundles, ...userBundles(mirrorPkg)];
+    // 逐条合并 dependencies：默认 remote=镜像为准，local=保留本地
+    const localPortable = portableDeps(localPkg);
+    const mirrorPortable = portableDeps(mirrorPkg);
+    const mergedDeps: Record<string, string> = {};
+    const depNames = new Set([...Object.keys(localPortable), ...Object.keys(mirrorPortable)]);
+    for (const dep of [...depNames].sort()) {
+      const l = localPortable[dep];
+      const r = mirrorPortable[dep];
+      const dir = dirOf(dep);
+      if (l !== undefined && r !== undefined) {
+        mergedDeps[dep] = dir === 'local' ? l : r;
+      } else if (l !== undefined && r === undefined) {
+        // extra：本地有、镜像无
+        if (dir === 'local') mergedDeps[dep] = l;
+      } else if (l === undefined && r !== undefined) {
+        // missing：镜像有、本地无
+        if (dir !== 'local') mergedDeps[dep] = r;
+      }
+    }
+    for (const [dep, spec] of Object.entries(localUnportableDeps)) {
+      mergedDeps[dep] = spec;
+    }
+
+    // 逐条合并 bundles
+    const localBundles = userBundles(localPkg);
+    const mirrorBundles = userBundles(mirrorPkg);
+    const mergedUserBundles: string[] = [];
+    for (const b of [...new Set([...localBundles, ...mirrorBundles])].sort()) {
+      const inL = localBundles.includes(b);
+      const inR = mirrorBundles.includes(b);
+      const dir = dirOf(`bundle:${b}`);
+      if (inL && inR) {
+        mergedUserBundles.push(b);
+      } else if (inL && !inR) {
+        if (dir === 'local') mergedUserBundles.push(b);
+      } else if (!inL && inR) {
+        if (dir !== 'local') mergedUserBundles.push(b);
+      }
+    }
+    const mergedBundles = [...builtinBundles, ...mergedUserBundles];
 
     const mergedPkg: any = {
       ...localPkg,
@@ -2411,7 +2460,10 @@ export async function alignDshPlugins(profile?: string): Promise<void> {
 
     writePkg(localDir, mergedPkg);
 
+    // patch：direction=local 保留本地 cordis.patch.yml，否则用镜像；lock/workspace 始终用镜像
+    const applyMirrorPatch = dirOf('cordis.patch.yml') !== 'local';
     for (const f of ['cordis.patch.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
+      if (f === 'cordis.patch.yml' && !applyMirrorPatch) continue;
       const src = path.join(mirrorDir, f);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, path.join(localDir, f));

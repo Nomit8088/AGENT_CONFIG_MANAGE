@@ -11,12 +11,16 @@
             <GitCompare class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">DSH 插件配置对账</h3>
-            <p class="text-xs text-slate-500 dark:text-white/50">仓库镜像 vs 本地 <span class="font-mono">~/.dsh</span> 的差异</p>
+            <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">
+              {{ isApply ? '确认从仓库应用' : 'DSH 插件配置对账' }}
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-white/50">
+              {{ isApply ? '将用仓库镜像覆盖本地配置，请确认以下变更' : '仓库镜像 vs 本地 ~/.dsh 的差异' }}
+            </p>
           </div>
         </div>
         <button
-          @click="store.dshPluginDiffModal.visible = false"
+          @click="close"
           class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/80 transition-colors duration-200"
         >
           <X class="w-4 h-4" />
@@ -57,6 +61,22 @@
                 <div class="text-slate-700 dark:text-white/70 break-all">{{ item.remote || '—' }}</div>
               </div>
             </div>
+
+            <div v-if="isApply" class="mt-2 flex items-center gap-2 flex-wrap">
+              <span class="text-[10px] text-slate-400 dark:text-white/40">处理方式</span>
+              <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-[11px]">
+                <button
+                  type="button"
+                  @click="setDir(item, 'remote')"
+                  :class="dirBtnClass(item, 'remote')"
+                >{{ remoteLabel(item.kind) }}</button>
+                <button
+                  type="button"
+                  @click="setDir(item, 'local')"
+                  :class="dirBtnClass(item, 'local')"
+                >{{ localLabel(item.kind) }}</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -64,14 +84,24 @@
       <!-- Footer -->
       <div class="flex items-center justify-between gap-3 pt-3 border-t border-black/8 dark:border-white/8 flex-shrink-0">
         <div class="text-[11px] text-slate-400 dark:text-white/50">
-          一键对齐会以仓库镜像为准写回本地，并执行 pnpm install
+          <template v-if="isApply">按上方每条选择的方向写回本地并执行 pnpm install；「丢弃」会移除本地插件。</template>
+          <template v-else>仅比较，不修改任何配置。如需以仓库覆盖本地，请使用「从仓库应用」。</template>
         </div>
         <div class="flex items-center gap-2">
           <button
-            @click="store.dshPluginDiffModal.visible = false"
+            @click="close"
             class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-black/5 dark:hover:bg-white/8 text-slate-600 dark:text-white/70 text-xs font-medium border border-black/10 dark:border-white/12 transition-colors duration-200"
           >
-            关闭
+            {{ isApply ? '取消' : '关闭' }}
+          </button>
+          <button
+            v-if="isApply"
+            @click="confirmApply"
+            :disabled="applying"
+            class="px-3 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-medium border border-[#8b5cf6] transition-colors duration-200 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CheckCircle class="w-3.5 h-3.5" />
+            <span>{{ applying ? '应用中…' : '确认应用（以仓库为准）' }}</span>
           </button>
         </div>
       </div>
@@ -80,13 +110,85 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { GitCompare, X } from 'lucide-vue-next';
-import type { DshPluginDiffItem } from '../types';
+import { CheckCircle, GitCompare, X } from 'lucide-vue-next';
+import type { DshAlignDecision, DshAlignDirection, DshPluginDiffItem } from '../types';
 
 const store = useAppStore();
 const diff = computed(() => store.dshPluginDiff);
+const isApply = computed(() => store.dshPluginDiffModal.mode === 'apply');
+const applying = ref(false);
+const overrides = ref<Record<string, DshAlignDirection>>({});
+
+const REMOTE_LABEL: Record<DshPluginDiffItem['kind'], string> = {
+  missing: '采纳仓库',
+  extra: '丢弃',
+  version: '采用仓库',
+  patch: '采用仓库',
+};
+const LOCAL_LABEL: Record<DshPluginDiffItem['kind'], string> = {
+  missing: '跳过',
+  extra: '保留本地',
+  version: '保留本地',
+  patch: '保留本地',
+};
+
+function itemKey(item: DshPluginDiffItem): string {
+  return `${item.profileName}|${item.kind}|${item.name}`;
+}
+
+function defaultDir(kind: DshPluginDiffItem['kind']): DshAlignDirection {
+  return kind === 'missing' || kind === 'patch' ? 'remote' : 'local';
+}
+
+function dirOf(item: DshPluginDiffItem): DshAlignDirection {
+  return overrides.value[itemKey(item)] || defaultDir(item.kind);
+}
+
+function setDir(item: DshPluginDiffItem, dir: DshAlignDirection) {
+  overrides.value[itemKey(item)] = dir;
+}
+
+function remoteLabel(kind: DshPluginDiffItem['kind']): string {
+  return REMOTE_LABEL[kind];
+}
+
+function localLabel(kind: DshPluginDiffItem['kind']): string {
+  return LOCAL_LABEL[kind];
+}
+
+function dirBtnClass(item: DshPluginDiffItem, dir: DshAlignDirection): string {
+  const active = dirOf(item) === dir;
+  const base = 'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium';
+  if (!active) return `${base} text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80`;
+  if (item.kind === 'extra' && dir === 'remote') {
+    return `${base} bg-[#ff453a]/10 text-[#ff453a] font-semibold shadow-xs`;
+  }
+  return `${base} bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs`;
+}
+
+function close() {
+  store.dshPluginDiffModal.visible = false;
+}
+
+async function confirmApply() {
+  applying.value = true;
+  try {
+    const items = diff.value?.items || [];
+    const decisions: DshAlignDecision[] = items.map(item => ({
+      profileName: item.profileName,
+      name: item.name,
+      direction: dirOf(item),
+    }));
+    await store.alignDshPlugins(undefined, decisions);
+    store.dshPluginDiffModal.visible = false;
+  } catch (e: any) {
+    store.showToast({ title: '应用失败', message: e?.message || '无法应用仓库配置', type: 'error' });
+  } finally {
+    applying.value = false;
+  }
+}
 
 function kindLabel(kind: DshPluginDiffItem['kind']): string {
   switch (kind) {

@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::git_sync::run_git;
 
-use crate::models::{SkillsSyncConfig, SkillsSyncStatus, SyncDiffEntry};
+use crate::models::{SkillsSyncConfig, SkillsSyncDecision, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
 
 /// Git 仓库根目录：使用 %APPDATA%\AgentHub（而非 skills 子目录），
@@ -291,7 +291,7 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
 }
 
 #[tauri::command]
-pub fn push_skills_sync(message: Option<String>) -> Result<SkillsSyncStatus, String> {
+pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<SkillsSyncStatus, String> {
     let root = sync_root();
     let cfg = sync_config();
 
@@ -302,13 +302,17 @@ pub fn push_skills_sync(message: Option<String>) -> Result<SkillsSyncStatus, Str
         return Err("尚未配置远端仓库地址".to_string());
     }
 
-    // 按功能隔离：只暂存技能相关路径（skills/ 与共享的 .gitignore），不把 dsh/ 等其他功能改动卷进技能提交
-    let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
-    if root.join("skills").exists() {
-        add_args.push("skills");
-    }
-    if root.join(".gitignore").exists() {
-        add_args.push(".gitignore");
+    // 按功能隔离：传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
+    let mut add_args: Vec<String> = vec!["add".to_string(), "-A".to_string(), "--".to_string()];
+    if paths.is_empty() {
+        if root.join("skills").exists() {
+            add_args.push("skills".to_string());
+        }
+        if root.join(".gitignore").exists() {
+            add_args.push(".gitignore".to_string());
+        }
+    } else {
+        add_args.extend(paths);
     }
     if add_args.len() > 3 {
         run_git(&root, add_args).map_err(|e| format!("暂存中央库改动失败: {}", e))?;
@@ -414,6 +418,75 @@ pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
     }
     if checkout_args.len() > 2 {
         let _ = run_git(&root, checkout_args);
+    }
+
+    update_last_sync("success", None)?;
+    Ok(get_skills_sync_status())
+}
+
+/// 仅 fetch 远端（不合并、不改工作区），用于弹窗前刷新 origin/<branch> 引用。
+#[tauri::command]
+pub fn fetch_skills_sync() -> Result<(), String> {
+    let root = sync_root();
+    let cfg = sync_config();
+
+    if !root.join(".git").exists() {
+        return Err("尚未初始化同步仓库，请先初始化".to_string());
+    }
+    if effective_remote_url(&cfg).is_empty() {
+        return Err("尚未配置远端仓库地址".to_string());
+    }
+
+    let branch = effective_branch(&cfg);
+    run_git(&root, ["fetch", "origin", branch.as_str()])
+        .map_err(|e| format!("拉取远端失败: {}", e))?;
+    Ok(())
+}
+
+/// 「从仓库应用」逐文件：fetch 远端后，对 direction=remote 的文件 checkout 远端版本（远端已删除则删除本地）。
+#[tauri::command]
+pub fn apply_skills_from_remote(
+    decisions: Vec<SkillsSyncDecision>,
+) -> Result<SkillsSyncStatus, String> {
+    let root = sync_root();
+    let cfg = sync_config();
+
+    if !root.join(".git").exists() {
+        return Err("尚未初始化同步仓库，请先初始化".to_string());
+    }
+    if effective_remote_url(&cfg).is_empty() {
+        return Err("尚未配置远端仓库地址".to_string());
+    }
+
+    let branch = effective_branch(&cfg);
+    run_git(&root, ["fetch", "origin", branch.as_str()])
+        .map_err(|e| format!("拉取远端失败: {}", e))?;
+
+    let remote_ref = format!("origin/{}", branch);
+    if run_git(&root, ["rev-parse", "--verify", remote_ref.as_str()]).is_err() {
+        return Err(format!("远端分支 {} 不存在或仓库为空", branch));
+    }
+
+    for d in &decisions {
+        if d.direction != "remote" {
+            continue;
+        }
+        let p = d.path.trim();
+        if p.is_empty() {
+            continue;
+        }
+        let ref_path = format!("{}:{}", remote_ref, p);
+        let exists = run_git(&root, ["cat-file", "-e", ref_path.as_str()]).is_ok();
+        if exists {
+            let _ = run_git(&root, ["checkout", remote_ref.as_str(), "--", p]);
+        } else {
+            // 远端已删除：删除本地文件（工作区 + index）
+            let _ = run_git(&root, ["rm", "--force", "--", p]);
+            let abs = root.join(p);
+            if abs.exists() {
+                let _ = fs::remove_file(&abs);
+            }
+        }
     }
 
     update_last_sync("success", None)?;

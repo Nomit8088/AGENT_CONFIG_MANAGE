@@ -110,6 +110,12 @@ export interface SyncDiffEntry {
   side: 'local' | 'remote' | 'both';            // local=本地领先/未提交；remote=远端领先；both=双方都改过
 }
 
+/** 逐文件同步决策（WI-013 延伸）：skills 文件级逐条方向。 */
+export interface SkillsSyncDecision {
+  path: string;              // 相对同步仓库根路径，如 "skills/foo/SKILL.md"
+  direction: 'remote' | 'local'; // remote=采用仓库 / local=保留本地（上传）
+}
+
 // ==================== DSH 插件中心 ====================
 
 export type DshPluginKind = 'inbox' | 'bundle' | 'plain' | 'row';
@@ -233,6 +239,16 @@ export interface DshPluginDiff {
   compatible: boolean;
   items: DshPluginDiffItem[];
   warnings: string[];       // 不可移植依赖等
+}
+
+// ==================== 逐插件对齐决策 (WI-013) ====================
+
+export type DshAlignDirection = 'remote' | 'local';
+
+export interface DshAlignDecision {
+  profileName: string;
+  name: string;              // dep 名 / "bundle:<pkg>" / "cordis.patch.yml"
+  direction: DshAlignDirection; // remote=采用仓库（默认） / local=保留本地
 }
 
 export interface DshPluginsSyncConfig {

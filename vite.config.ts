@@ -27,6 +27,8 @@ import {
   setSkillsSyncAutoPull,
   testSkillsSyncConnection,
   resetSkillsSyncToRemote,
+  applySkillsFromRemote,
+  fetchSkillsSync,
   getSkillsSyncDiff,
   getSyncRepoConfig,
   validateSyncRepo,
@@ -604,9 +606,9 @@ function localApiPlugin(): Plugin {
 
             // POST /api/skills/sync/push
             if (pathname === '/api/skills/sync/push' && req.method === 'POST') {
-              const { message } = jsonBody;
+              const { message, paths } = jsonBody;
               res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify(pushSkillsSync(message)));
+              return res.end(JSON.stringify(pushSkillsSync(message, paths)));
             }
 
             // POST /api/skills/sync/auto-pull
@@ -627,6 +629,20 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/skills/sync/reset' && req.method === 'POST') {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(resetSkillsSyncToRemote()));
+            }
+
+            // POST /api/skills/sync/fetch
+            if (pathname === '/api/skills/sync/fetch' && req.method === 'POST') {
+              fetchSkillsSync();
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/skills/sync/apply
+            if (pathname === '/api/skills/sync/apply' && req.method === 'POST') {
+              const { decisions } = jsonBody;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(applySkillsFromRemote(decisions)));
             }
 
             // GET /api/skills/sync/diff
@@ -816,8 +832,8 @@ function localApiPlugin(): Plugin {
 
             // POST /api/dsh/plugins/align
             if (pathname === '/api/dsh/plugins/align' && req.method === 'POST') {
-              const { profile } = jsonBody;
-              await alignDshPlugins(profile);
+              const { profile, decisions } = jsonBody;
+              await alignDshPlugins(profile, decisions);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

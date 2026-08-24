@@ -3,6 +3,7 @@ import {
   AppConfig,
   AppUpdateCheck,
   AppUpdateDownload,
+  DshAlignDecision,
   DshConfigSnapshot,
   DshDiagnoseResult,
   DshInstallMode,
@@ -22,6 +23,7 @@ import {
   DshVersionUpgradeResult,
   ProjectInfo,
   SkillItem,
+  SkillsSyncDecision,
   SkillsSyncStatus,
   SyncDiffEntry,
   SyncRepoConfig,
@@ -280,11 +282,11 @@ export const api = {
     return requestApi<SkillsSyncStatus>('/api/skills/sync/pull', 'POST');
   },
 
-  async pushSkillsSync(message?: string): Promise<SkillsSyncStatus> {
+  async pushSkillsSync(message?: string, paths?: string[]): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('push_skills_sync', { message });
+      return invokeTauri<SkillsSyncStatus>('push_skills_sync', { message, paths });
     }
-    return requestApi<SkillsSyncStatus>('/api/skills/sync/push', 'POST', { message });
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/push', 'POST', { message, paths });
   },
 
   async setSkillsSyncAutoPull(enabled: boolean): Promise<void> {
@@ -306,6 +308,20 @@ export const api = {
       return invokeTauri<SkillsSyncStatus>('reset_skills_sync_to_remote');
     }
     return requestApi<SkillsSyncStatus>('/api/skills/sync/reset', 'POST');
+  },
+
+  async fetchSkillsSync(): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('fetch_skills_sync');
+    }
+    return requestApi<void>('/api/skills/sync/fetch', 'POST');
+  },
+
+  async applySkillsFromRemote(decisions: SkillsSyncDecision[]): Promise<SkillsSyncStatus> {
+    if (isTauri()) {
+      return invokeTauri<SkillsSyncStatus>('apply_skills_from_remote', { decisions });
+    }
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/apply', 'POST', { decisions });
   },
 
   async getSkillsSyncDiff(): Promise<SyncDiffEntry[]> {
@@ -481,11 +497,11 @@ export const api = {
     return requestApi<DshPluginDiff>('/api/dsh/plugins/reconcile');
   },
 
-  async alignDshPlugins(profile?: string): Promise<void> {
+  async alignDshPlugins(profile?: string, decisions?: DshAlignDecision[]): Promise<void> {
     if (isTauri()) {
-      return invokeTauri('align_dsh_plugins', { profile });
+      return invokeTauri('align_dsh_plugins', { profile, decisions });
     }
-    return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile });
+    return requestApi<void>('/api/dsh/plugins/align', 'POST', { profile, decisions });
   },
 
   // ==================== DSH 配置快照与回滚 (WI-006) ====================
