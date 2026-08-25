@@ -896,13 +896,15 @@ export default {
   plugins: {
     metaTitle: 'Edit plugin tags & note',
     metaEdit: 'Edit tags / note',
+    metaEditShort: 'Tags / Note',
+    filterByTag: 'Filter: {tag}',
     metaDescription: 'Description (auto-read from package.json)',
     metaTags: 'Tags',
     metaTagPlaceholder: 'Type a tag and press Enter or click +',
     metaTagHint: 'Up to {max} tags, {len} characters each',
     metaNote: 'Note',
     metaNotePlaceholder: 'Note the purpose / caveats of this plugin…',
-    metaNoteHint: 'Up to {max} characters, stored only in the local AgentHub cache',
+    metaNoteHint: 'Up to {max} characters, synced with DSH plugin config',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: 'Sync repository not initialized; initialize it in Sync Center first',

@@ -896,13 +896,15 @@ export default {
   plugins: {
     metaTitle: '编辑插件标签与备注',
     metaEdit: '编辑标签 / 备注',
+    metaEditShort: '标签 / 备注',
+    filterByTag: '筛选: {tag}',
     metaDescription: '描述（自动读取 package.json）',
     metaTags: '标签',
     metaTagPlaceholder: '输入标签后回车或点加号',
     metaTagHint: '最多 {max} 个，每个不超过 {len} 个字符',
     metaNote: '备注',
     metaNotePlaceholder: '记录该插件的用途 / 注意事项…',
-    metaNoteHint: '最多 {max} 个字符，仅保存在本机 AgentHub 本地缓存',
+    metaNoteHint: '最多 {max} 个字符，随 DSH 插件配置远程同步',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: '尚未初始化同步仓库，请先在同步中心初始化',

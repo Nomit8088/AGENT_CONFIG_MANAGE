@@ -167,6 +167,26 @@
         </button>
       </div>
 
+      <!-- 标签筛选条（WI-002）：点击标签过滤当前 profile 插件 -->
+      <div v-if="allTags.length" class="flex flex-wrap items-center gap-1.5">
+        <Tag class="w-3.5 h-3.5 text-slate-400 dark:text-white/40 shrink-0" />
+        <button
+          v-for="t in allTags"
+          :key="t.name"
+          type="button"
+          @click="toggleTagFilter(t.name)"
+          :class="[
+            'px-2 py-0.5 rounded-md text-[11px] font-mono border flex items-center gap-1 transition-colors duration-200',
+            selectedTags.includes(t.name)
+              ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30'
+              : 'bg-white dark:bg-[#1c1d22] text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8 hover:text-slate-900 dark:hover:text-white/95'
+          ]"
+        >
+          <span>{{ t.name }}</span>
+          <span class="opacity-60">{{ t.count }}</span>
+        </button>
+      </div>
+
       <!-- 安装终端 -->
       <DshInstallTerminal v-if="store.installTerminal.visible" />
 
@@ -204,6 +224,7 @@
             @check-update="checkUpdate"
             @update="updatePlugin"
             @save-meta="saveMeta"
+            @filter-tag="toggleTagFilter"
           />
         </div>
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
@@ -221,6 +242,7 @@
             @check-update="checkUpdate"
             @update="updatePlugin"
             @save-meta="saveMeta"
+            @filter-tag="toggleTagFilter"
           />
         </div>
 
@@ -372,6 +394,7 @@ import {
   CheckCircle2,
   XCircle,
   ListTree,
+  Tag,
 } from 'lucide-vue-next';
 import type { DshInstallMode, DshPluginInstallEntry, DshPluginInstallStatus } from '../types';
 import DshInstallTerminal from './DshInstallTerminal.vue';
@@ -450,9 +473,10 @@ function setPage(secId: string, page: number) {
   currentPage[secId] = page;
 }
 
-// 筛选状态：仅保留搜索 + 状态（状态经健康胶囊驱动；来源靠分组/徽章表达）
+// 筛选状态：搜索 + 状态（健康胶囊）+ 标签（标签筛选条，WI-002）
 const searchQuery = ref('');
 const statusFilter = ref<'all' | DshPluginInstallStatus>('all');
+const selectedTags = ref<string[]>([]);
 
 onMounted(async () => {
   if (!store.dshPluginsScan) {
@@ -464,7 +488,7 @@ onMounted(async () => {
 });
 
 // 切换 profile / 搜索 / 状态筛选 / 每页条数时重置分页，避免停留在越界页
-watch([selectedProfile, searchQuery, statusFilter, pageSize], () => {
+watch([selectedProfile, searchQuery, statusFilter, selectedTags, pageSize], () => {
   for (const k of Object.keys(currentPage)) delete currentPage[k];
 });
 
@@ -489,17 +513,37 @@ const entries = computed(() =>
   store.dshInstallEntries.filter(e => e.profileName === selectedProfile.value)
 );
 
+const allTags = computed(() => {
+  const counts = new Map<string, number>();
+  for (const e of entries.value) {
+    for (const t of e.tags || []) {
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+});
+
 const hasActiveFilters = computed(
-  () => searchQuery.value.trim() !== '' || statusFilter.value !== 'all'
+  () => searchQuery.value.trim() !== '' || statusFilter.value !== 'all' || selectedTags.value.length > 0
 );
 
 function matchesFilters(entry: DshPluginInstallEntry): boolean {
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
-    const haystack = [entry.name, entry.spec || '', entry.key].join(' ').toLowerCase();
+    const haystack = [
+      entry.name,
+      entry.spec || '',
+      entry.key,
+      entry.description || '',
+      (entry.tags || []).join(' '),
+      entry.note || '',
+    ].join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
   if (statusFilter.value !== 'all' && entry.status !== statusFilter.value) return false;
+  if (selectedTags.value.length > 0 && !selectedTags.value.some(t => (entry.tags || []).includes(t))) return false;
   return true;
 }
 
@@ -690,6 +734,16 @@ const installButtons: { mode: DshInstallMode; label: string; icon: any }[] = [
 function resetFilters() {
   searchQuery.value = '';
   statusFilter.value = 'all';
+  selectedTags.value = [];
+}
+
+function toggleTagFilter(tag: string) {
+  const idx = selectedTags.value.indexOf(tag);
+  if (idx >= 0) {
+    selectedTags.value.splice(idx, 1);
+  } else {
+    selectedTags.value.push(tag);
+  }
 }
 
 async function checkUpdate(entry: DshPluginInstallEntry) {

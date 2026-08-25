@@ -63,10 +63,22 @@
           </template>
         </div>
 
-        <div v-if="metaLine" class="mt-1 flex items-center gap-1.5 flex-wrap">
-          <span v-if="entry.description" class="text-[10px] text-slate-400 dark:text-white/40 truncate max-w-[380px]" :title="entry.description">{{ entry.description }}</span>
-          <span v-for="tag in entry.tags" :key="tag" class="text-[9px] px-1.5 py-0.2 rounded-md font-mono border bg-slate-500/10 text-slate-600 dark:text-white/70 border-black/10 dark:border-white/10">{{ tag }}</span>
-          <span v-if="entry.note" class="text-[10px] text-amber-600 dark:text-amber-400 truncate max-w-[220px]" :title="entry.note">{{ entry.note }}</span>
+        <div v-if="metaLine" class="mt-1 space-y-1">
+          <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60 line-clamp-1" :title="entry.description">{{ entry.description }}</p>
+          <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
+            <button
+              v-for="tag in entry.tags"
+              :key="tag"
+              type="button"
+              :title="t('plugins.filterByTag', { tag })"
+              class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
+              @click.stop="emit('filter-tag', tag)"
+            >{{ tag }}</button>
+          </div>
+          <div v-if="entry.note" class="flex items-start gap-1 text-[11px] text-slate-600 dark:text-white/70">
+            <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
+            <span class="line-clamp-2 leading-snug break-words" :title="entry.note">{{ entry.note }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -109,10 +121,11 @@
           v-if="canEditMeta"
           type="button"
           :title="t('plugins.metaEdit')"
-          :class="actionCls()"
+          class="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 flex items-center gap-1 transition-colors duration-200"
           @click="openMetaEditor"
         >
-          <Pencil class="w-3.5 h-3.5" />
+          <Pencil class="w-3 h-3" />
+          <span>{{ t('plugins.metaEditShort') }}</span>
         </button>
         <button
           v-if="isOrphan"
@@ -245,11 +258,21 @@
         </div>
       </div>
 
-      <div v-if="metaLine" class="mt-2 space-y-1">
-        <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60" :title="entry.description">{{ entry.description }}</p>
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <span v-for="tag in entry.tags" :key="tag" class="text-[9px] px-1.5 py-0.2 rounded-md font-mono border bg-slate-500/10 text-slate-600 dark:text-white/70 border-black/10 dark:border-white/10">{{ tag }}</span>
-          <span v-if="entry.note" class="text-[10px] text-amber-600 dark:text-amber-400 truncate max-w-[180px]" :title="entry.note">{{ entry.note }}</span>
+      <div v-if="metaLine" class="mt-2 space-y-1.5">
+        <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60 line-clamp-2" :title="entry.description">{{ entry.description }}</p>
+        <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
+          <button
+            v-for="tag in entry.tags"
+            :key="tag"
+            type="button"
+            :title="t('plugins.filterByTag', { tag })"
+            class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
+            @click.stop="emit('filter-tag', tag)"
+          >{{ tag }}</button>
+        </div>
+        <div v-if="entry.note" class="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-white/70">
+          <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
+          <span class="line-clamp-2 leading-snug break-words" :title="entry.note">{{ entry.note }}</span>
         </div>
       </div>
     </div>
@@ -264,10 +287,11 @@
           v-if="canEditMeta"
           type="button"
           :title="t('plugins.metaEdit')"
-          :class="actionCls()"
+          class="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 flex items-center gap-1 transition-colors duration-200"
           @click="openMetaEditor"
         >
-          <Pencil class="w-3.5 h-3.5" />
+          <Pencil class="w-3 h-3" />
+          <span>{{ t('plugins.metaEditShort') }}</span>
         </button>
         <button
           v-if="isOrphan"
@@ -421,6 +445,7 @@ import {
   Download,
   AlertTriangle,
   Pencil,
+  StickyNote,
   Plus,
   X,
 } from 'lucide-vue-next';
@@ -446,6 +471,7 @@ const emit = defineEmits<{
   (e: 'check-update', entry: DshPluginInstallEntry): void;
   (e: 'update', entry: DshPluginInstallEntry): void;
   (e: 'save-meta', entry: DshPluginInstallEntry, tags: string[], note: string): void;
+  (e: 'filter-tag', tag: string): void;
 }>();
 
 const { t } = useI18n();

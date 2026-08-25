@@ -38,7 +38,7 @@
 | 编号 | 状态 | 优先级 | 工作项 | 描述 | 验收标准 | 关联 | 备注 |
 |---|---|---|---|---|---|---|---|
 | WI-001 | 已完成 | P2 | 后台常驻与系统托盘 | 应用支持最小化/关闭到系统托盘后台运行，托盘图标提供「显示主窗口 / 退出」菜单 | 关闭窗口后应用仍在托盘驻留；托盘可唤回主窗口与彻底退出 | `src-tauri`（Tauri 2 tray） | 仅桌面端；Web 模式不适用；✅ 已完成（2026-08-25，PR #21 合入） |
-| WI-002 | 已完成 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | ✅ 已完成（PR #23）；备注/tag 不入 `~/.dsh` 事实源，存 AgentHub 本地缓存 |
+| WI-002 | 已完成 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | ✅ 已完成（PR #23）；备注/tag 存同步镜像随插件同步，不入 `~/.dsh` 事实源 |
 | WI-003 | 已完成 | P1 | 一键启动 dsh + 错误堆栈复制 | 插件管理 / 一键诊断页新增「启动 dsh」按钮，启动失败时捕获完整 stderr 堆栈并支持一键复制 | 点击即启动 dsh；失败时展示堆栈并可复制 | 复用 `PLAN_DSH_PLUGIN_MANAGER` §4.3 堆栈解析、`DshDiagnose.vue` | ✅ 一键启动已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制；端口占用(EADDRINUSE)提示、不算失败 |
 | WI-004 | 待开发 | P3 | 首启卡顿定位与研究 | 定位首次启动程序卡顿的原因，产出结论与可执行的优化方向 | 给出卡顿原因说明 + 优化项列表（可转成后续工作项） | 前端初始化、Rust 启动、sync / 扫描 | 先研究后决策，本轮不改代码；优先级后移（2026-08-25） |
 | WI-005 | 待开发 | P1 | 插件选择性同步（按卡片勾选） | 同步从「整份 profile 全量镜像」细化为「每条插件卡片可独立勾选是否同步」 | 卡片有同步开关；推送/拉取只包含勾选条目 | `dsh_plugins_sync.rs`、`dshPlugins.ts`、`DshPluginRow/List.vue` | 内置包/不可移植依赖仍按现有规则剔除；→ 并入 WI-013 |
@@ -71,9 +71,9 @@
 
 - **背景**：插件卡片目前只展示 name / spec / version / portability，缺少描述与自定义备注。
 - **方案要点**：自动读 `node_modules/<pkg>/package.json` 的 `description` 回填；用户可为条目打 tag 或写备注。
-- **关键决策（已锁定）**：备注/tag 存 AgentHub 本地缓存（类似 `dsh_install_state.json`），**不写进 `~/.dsh` 事实源**，避免污染同步镜像；缓存文件加入 `.gitignore`。
-- **依赖**：`DshPluginEntry` 类型扩展（Rust/Node 双端）、`DshPluginList.vue` 卡片交互、本地缓存读写。
-- **风险/边界**：`description` 缺失兜底；备注与同步镜像边界要清晰（纯本地、不参与对账）。
+- **关键决策（已锁定）**：备注/tag 存同步镜像 per-profile 文件 `dsh/profiles/<name>/agenthub-meta.json`，随 DSH 插件同步 push/pull 远程同步；**不写进 `~/.dsh` 的 `package.json` / `cordis.patch.yml` 事实源**。
+- **依赖**：`DshPluginEntry` 类型扩展（Rust/Node 双端）、`DshPluginList.vue` 卡片交互与标签筛选、同步镜像读写。
+- **风险/边界**：`description` 缺失兜底；备注/tag 是同步 git 树内的额外文件，不参与插件级对账。
 
 ### WI-003 — 一键启动 dsh + 错误堆栈复制
 
@@ -303,7 +303,7 @@
 | 2026-08-25 | WI-001 完成 | 系统托盘与后台常驻经 **PR #21** 合入 main（mergeCommit `bde3f84`）：`tray-icon` 特性 + 托盘菜单（显示主窗口/退出）+ 关窗驻留 + 左键唤回（Windows/Linux）+ macOS 平台默认 + WI-007 埋点 + HANDOVER §8F + CHANGELOG；CI 全绿（Frontend Typecheck & Build + Rust cargo check）；因作者不能自批，经用户确认用 `--admin` 合入；WI-001 标记「已完成」 |
 | 2026-08-25 | WI-008 账目校正 + WI-004 后移 | 校正 WI-008 状态为「已完成」（PR #22 / merge `8e44dc4`，定时同步 + 同步历史，冲突解决随 WI-013）；WI-004 优先级 P2 → P3 并补「优先级后移（2026-08-25）」备注 |
 | 2026-08-25 | WI-008 完成 | 同步中心增强（定时同步 + 同步历史）合入 main（PR #22，merge `8e44dc4`）：定时同步 + 同步历史 + 单飞守卫，双端对齐；冲突解决随 WI-013 落地 |
-| 2026-08-25 | WI-002 完成 | 插件卡片 tag / 备注 / 描述 经 **PR #23** 提交合入（分支 `feature/wi-002-plugin-card-meta`）：description 回填 + tag/备注本地缓存（不入 `~/.dsh`、不入同步镜像）+ 双端 API + 前端编辑弹窗 + zh/en i18n；版本保持 v1.0.6 |
+| 2026-08-25 | WI-002 完成 | 插件卡片 tag / 备注 / 描述 经 **PR #23** 提交合入（分支 `feature/wi-002-plugin-card-meta`）：description 回填 + tag 可点击筛选 + 顶部标签筛选条 + 备注行 + tag/备注存同步镜像随插件同步（不入 `~/.dsh` 事实源）+ 双端 API + 前端编辑弹窗 + zh/en i18n；版本保持 v1.0.6 |
 
 ---
 
