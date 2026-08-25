@@ -6,6 +6,7 @@ import jsyaml from 'js-yaml';
 import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as appDataDir } from './appPaths';
+import { logInfo } from './logger';
 import type {
   DshAlignDecision,
   DshAlignDirection,
@@ -956,6 +957,7 @@ function parseGitPrepareNotAllowed(output: string): string[] {
 
 export async function installDshPluginsV2(profile: string, mode: DshInstallMode, onLine?: (line: string) => void): Promise<DshInstallReport> {
   const profileName = (profile || '').trim() || 'web';
+  logInfo('install', `开始安装 DSH 插件（profile=${profileName}, mode=${mode}）`);
   const cfg = readConfigFile();
   const pnpmCmd = resolvePnpmCommand(cfg);
   if (!pnpmCmd) {
@@ -2595,6 +2597,7 @@ export function createDshConfigSnapshot(profile: string, trigger: DshSnapshotTri
   fs.writeFileSync(path.join(snapDir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
 
   pruneSnapshots(profileName);
+  logInfo('snapshot', `创建配置快照 ${id}（profile=${profileName}, trigger=${trigger}）`);
   return meta;
 }
 

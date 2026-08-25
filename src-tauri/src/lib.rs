@@ -605,7 +605,7 @@ fn export_app_logs() -> Result<AppLogExportResult, String> {
     ));
     std::fs::copy(&src, &export_path).map_err(|e| format!("导出日志失败: {}", e))?;
     let size = std::fs::metadata(&export_path).map(|m| m.len()).unwrap_or(0);
-    logger::log_info("startup", &format!("用户导出日志快照: {}", export_path.to_string_lossy()));
+    crate::log_info!("startup", "用户导出日志快照: {}", export_path.to_string_lossy());
     Ok(AppLogExportResult {
         export_path: export_path.to_string_lossy().to_string(),
         size,
