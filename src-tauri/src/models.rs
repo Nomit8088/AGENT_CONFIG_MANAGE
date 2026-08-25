@@ -114,6 +114,47 @@ pub struct SyncRepoValidation {
     pub resolved_branch: Option<String>,
 }
 
+/// 定时同步配置（WI-008）：应用运行期间按间隔静默 fast-forward 拉取。
+/// MVP 仅实现 `interval` 模式；`cron` 为预留字段（未实现，保存时拒绝）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncSchedule {
+    pub enabled: bool,
+    pub mode: String, // "interval"（MVP）| "cron"（预留）
+    #[serde(rename = "intervalMinutes", default, skip_serializing_if = "Option::is_none")]
+    pub interval_minutes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cron: Option<String>,
+    #[serde(default)]
+    pub scopes: Vec<String>, // ["skills", "dsh"]
+}
+
+impl Default for SyncSchedule {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: "interval".to_string(),
+            interval_minutes: Some(30),
+            cron: None,
+            scopes: vec!["skills".to_string(), "dsh".to_string()],
+        }
+    }
+}
+
+/// 单条同步历史（WI-008）：手动 / 启动 / 定时触发的一次同步动作。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncHistoryEntry {
+    pub id: String,
+    pub at: u64,          // epoch ms
+    pub trigger: String,  // "manual" | "startup" | "scheduled"
+    pub scope: String,    // "skills" | "dsh"
+    pub action: String,   // "pull" | "push" | "apply" | "align" | "reset"
+    pub result: String,   // "success" | "error" | "skipped"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 // ==================== DSH 插件中心 ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -567,6 +608,8 @@ pub struct AppConfig {
     pub dsh_plugins: Option<DshPluginsConfig>,
     #[serde(default, rename = "sync_repo")]
     pub sync_repo: Option<SyncRepoConfig>,
+    #[serde(default, rename = "sync_schedule")]
+    pub sync_schedule: Option<SyncSchedule>,
 }
 
 impl Default for AppConfig {
@@ -583,6 +626,7 @@ impl Default for AppConfig {
             skills_sync: None,
             dsh_plugins: None,
             sync_repo: None,
+            sync_schedule: Some(SyncSchedule::default()),
         }
     }
 }

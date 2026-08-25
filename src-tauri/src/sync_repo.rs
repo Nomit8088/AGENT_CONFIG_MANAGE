@@ -16,6 +16,7 @@ agents.json
 projects.json
 dsh_install_state.json
 dsh_version_history.json
+sync_history.json
 backups/
 logs/
 *.log

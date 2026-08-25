@@ -12,6 +12,12 @@ All notable changes to AgentHub are documented in this file.
 - 前端日志查看器（`LogViewerModal.vue`）：设置页新增「应用日志」入口，支持级别过滤、刷新、导出快照、复制日志路径；含「日志含本机路径，分享/导出前注意脱敏」提示；zh/en 双语文案。
 - 系统托盘与后台常驻（WI-001）：Tauri 桌面端启用 `tray-icon` 特性，关闭主窗口隐藏到托盘后台驻留而非退出；托盘图标菜单「显示主窗口 / 退出」，可唤回主窗口或彻底退出；Windows/Linux 托盘左键单击唤回主窗口，macOS 遵循平台默认（左键弹出菜单）。
 - 托盘关键事件（创建 / 唤回 / 退出 / 关窗驻留）复用 WI-007 日志系统，模块标签 `tray`；纯桌面端能力，Web 模式（vite dev）完全不受影响。
+- 同步中心增强（WI-008）：新增定时同步（interval 模式，应用运行期间按间隔静默 fast-forward 拉取，禁止自动 push）与同步历史（`sync_history.json`，最新在前，保留最近 100 条，可查看/清空）。
+- 定时同步配置 `sync_schedule`（`enabled` / `mode` / `intervalMinutes` / `scopes`）挂在 `config.json` 的 `sync_repo` 同级，保存后热重排调度器；Rust 后台线程 + Node `setInterval` 双端实现，时间来源 `chrono` / `Date.now`，不依赖系统调度器。
+- 单飞守卫（Rust `sync_guard.rs` / Node `syncFlight.ts`）覆盖手动与定时同步，避免并发操作同一 `.git`，忙时跳过本次并记为 `skipped`。
+- 双端 API 对齐：Rust 新增 `get_sync_schedule` / `set_sync_schedule` / `get_sync_history` / `clear_sync_history` 命令，Node 同步新增 `GET/POST /api/sync/schedule` 与 `GET/DELETE /api/sync/history` 路由。
+- 同步历史覆盖 pull / push / apply / align / reset 动作，trigger 区分 manual / startup / scheduled；`sync_history.json` 加入共享仓库 `.gitignore`（双端统一补齐 `dsh_version_history.json` / `logs/` 等条目）。
+- 前端同步中心新增「定时同步配置区 + 同步历史区」（`SyncView.vue`），遵循 DESIGN_GUIDELINES（1px 细边框、`dark:` 前缀、分段滑块开关），全部文案走 `t()` + zh/en。
 
 ## [1.0.6] - 2026-08-24
 

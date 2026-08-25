@@ -82,6 +82,15 @@ import {
   exportAppLogs,
   getAppLogPath,
 } from './src/server/logger';
+import {
+  getSyncSchedule,
+  setSyncSchedule,
+  startSyncScheduler,
+} from './src/server/syncSchedule';
+import {
+  getSyncHistory,
+  clearSyncHistory,
+} from './src/server/syncHistory';
 
 function localApiPlugin(): Plugin {
   return {
@@ -89,6 +98,7 @@ function localApiPlugin(): Plugin {
     configureServer(server) {
       initStorage();
       initLogger();
+      startSyncScheduler();
 
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/')) {
@@ -685,6 +695,32 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/sync/repo/unbind' && req.method === 'POST') {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(unbindSyncRepo()));
+            }
+
+            // GET /api/sync/schedule (定时同步配置)
+            if (pathname === '/api/sync/schedule' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSyncSchedule()));
+            }
+
+            // POST /api/sync/schedule (保存定时同步配置并热重排调度器)
+            if (pathname === '/api/sync/schedule' && req.method === 'POST') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(setSyncSchedule(jsonBody)));
+            }
+
+            // GET /api/sync/history (同步历史，默认最近 50 条)
+            if (pathname === '/api/sync/history' && req.method === 'GET') {
+              const limit = url.searchParams.get('limit');
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getSyncHistory(limit ? parseInt(limit, 10) : undefined)));
+            }
+
+            // DELETE /api/sync/history (清空同步历史)
+            if (pathname === '/api/sync/history' && req.method === 'DELETE') {
+              clearSyncHistory();
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
             }
 
             // GET /api/dsh/plugins/scan

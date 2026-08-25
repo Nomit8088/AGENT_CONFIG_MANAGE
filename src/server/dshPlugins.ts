@@ -7,6 +7,8 @@ import { detectSystemProxy, gitProxyArgs, runGit, computeGitSyncDiff } from './g
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as appDataDir } from './appPaths';
 import { logInfo } from './logger';
+import { tryAcquireSyncFlight, releaseSyncFlight } from './syncFlight';
+import { recordSyncHistory } from './syncHistory';
 import type {
   DshAlignDecision,
   DshAlignDirection,
@@ -35,6 +37,8 @@ import type {
   DshVersionRollbackResult,
   DshVersionUpgradeResult,
   SkillsSyncStatus,
+  SyncHistoryAction,
+  SyncTrigger,
 } from '../types';
 
 // ==================== 路径与命令解析 ====================
@@ -1845,7 +1849,9 @@ agents.json
 projects.json
 dsh_install_state.json
 dsh_version_history.json
+sync_history.json
 backups/
+logs/
 *.log
 .DS_Store
 Thumbs.db
@@ -2010,12 +2016,29 @@ export function getDshPluginsSyncDiff() {
   return computeGitSyncDiff(root, 'dsh', branch);
 }
 
-function updateLastSync(status: string, error?: string): void {
+function normalizeTrigger(trigger?: string): SyncTrigger {
+  if (trigger === 'startup' || trigger === 'scheduled') return trigger;
+  return 'manual';
+}
+
+function updateLastSync(
+  status: 'success' | 'error',
+  trigger: SyncTrigger,
+  action: SyncHistoryAction,
+  error?: string,
+  summary?: string,
+): void {
   const syncCfg = readDshSyncConfig();
   syncCfg.lastSyncStatus = status;
   syncCfg.lastSyncAt = Date.now();
   syncCfg.lastError = error;
   saveDshSyncConfig(syncCfg);
+  recordSyncHistory(trigger, 'dsh', action, status, summary, error);
+}
+
+function skipForFlight(trigger: SyncTrigger, action: SyncHistoryAction): string {
+  recordSyncHistory(trigger, 'dsh', action, 'skipped', '另一个同步任务正在进行');
+  return 'E_SYNC_BUSY';
 }
 
 export function initDshPluginsSync(remoteUrl: string, branch?: string): SkillsSyncStatus {
@@ -2062,33 +2085,47 @@ export function initDshPluginsSync(remoteUrl: string, branch?: string): SkillsSy
   return getDshPluginsSyncStatus();
 }
 
-export function pullDshPluginsSync(): SkillsSyncStatus {
+export function pullDshPluginsSync(trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = syncRoot();
   const syncCfg = readDshSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'dsh', 'pull', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveDshRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'dsh', 'pull', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  const dirty = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
-  if (dirty > 0) {
-    const msg = `E_SYNC_DIRTY::${dirty}`;
-    updateLastSync('error', msg);
-    throw new Error(msg);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'pull'));
   }
 
-  const branch = effectiveDshBranch(syncCfg);
   try {
+    const dirty = gitDirtyCountPaths(root, ['dsh', '.gitignore']);
+    if (dirty > 0) {
+      const msg = `E_SYNC_DIRTY::${dirty}`;
+      updateLastSync('error', trig, 'pull', msg);
+      throw new Error(msg);
+    }
+
+    const branch = effectiveDshBranch(syncCfg);
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
-    updateLastSync('success');
-    return getDshPluginsSyncStatus();
+    const st = getDshPluginsSyncStatus();
+    const summary = `ahead ${st.ahead} / behind ${st.behind}`;
+    updateLastSync('success', trig, 'pull', undefined, summary);
+    return st;
   } catch (e: any) {
-    const msg = `E_SYNC_PULL_FAILED::${e.message}`;
-    updateLastSync('error', msg);
-    throw new Error(msg);
+    if (!String(e?.message || e).startsWith('E_SYNC_DIRTY')) {
+      const msg = `E_SYNC_PULL_FAILED::${e?.message || e}`;
+      updateLastSync('error', trig, 'pull', msg);
+      throw new Error(msg);
+    }
+    throw e;
+  } finally {
+    releaseSyncFlight();
   }
 }
 
@@ -2225,42 +2262,53 @@ export function snapshotLocalToMirror(): string[] {
   return warnings;
 }
 
-export function pushDshPluginsSync(message?: string): SkillsSyncStatus {
+export function pushDshPluginsSync(message?: string, trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = syncRoot();
   const syncCfg = readDshSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'dsh', 'push', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveDshRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'dsh', 'push', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  snapshotLocalToMirror();
-
-  if (fs.existsSync(dshMirrorDir())) {
-    gitExec(root, ['add', '-A', '--', 'dsh']);
-  }
-  // 共享的 .gitignore 有变更时也随插件同步提交，避免被遗漏
-  if (fs.existsSync(path.join(root, '.gitignore'))) {
-    gitExec(root, ['add', '-A', '--', '.gitignore']);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'push'));
   }
 
-  const staged = gitTry(root, ['diff', '--cached', '--name-only']);
-  if (staged && staged.trim()) {
-    const msg = (message || '').trim() || `sync dsh plugins [${new Date().toLocaleString()}]`;
-    gitExec(root, ['commit', '-m', msg]);
-  }
-
-  const branch = effectiveDshBranch(syncCfg);
   try {
+    snapshotLocalToMirror();
+
+    if (fs.existsSync(dshMirrorDir())) {
+      gitExec(root, ['add', '-A', '--', 'dsh']);
+    }
+    // 共享的 .gitignore 有变更时也随插件同步提交，避免被遗漏
+    if (fs.existsSync(path.join(root, '.gitignore'))) {
+      gitExec(root, ['add', '-A', '--', '.gitignore']);
+    }
+
+    const staged = gitTry(root, ['diff', '--cached', '--name-only']);
+    if (staged && staged.trim()) {
+      const msg = (message || '').trim() || `sync dsh plugins [${new Date().toLocaleString()}]`;
+      gitExec(root, ['commit', '-m', msg]);
+    }
+
+    const branch = effectiveDshBranch(syncCfg);
     gitExec(root, ['push', '-u', 'origin', branch]);
-    updateLastSync('success');
+    const head = gitTry(root, ['rev-parse', '--short', 'HEAD']).trim();
+    const summary = `pushed ${head} (branch=${branch})`;
+    updateLastSync('success', trig, 'push', undefined, summary);
     return getDshPluginsSyncStatus();
   } catch (e: any) {
-    const msg = `E_SYNC_PUSH_FAILED::${e.message}`;
-    updateLastSync('error', msg);
+    const msg = `E_SYNC_PUSH_FAILED::${e?.message || e}`;
+    updateLastSync('error', trig, 'push', msg);
     throw new Error(msg);
+  } finally {
+    releaseSyncFlight();
   }
 }
 
@@ -2363,6 +2411,19 @@ export function reconcileDshPlugins(): DshPluginDiff {
 }
 
 export async function alignDshPlugins(profile?: string, decisions?: DshAlignDecision[]): Promise<void> {
+  const trigger: SyncTrigger = 'manual';
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trigger, 'align'));
+  }
+
+  try {
+    await alignDshPluginsInner(profile, decisions, trigger);
+  } finally {
+    releaseSyncFlight();
+  }
+}
+
+async function alignDshPluginsInner(profile: string | undefined, decisions: DshAlignDecision[] | undefined, trigger: SyncTrigger): Promise<void> {
   const profilesDir = path.join(resolveDshHome(), 'profiles');
   const mirrorRoot = path.join(dshMirrorDir(), 'profiles');
 
@@ -2378,6 +2439,7 @@ export async function alignDshPlugins(profile?: string, decisions?: DshAlignDeci
   const targets = (profile && profile.trim())
     ? [profile.trim()]
     : listProfileDirs(mirrorRoot);
+  let alignedProfiles = 0;
 
   for (const name of targets) {
     const localDir = path.join(profilesDir, name);
@@ -2479,7 +2541,7 @@ export async function alignDshPlugins(profile?: string, decisions?: DshAlignDeci
       if (!report.ok) {
         throw new Error(report.failed.map(f => `${f.name}: ${f.reason}`).join('\n'));
       }
-    } catch (e) {
+    } catch (e: any) {
       // 安装失败：回滚对齐写盘前的本地配置
       for (const [f, content] of Object.entries(snapshots)) {
         const target = path.join(localDir, f);
@@ -2495,9 +2557,14 @@ export async function alignDshPlugins(profile?: string, decisions?: DshAlignDeci
       }
       // 回滚后重对账 node_modules，清理对齐安装残留（best-effort）
       await reconcileNodeModules(localDir);
+      recordSyncHistory(trigger, 'dsh', 'align', 'error', undefined, e?.message || String(e));
       throw e;
     }
+    alignedProfiles += 1;
   }
+
+  const summary = `${alignedProfiles} profiles aligned`;
+  recordSyncHistory(trigger, 'dsh', 'align', 'success', summary);
 }
 
 // ==================== 配置快照与回滚 (WI-006) ====================

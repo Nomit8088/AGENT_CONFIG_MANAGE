@@ -27,8 +27,11 @@ import {
   SkillsSyncDecision,
   SkillsSyncStatus,
   SyncDiffEntry,
+  SyncHistoryEntry,
   SyncRepoConfig,
   SyncRepoValidation,
+  SyncSchedule,
+  SyncTrigger,
   ToastMessage,
   UnmanagedSkill,
 } from '../types';
@@ -123,6 +126,18 @@ export const useAppStore = defineStore('app', {
     syncRepoValidation: null as SyncRepoValidation | null,
     syncRepoValidatedKey: '',
     syncRepoUnbinding: false,
+
+    // 定时同步 + 同步历史 (WI-008)
+    syncSchedule: {
+      enabled: false,
+      mode: 'interval' as const,
+      intervalMinutes: 30,
+      scopes: ['skills', 'dsh'] as ('skills' | 'dsh')[],
+    } as SyncSchedule,
+    syncScheduleSaving: false,
+    syncHistory: [] as SyncHistoryEntry[],
+    syncHistoryLoading: false,
+    syncHistoryClearing: false,
 
     // DSH 插件中心
     dshPluginsScan: null as DshPluginScanResult | null,
@@ -302,11 +317,12 @@ export const useAppStore = defineStore('app', {
         // Skills Sync: load status, and if enabled, try a silent fast-forward pull on startup
         await this.loadSyncRepo().catch(() => {});
         this.loadSkillsSyncStatus().catch(() => {});
+        this.loadSyncSchedule().catch(() => {});
         if (
           this.config.skills_sync?.autoPullOnStartup &&
           (this.syncRepo?.remoteUrl || this.config.skills_sync.remoteUrl)
         ) {
-          this.pullSkillsSync(false).catch(() => {});
+          this.pullSkillsSync(false, 'startup').catch(() => {});
         }
 
         // DSH 插件中心：静默加载扫描与同步状态（失败不阻塞主流程）
@@ -316,7 +332,7 @@ export const useAppStore = defineStore('app', {
           this.config.dsh_plugins?.sync?.autoPullOnStartup &&
           (this.syncRepo?.remoteUrl || this.config.dsh_plugins?.sync?.remoteUrl)
         ) {
-          this.pullDshPluginsSync(false).catch(() => {});
+          this.pullDshPluginsSync(false, 'startup').catch(() => {});
         }
 
         api.onExternalSkillCreated((path) => {
@@ -492,6 +508,42 @@ export const useAppStore = defineStore('app', {
       return this.syncRepo;
     },
 
+    async loadSyncSchedule() {
+      this.syncSchedule = await api.getSyncSchedule();
+      return this.syncSchedule;
+    },
+
+    async saveSyncSchedule(schedule: SyncSchedule) {
+      this.syncScheduleSaving = true;
+      try {
+        this.syncSchedule = await api.setSyncSchedule(schedule);
+        this.config.sync_schedule = this.syncSchedule;
+        return this.syncSchedule;
+      } finally {
+        this.syncScheduleSaving = false;
+      }
+    },
+
+    async loadSyncHistory(limit?: number) {
+      this.syncHistoryLoading = true;
+      try {
+        this.syncHistory = await api.getSyncHistory(limit);
+        return this.syncHistory;
+      } finally {
+        this.syncHistoryLoading = false;
+      }
+    },
+
+    async clearSyncHistory() {
+      this.syncHistoryClearing = true;
+      try {
+        await api.clearSyncHistory();
+        this.syncHistory = [];
+      } finally {
+        this.syncHistoryClearing = false;
+      }
+    },
+
     async validateSyncRepo(remoteUrl: string, branch?: string) {
       const key = `${remoteUrl.trim()}||${branch?.trim() || 'main'}`;
       this.syncRepoValidating = true;
@@ -579,10 +631,10 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    async pullSkillsSync(showToast = true) {
+    async pullSkillsSync(showToast = true, trigger: SyncTrigger = 'manual') {
       this.skillsSyncLoading = true;
       try {
-        this.skillsSyncStatus = await api.pullSkillsSync();
+        this.skillsSyncStatus = await api.pullSkillsSync(trigger);
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         if (showToast) {
@@ -610,7 +662,7 @@ export const useAppStore = defineStore('app', {
     async pushSkillsSync(message?: string, paths?: string[]) {
       this.skillsSyncLoading = true;
       try {
-        this.skillsSyncStatus = await api.pushSkillsSync(message, paths);
+        this.skillsSyncStatus = await api.pushSkillsSync(message, paths, 'manual');
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
@@ -672,7 +724,7 @@ export const useAppStore = defineStore('app', {
     async resetSkillsSyncToRemote() {
       this.skillsSyncLoading = true;
       try {
-        this.skillsSyncStatus = await api.resetSkillsSyncToRemote();
+        this.skillsSyncStatus = await api.resetSkillsSyncToRemote('manual');
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
@@ -696,7 +748,7 @@ export const useAppStore = defineStore('app', {
     async applySkillsFromRemote(decisions: SkillsSyncDecision[]) {
       this.skillsSyncLoading = true;
       try {
-        this.skillsSyncStatus = await api.applySkillsFromRemote(decisions);
+        this.skillsSyncStatus = await api.applySkillsFromRemote(decisions, 'manual');
         await this.loadSkills();
         this.loadSkillsSyncDiff().catch(() => {});
         this.showToast({
@@ -1070,10 +1122,10 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    async pullDshPluginsSync(showToast = true) {
+    async pullDshPluginsSync(showToast = true, trigger: SyncTrigger = 'manual') {
       this.dshPluginsSyncLoading = true;
       try {
-        this.dshPluginsSyncStatus = await api.pullDshPluginsSync();
+        this.dshPluginsSyncStatus = await api.pullDshPluginsSync(trigger);
         this.loadDshPluginsSyncDiff().catch(() => {});
         if (showToast) {
           this.showToast({
@@ -1100,7 +1152,7 @@ export const useAppStore = defineStore('app', {
     async pushDshPluginsSync(message?: string) {
       this.dshPluginsSyncLoading = true;
       try {
-        this.dshPluginsSyncStatus = await api.pushDshPluginsSync(message);
+        this.dshPluginsSyncStatus = await api.pushDshPluginsSync(message, 'manual');
         await this.reconcileDshPlugins();
         this.loadDshPluginsSyncDiff().catch(() => {});
         this.showToast({
