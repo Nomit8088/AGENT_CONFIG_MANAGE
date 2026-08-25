@@ -29,8 +29,11 @@ import {
   SkillsSyncDecision,
   SkillsSyncStatus,
   SyncDiffEntry,
+  SyncHistoryEntry,
   SyncRepoConfig,
   SyncRepoValidation,
+  SyncSchedule,
+  SyncTrigger,
   UnmanagedSkill,
   ValidationResult,
 } from '../types';
@@ -278,18 +281,18 @@ export const api = {
     return requestApi<SkillsSyncStatus>('/api/skills/sync/init', 'POST', { remoteUrl, branch });
   },
 
-  async pullSkillsSync(): Promise<SkillsSyncStatus> {
+  async pullSkillsSync(trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('pull_skills_sync');
+      return invokeTauri<SkillsSyncStatus>('pull_skills_sync', { trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/skills/sync/pull', 'POST');
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/pull', 'POST', { trigger });
   },
 
-  async pushSkillsSync(message?: string, paths?: string[]): Promise<SkillsSyncStatus> {
+  async pushSkillsSync(message?: string, paths?: string[], trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('push_skills_sync', { message, paths });
+      return invokeTauri<SkillsSyncStatus>('push_skills_sync', { message, paths, trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/skills/sync/push', 'POST', { message, paths });
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/push', 'POST', { message, paths, trigger });
   },
 
   async setSkillsSyncAutoPull(enabled: boolean): Promise<void> {
@@ -306,11 +309,11 @@ export const api = {
     return requestApi<string>('/api/skills/sync/test', 'POST');
   },
 
-  async resetSkillsSyncToRemote(): Promise<SkillsSyncStatus> {
+  async resetSkillsSyncToRemote(trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('reset_skills_sync_to_remote');
+      return invokeTauri<SkillsSyncStatus>('reset_skills_sync_to_remote', { trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/skills/sync/reset', 'POST');
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/reset', 'POST', { trigger });
   },
 
   async fetchSkillsSync(): Promise<void> {
@@ -320,11 +323,11 @@ export const api = {
     return requestApi<void>('/api/skills/sync/fetch', 'POST');
   },
 
-  async applySkillsFromRemote(decisions: SkillsSyncDecision[]): Promise<SkillsSyncStatus> {
+  async applySkillsFromRemote(decisions: SkillsSyncDecision[], trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('apply_skills_from_remote', { decisions });
+      return invokeTauri<SkillsSyncStatus>('apply_skills_from_remote', { decisions, trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/skills/sync/apply', 'POST', { decisions });
+    return requestApi<SkillsSyncStatus>('/api/skills/sync/apply', 'POST', { decisions, trigger });
   },
 
   async getSkillsSyncDiff(): Promise<SyncDiffEntry[]> {
@@ -332,6 +335,37 @@ export const api = {
       return invokeTauri<SyncDiffEntry[]>('get_skills_sync_diff');
     }
     return requestApi<SyncDiffEntry[]>('/api/skills/sync/diff');
+  },
+
+  // ==================== 定时同步 + 同步历史 (WI-008) ====================
+
+  async getSyncSchedule(): Promise<SyncSchedule> {
+    if (isTauri()) {
+      return invokeTauri<SyncSchedule>('get_sync_schedule');
+    }
+    return requestApi<SyncSchedule>('/api/sync/schedule');
+  },
+
+  async setSyncSchedule(schedule: SyncSchedule): Promise<SyncSchedule> {
+    if (isTauri()) {
+      return invokeTauri<SyncSchedule>('set_sync_schedule', { schedule });
+    }
+    return requestApi<SyncSchedule>('/api/sync/schedule', 'POST', schedule);
+  },
+
+  async getSyncHistory(limit?: number): Promise<SyncHistoryEntry[]> {
+    if (isTauri()) {
+      return invokeTauri<SyncHistoryEntry[]>('get_sync_history', { limit });
+    }
+    const query = typeof limit === 'number' ? `?limit=${limit}` : '';
+    return requestApi<SyncHistoryEntry[]>(`/api/sync/history${query}`);
+  },
+
+  async clearSyncHistory(): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('clear_sync_history');
+    }
+    return requestApi<void>('/api/sync/history', 'DELETE');
   },
 
   // ==================== DSH 插件中心 ====================
@@ -465,18 +499,18 @@ export const api = {
     return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/init', 'POST', { remoteUrl, branch });
   },
 
-  async pullDshPluginsSync(): Promise<SkillsSyncStatus> {
+  async pullDshPluginsSync(trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('pull_dsh_plugins_sync');
+      return invokeTauri<SkillsSyncStatus>('pull_dsh_plugins_sync', { trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/pull', 'POST');
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/pull', 'POST', { trigger });
   },
 
-  async pushDshPluginsSync(message?: string): Promise<SkillsSyncStatus> {
+  async pushDshPluginsSync(message?: string, trigger: SyncTrigger = 'manual'): Promise<SkillsSyncStatus> {
     if (isTauri()) {
-      return invokeTauri<SkillsSyncStatus>('push_dsh_plugins_sync', { message });
+      return invokeTauri<SkillsSyncStatus>('push_dsh_plugins_sync', { message, trigger });
     }
-    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/push', 'POST', { message });
+    return requestApi<SkillsSyncStatus>('/api/dsh/plugins/sync/push', 'POST', { message, trigger });
   },
 
   async setDshPluginsSyncAutoPull(enabled: boolean): Promise<void> {

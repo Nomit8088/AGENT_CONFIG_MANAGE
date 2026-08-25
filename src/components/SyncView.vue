@@ -392,6 +392,166 @@
         </div>
       </div>
 
+      <!-- 定时同步 + 同步历史 (WI-008) -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        <!-- 定时同步配置 -->
+        <div class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 border-t-[#0a84ff]/60 overflow-hidden shadow-xs transition-colors duration-200">
+          <div class="flex items-center justify-between gap-2 px-4 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/8 dark:border-white/8">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-[#0a84ff]/10 border border-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center shrink-0">
+                <Clock class="w-3.5 h-3.5" />
+              </div>
+              <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.scheduleTitle') }}</h3>
+            </div>
+            <span
+              :class="[
+                'px-1.5 py-0.5 rounded-md text-[10px] font-mono border transition-colors duration-200',
+                scheduleDraft.enabled
+                  ? 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30'
+                  : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/10'
+              ]"
+            >
+              {{ scheduleDraft.enabled ? $t('common.on') : $t('common.off') }}
+            </span>
+          </div>
+
+          <div class="p-4 space-y-3">
+            <p class="text-[11px] leading-relaxed text-slate-500 dark:text-white/50">{{ $t('sync.scheduleDesc') }}</p>
+
+            <div class="flex items-center justify-between py-2 border-t border-black/8 dark:border-white/8">
+              <div>
+                <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('sync.scheduleEnabled') }}</div>
+                <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('sync.scheduleEnabledDesc') }}</div>
+              </div>
+              <div class="flex items-center p-0.5 rounded-lg bg-black/5 dark:bg-[#121316] border border-black/10 dark:border-white/10 text-xs">
+                <button
+                  type="button"
+                  @click="scheduleDraft.enabled = true"
+                  :class="[
+                    'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+                    scheduleDraft.enabled
+                      ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                      : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+                  ]"
+                >
+                  <span>{{ $t('common.on') }}</span>
+                </button>
+                <button
+                  type="button"
+                  @click="scheduleDraft.enabled = false"
+                  :class="[
+                    'px-2.5 py-1 rounded-md transition-colors duration-200 font-medium flex items-center gap-1',
+                    !scheduleDraft.enabled
+                      ? 'bg-white dark:bg-[#282a32] text-slate-900 dark:text-white/95 font-semibold shadow-xs'
+                      : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80'
+                  ]"
+                >
+                  <span>{{ $t('common.off') }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="scheduleDraft.enabled" class="space-y-3">
+              <div class="grid grid-cols-2 gap-2">
+                <label class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8">
+                  <span class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('sync.scheduleIntervalLabel') }}</span>
+                  <div class="mt-1 flex items-center gap-1.5">
+                    <input
+                      v-model.number="scheduleDraft.intervalMinutes"
+                      type="number"
+                      min="5"
+                      step="1"
+                      class="w-full px-2 py-1 rounded-md bg-white dark:bg-[#1c1d22] border border-black/10 dark:border-white/10 text-xs font-mono text-slate-900 dark:text-white/90 focus:outline-none focus:border-[#0a84ff]/60 transition-colors duration-200"
+                    />
+                    <span class="text-[10px] text-slate-400 dark:text-white/40 shrink-0">{{ $t('sync.minutesUnit') }}</span>
+                  </div>
+                </label>
+                <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 space-y-1.5">
+                  <span class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('sync.scheduleScopes') }}</span>
+                  <label class="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-white/80 cursor-pointer">
+                    <input v-model="scheduleDraft.scopes" type="checkbox" value="skills" class="accent-[#0a84ff]" />
+                    <span>{{ $t('sync.scopeSkills') }}</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-white/80 cursor-pointer">
+                    <input v-model="scheduleDraft.scopes" type="checkbox" value="dsh" class="accent-[#0a84ff]" />
+                    <span>{{ $t('sync.scopeDsh') }}</span>
+                  </label>
+                </div>
+              </div>
+              <p class="text-[10px] leading-relaxed text-slate-400 dark:text-white/50">{{ $t('sync.schedulePullOnly') }}</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+              <button
+                @click="handleSaveSchedule"
+                :disabled="store.syncScheduleSaving"
+                class="px-3 py-2 rounded-lg bg-[#0a84ff] hover:bg-[#0a84ff]/90 text-white text-xs font-medium border border-[#0a84ff] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Save class="w-3.5 h-3.5" />
+                <span>{{ store.syncScheduleSaving ? $t('common.saving') : $t('sync.scheduleSave') }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 同步历史 -->
+        <div class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 border-t-[#8b5cf6]/60 overflow-hidden shadow-xs transition-colors duration-200">
+          <div class="flex items-center justify-between gap-2 px-4 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/8 dark:border-white/8">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 text-[#8b5cf6] flex items-center justify-center shrink-0">
+                <History class="w-3.5 h-3.5" />
+              </div>
+              <h3 class="font-serif font-semibold text-sm text-slate-900 dark:text-white/95">{{ $t('sync.historyTitle') }}</h3>
+              <span class="text-[10px] font-mono text-slate-400 dark:text-white/40">{{ store.syncHistory.length }}</span>
+            </div>
+            <button
+              @click="handleClearHistory"
+              :disabled="store.syncHistoryClearing || store.syncHistory.length === 0"
+              :class="[
+                'px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors duration-200 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed',
+                confirmClearHistory
+                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
+                  : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-slate-800 dark:text-white/90 border-black/8 dark:border-white/8'
+              ]"
+            >
+              <Trash2 class="w-3 h-3" />
+              <span>{{ confirmClearHistory ? $t('sync.historyClearConfirm') : $t('sync.historyClear') }}</span>
+            </button>
+          </div>
+
+          <div class="p-4">
+            <p v-if="store.syncHistory.length === 0" class="text-[11px] text-slate-400 dark:text-white/50 py-4 text-center">
+              {{ $t('sync.historyEmpty') }}
+            </p>
+            <ul v-else class="max-h-72 overflow-y-auto space-y-2 pr-1">
+              <li
+                v-for="e in store.syncHistory"
+                :key="e.id"
+                class="rounded-lg bg-black/[0.02] dark:bg-[#121316] border border-black/8 dark:border-white/8 p-2.5 space-y-1"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono border bg-black/5 dark:bg-white/5 text-slate-600 dark:text-white/70 border-black/8 dark:border-white/8">
+                      {{ $t(`sync.scope${scopeUpper(e.scope)}`) }}
+                    </span>
+                    <span class="text-[11px] font-medium text-slate-800 dark:text-white/90">{{ $t(`sync.action${actionUpper(e.action)}`) }}</span>
+                    <span class="text-[10px] text-slate-400 dark:text-white/40">· {{ $t(`sync.trigger${triggerUpper(e.trigger)}`) }}</span>
+                  </div>
+                  <span :class="['px-1.5 py-0.5 rounded-md text-[10px] font-mono border transition-colors duration-200', resultBadge(e.result)]">
+                    {{ $t(`sync.result${resultUpper(e.result)}`) }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 dark:text-white/40">
+                  <span>{{ new Date(e.at).toLocaleString() }}</span>
+                  <span v-if="e.summary">· {{ e.summary }}</span>
+                </div>
+                <div v-if="e.error" class="text-[10px] font-mono break-all text-red-500/90 dark:text-red-400/90 leading-relaxed">{{ e.error }}</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <DshPluginDiffModal />
       <SkillsDiffModal />
     </template>
@@ -399,9 +559,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
-import { t } from '../i18n';
+import { t, translateError } from '../i18n';
+import type { SyncSchedule } from '../types';
 import {
   DownloadCloud,
   UploadCloud,
@@ -412,6 +573,10 @@ import {
   BookOpen,
   Puzzle,
   GitCompare,
+  Clock,
+  History,
+  Trash2,
+  Save,
 } from 'lucide-vue-next';
 import DshPluginSync from './DshPluginSync.vue';
 import DshPluginDiffModal from './DshPluginDiffModal.vue';
@@ -419,6 +584,13 @@ import SkillsDiffModal from './SkillsDiffModal.vue';
 
 const store = useAppStore();
 const confirmReset = ref(false);
+const confirmClearHistory = ref(false);
+const scheduleDraft = reactive<SyncSchedule>({
+  enabled: false,
+  mode: 'interval',
+  intervalMinutes: 30,
+  scopes: ['skills', 'dsh'],
+});
 
 onMounted(async () => {
   await store.loadSyncRepo().catch(() => {});
@@ -428,7 +600,10 @@ onMounted(async () => {
     store.loadDshPluginsSyncStatus().catch(() => {}),
     store.loadDshPluginsSyncDiff().catch(() => {}),
     store.reconcileDshPlugins().catch(() => {}),
+    store.loadSyncSchedule().catch(() => {}),
+    store.loadSyncHistory().catch(() => {}),
   ]);
+  Object.assign(scheduleDraft, store.syncSchedule);
 });
 
 // 共享仓库信息复用技能同步状态（同一 Git 仓库，initialized/branch/ahead/behind/remoteUrl 一致）
@@ -565,5 +740,72 @@ async function toggleDshAutoPull(enabled: boolean) {
   try {
     await store.setDshPluginsSyncAutoPull(enabled);
   } catch {}
+}
+
+function scopeUpper(scope: string): string {
+  return scope === 'dsh' ? 'Dsh' : 'Skills';
+}
+
+function actionUpper(action: string): string {
+  return action.charAt(0).toUpperCase() + action.slice(1);
+}
+
+function triggerUpper(trigger: string): string {
+  return trigger.charAt(0).toUpperCase() + trigger.slice(1);
+}
+
+function resultUpper(result: string): string {
+  return result.charAt(0).toUpperCase() + result.slice(1);
+}
+
+function resultBadge(result: string): string {
+  if (result === 'success') return 'bg-[#30d158]/10 text-[#30d158] border-[#30d158]/30';
+  if (result === 'error') return 'bg-[#ff453a]/10 text-[#ff453a] border-[#ff453a]/30';
+  return 'bg-[#ff9f0a]/10 text-[#ff9f0a] border-[#ff9f0a]/30';
+}
+
+async function handleSaveSchedule() {
+  try {
+    const next: SyncSchedule = {
+      ...scheduleDraft,
+      mode: 'interval',
+      scopes: [...scheduleDraft.scopes],
+    };
+    await store.saveSyncSchedule(next);
+    Object.assign(scheduleDraft, store.syncSchedule);
+    store.showToast({
+      title: t('toast.scheduleSavedTitle'),
+      message: t('toast.scheduleSavedMsg'),
+      type: 'success',
+    });
+  } catch (e: any) {
+    store.showToast({
+      title: t('toast.scheduleSaveFailedTitle'),
+      message: translateError(e, 'toast.scheduleSaveFailedMsg'),
+      type: 'error',
+    });
+  }
+}
+
+async function handleClearHistory() {
+  if (!confirmClearHistory.value) {
+    confirmClearHistory.value = true;
+    return;
+  }
+  confirmClearHistory.value = false;
+  try {
+    await store.clearSyncHistory();
+    store.showToast({
+      title: t('toast.historyClearedTitle'),
+      message: t('toast.historyClearedMsg'),
+      type: 'success',
+    });
+  } catch (e: any) {
+    store.showToast({
+      title: t('toast.historyClearFailedTitle'),
+      message: translateError(e, 'toast.historyClearFailedMsg'),
+      type: 'error',
+    });
+  }
 }
 </script>
