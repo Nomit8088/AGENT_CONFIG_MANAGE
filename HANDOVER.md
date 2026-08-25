@@ -590,6 +590,31 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ---
 
+## 8G. 同步中心增强：定时同步 + 同步历史（WI-008）
+
+在同步中心新增「定时同步」与「同步历史」两块能力，补齐原同步三件套的最后两项（冲突可视化解决已随 WI-013 落地）。
+
+### 能力与关键决策
+- 定时同步（仅拉取）：`sync_schedule` 配置块挂在 `config.json` 的 `sync_repo` 同级；`mode` 当前仅支持 `interval`（MVP），`enabled` / `intervalMinutes`（最小 5 分钟，默认 30）/ `scopes`（`['skills','dsh']`）三平台一致。
+- 调度动作 = 仅 fast-forward 拉取：复用 `pull_skills_sync` / `pull_dsh_plugins_sync`，**禁止自动 push**（push 非幂等且有覆盖风险，仍走手动方向化 UI）。错过触发点不补跑，仅应用运行期间到点触发。
+- 调度器双端对齐：Rust 后台线程（`sync_scheduler.rs`，进程级 daemon，随进程退出）+ Node 服务入口 `setInterval`（不 unref）。时间来源 `chrono`（Rust）/ `Date.now()`（Node），不依赖系统 cron / 任务计划程序。
+- 单飞守卫：手动与定时共用同一把互斥锁（Rust `sync_guard.rs` / Node `syncFlight.ts`），保证同一时刻只有一个同步动作操作共享 `.git`；忙时跳过本次（下次触发补上），历史记为 `skipped`。
+- 配置热生效：`set_sync_schedule` / `setSyncSchedule` 保存后立即重排调度器，无需重启。
+- 同步历史：App 数据目录 `sync_history.json`（UTF-8 数组，最新在前，保留最近 100 条，超出裁剪），字段 `id / at / trigger(manual|startup|scheduled) / scope(skills|dsh) / action(pull|push|apply|align|reset) / result(success|error|skipped) / summary / error`；在 Node `updateLastSync` 与 Rust 对应「最后状态」写入点追加，覆盖 pull / push / apply / align / reset。`sync_history.json` 已加入共享仓库 `.gitignore`（双端 7 处 `GITIGNORE_CONTENT` 统一补齐）。
+- 摘要来源：pull 用 `ahead/behind`，push 用 `git rev-parse --short HEAD` + branch，apply/align 用处理条目/profile 数，reset 用 `origin/<branch>`。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `get_sync_schedule` | `GET /api/sync/schedule` | 读取定时同步配置 |
+| `set_sync_schedule` | `POST /api/sync/schedule` | 保存配置并热重排调度器（仅 interval） |
+| `get_sync_history` | `GET /api/sync/history` | 读取同步历史（`limit`，默认 50，最新在前） |
+| `clear_sync_history` | `DELETE /api/sync/history` | 清空同步历史 |
+
+> 定时同步为「应用运行期间」的静默快进拉取；桌面端配合 WI-001 托盘后台驻留，关窗后仍有效。cron 模式与历史详情展开/一键复制错误为后续可选增强（见 PR 说明）。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -611,6 +636,8 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ### 变更记录 (Changelog)
 
+- **2026-08-25 (Session — WI-008)**:
+  - **同步中心增强（定时同步 + 同步历史）**：新增 §8G 模块；`sync_schedule` 配置（interval 定时静默快进拉取，禁止 auto-push）+ `sync_history.json` 历史（最新在前，保留 100 条，可查看/清空）；Rust `sync_scheduler.rs` 后台线程 + Node `setInterval` 双端调度、`sync_guard.rs` / `syncFlight.ts` 单飞守卫、`sync_history.rs` / `syncHistory.ts` 历史读写；Rust 4 命令 + Node 4 路由 + 前端 `SyncView.vue` 定时配置区/历史区 + zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-25 (Session — WI-001)**:
   - **系统托盘与后台常驻**：新增 §8F 托盘模块；`Cargo.toml` 启用 `tray-icon` feature；`lib.rs` 建托盘（`显示主窗口` / `退出`）+ 关窗拦截隐藏驻留 + 左键唤回（Windows/Linux）+ 彻底退出，关键事件用 WI-007 logger 模块标签 `tray` 埋点；纯桌面端能力，Web 模式不受影响，版本保持 v1.0.6（PR 合入）。
 - **2026-08-25 (Session — WI-007)**:
