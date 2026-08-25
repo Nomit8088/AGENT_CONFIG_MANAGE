@@ -7,8 +7,10 @@ import { runGit, computeGitSyncDiff } from './gitSyncUtil';
 import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as resolveAppDataDir } from './appPaths';
 import { linkStrategyFor } from '../shared/linkStrategy';
-import type { SkillsSyncDecision } from '../types';
+import type { SkillsSyncDecision, SyncHistoryAction, SyncTrigger } from '../types';
 import { logInfo, logWarn } from './logger';
+import { tryAcquireSyncFlight, releaseSyncFlight } from './syncFlight';
+import { recordSyncHistory } from './syncHistory';
 export { linkStrategyFor };
 export function expandTilde(p: string): string {
   if (p.startsWith('~/') || p.startsWith('~\\') || p === '~') {
@@ -537,6 +539,8 @@ config.json
 agents.json
 projects.json
 dsh_install_state.json
+dsh_version_history.json
+sync_history.json
 backups/
 logs/
 *.log
@@ -745,82 +749,124 @@ export function initSkillsSync(remoteUrl: string, branch?: string): SkillsSyncSt
   return getSkillsSyncStatus();
 }
 
-function updateLastSync(status: string, error?: string) {
+function normalizeTrigger(trigger?: string): SyncTrigger {
+  if (trigger === 'startup' || trigger === 'scheduled') return trigger;
+  return 'manual';
+}
+
+function updateLastSync(
+  status: 'success' | 'error',
+  trigger: SyncTrigger,
+  action: SyncHistoryAction,
+  error?: string,
+  summary?: string,
+) {
   const syncCfg = readSkillsSyncConfig();
   syncCfg.lastSyncStatus = status;
   syncCfg.lastSyncAt = Date.now();
   syncCfg.lastError = error;
   saveSkillsSyncConfig(syncCfg);
+  recordSyncHistory(trigger, 'skills', action, status, summary, error);
 }
 
-export function pullSkillsSync(): SkillsSyncStatus {
+function skipForFlight(trigger: SyncTrigger, action: SyncHistoryAction): string {
+  recordSyncHistory(trigger, 'skills', action, 'skipped', '另一个同步任务正在进行');
+  return 'E_SYNC_BUSY';
+}
+
+export function pullSkillsSync(trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = getAppDataDir();
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'skills', 'pull', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'skills', 'pull', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  const dirty = gitDirtyCountPaths(root, ['skills', '.gitignore']);
-  if (dirty > 0) {
-    const msg = `E_SYNC_DIRTY::${dirty}`;
-    updateLastSync('error', msg);
-    throw new Error(msg);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'pull'));
   }
 
-  const branch = effectiveSkillsBranch(syncCfg);
   try {
+    const dirty = gitDirtyCountPaths(root, ['skills', '.gitignore']);
+    if (dirty > 0) {
+      const msg = `E_SYNC_DIRTY::${dirty}`;
+      updateLastSync('error', trig, 'pull', msg);
+      throw new Error(msg);
+    }
+
+    const branch = effectiveSkillsBranch(syncCfg);
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
-    updateLastSync('success');
+    const st = getSkillsSyncStatus();
+    const summary = `ahead ${st.ahead} / behind ${st.behind}`;
+    updateLastSync('success', trig, 'pull', undefined, summary);
     logInfo('sync', `技能库拉取成功（branch=${branch}）`);
-    return getSkillsSyncStatus();
+    return st;
   } catch (e: any) {
-    const msg = `E_SYNC_PULL_FAILED::${e.message}`;
-    updateLastSync('error', msg);
-    logWarn('sync', `技能库拉取失败: ${msg}`);
-    throw new Error(msg);
+    if (!String(e?.message || e).startsWith('E_SYNC_DIRTY')) {
+      const msg = `E_SYNC_PULL_FAILED::${e?.message || e}`;
+      updateLastSync('error', trig, 'pull', msg);
+      logWarn('sync', `技能库拉取失败: ${msg}`);
+      throw new Error(msg);
+    }
+    throw e;
+  } finally {
+    releaseSyncFlight();
   }
 }
 
-export function pushSkillsSync(message?: string, paths?: string[]): SkillsSyncStatus {
+export function pushSkillsSync(message?: string, paths?: string[], trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = getAppDataDir();
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'skills', 'push', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'skills', 'push', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  // 按功能隔离：只暂存技能相关路径；传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
-  const stagePaths = (paths && paths.length > 0)
-    ? paths
-    : ['skills', '.gitignore'].filter(p => fs.existsSync(path.join(root, p)));
-  if (stagePaths.length > 0) {
-    gitExec(root, ['add', '-A', '--', ...stagePaths]);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'push'));
   }
 
-  const staged = gitTry(root, ['diff', '--cached', '--name-only']);
-  if (staged && staged.trim()) {
-    const msg = (message || '').trim() || `sync central skills [${new Date().toLocaleString()}]`;
-    gitExec(root, ['commit', '-m', msg]);
-  }
-
-  const branch = effectiveSkillsBranch(syncCfg);
   try {
+    // 按功能隔离：只暂存技能相关路径；传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
+    const stagePaths = (paths && paths.length > 0)
+      ? paths
+      : ['skills', '.gitignore'].filter(p => fs.existsSync(path.join(root, p)));
+    if (stagePaths.length > 0) {
+      gitExec(root, ['add', '-A', '--', ...stagePaths]);
+    }
+
+    const staged = gitTry(root, ['diff', '--cached', '--name-only']);
+    if (staged && staged.trim()) {
+      const msg = (message || '').trim() || `sync central skills [${new Date().toLocaleString()}]`;
+      gitExec(root, ['commit', '-m', msg]);
+    }
+
+    const branch = effectiveSkillsBranch(syncCfg);
     gitExec(root, ['push', '-u', 'origin', branch]);
-    updateLastSync('success');
+    const head = gitTry(root, ['rev-parse', '--short', 'HEAD']).trim();
+    const summary = `pushed ${head} (branch=${branch})`;
+    updateLastSync('success', trig, 'push', undefined, summary);
     logInfo('sync', `技能库推送成功（branch=${branch}）`);
     return getSkillsSyncStatus();
   } catch (e: any) {
-    const msg = `E_SYNC_PUSH_FAILED::${e.message}`;
-    updateLastSync('error', msg);
+    const msg = `E_SYNC_PUSH_FAILED::${e?.message || e}`;
+    updateLastSync('error', trig, 'push', msg);
     logWarn('sync', `技能库推送失败: ${msg}`);
     throw new Error(msg);
+  } finally {
+    releaseSyncFlight();
   }
 }
 
@@ -850,43 +896,55 @@ export function testSkillsSyncConnection(): string {
   return `连接成功，远端 ${branch} 分支 HEAD: ${head}`;
 }
 
-export function resetSkillsSyncToRemote(): SkillsSyncStatus {
+export function resetSkillsSyncToRemote(trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = getAppDataDir();
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'skills', 'reset', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'skills', 'reset', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  const branch = effectiveSkillsBranch(syncCfg);
-  gitExec(root, ['fetch', 'origin', branch]);
-
-  const remoteRef = `origin/${branch}`;
-  const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
-  if (!head) {
-    throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'reset'));
   }
 
-  // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
-  // 不碰 dsh/ 等同一仓库内其他功能的未提交修改（git reset --mixed 不动工作区）。
-  gitExec(root, ['reset', '--mixed', remoteRef]);
+  try {
+    const branch = effectiveSkillsBranch(syncCfg);
+    gitExec(root, ['fetch', 'origin', branch]);
 
-  const checkoutPaths = ['skills', '.gitignore'].filter(p => {
-    if (fs.existsSync(path.join(root, p))) return true;
-    if (p === 'skills') {
-      const out = gitTry(root, ['ls-tree', '--name-only', remoteRef, 'skills']);
-      return !!out && out.trim().length > 0;
+    const remoteRef = `origin/${branch}`;
+    const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
+    if (!head) {
+      throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
     }
-    return false;
-  });
-  if (checkoutPaths.length > 0) {
-    gitTry(root, ['checkout', '--', ...checkoutPaths]);
+
+    // 以远端为准，但按功能隔离：仅移动 HEAD 并重置 skills/ 与 .gitignore，
+    // 不碰 dsh/ 等同一仓库内其他功能的未提交修改（git reset --mixed 不动工作区）。
+    gitExec(root, ['reset', '--mixed', remoteRef]);
+
+    const checkoutPaths = ['skills', '.gitignore'].filter(p => {
+      if (fs.existsSync(path.join(root, p))) return true;
+      if (p === 'skills') {
+        const out = gitTry(root, ['ls-tree', '--name-only', remoteRef, 'skills']);
+        return !!out && out.trim().length > 0;
+      }
+      return false;
+    });
+    if (checkoutPaths.length > 0) {
+      gitTry(root, ['checkout', '--', ...checkoutPaths]);
+    }
+    const summary = `reset to origin/${branch}`;
+    updateLastSync('success', trig, 'reset', undefined, summary);
+    return getSkillsSyncStatus();
+  } finally {
+    releaseSyncFlight();
   }
-  updateLastSync('success');
-  return getSkillsSyncStatus();
 }
 
 /** 仅 fetch 远端（不合并、不改工作区），用于弹窗前刷新 origin/<branch> 引用。 */
@@ -906,45 +964,59 @@ export function fetchSkillsSync(): void {
 }
 
 /** 「从仓库应用」逐文件：fetch 远端后，对 direction=remote 的文件 checkout 远端版本（远端已删除则删除本地）。 */
-export function applySkillsFromRemote(decisions: SkillsSyncDecision[]): SkillsSyncStatus {
+export function applySkillsFromRemote(decisions: SkillsSyncDecision[], trigger?: string): SkillsSyncStatus {
+  const trig = normalizeTrigger(trigger);
   const root = getAppDataDir();
   const syncCfg = readSkillsSyncConfig();
 
   if (!fs.existsSync(path.join(root, '.git'))) {
+    recordSyncHistory(trig, 'skills', 'apply', 'error', undefined, 'E_SYNC_NOT_INITIALIZED');
     throw new Error('E_SYNC_NOT_INITIALIZED');
   }
   if (!effectiveSkillsRemoteUrl(syncCfg)) {
+    recordSyncHistory(trig, 'skills', 'apply', 'error', undefined, 'E_SYNC_NO_REMOTE');
     throw new Error('E_SYNC_NO_REMOTE');
   }
 
-  const branch = effectiveSkillsBranch(syncCfg);
-  gitExec(root, ['fetch', 'origin', branch]);
-
-  const remoteRef = `origin/${branch}`;
-  const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
-  if (!head) {
-    throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
+  if (!tryAcquireSyncFlight()) {
+    throw new Error(skipForFlight(trig, 'apply'));
   }
 
-  for (const d of (Array.isArray(decisions) ? decisions : [])) {
-    if (d.direction !== 'remote') continue;
-    const p = (d.path || '').trim();
-    if (!p) continue;
-    const existsInRemote = gitOk(root, ['cat-file', '-e', `${remoteRef}:${p}`]);
-    if (existsInRemote) {
-      gitTry(root, ['checkout', remoteRef, '--', p]);
-    } else {
-      // 远端已删除：删除本地文件（工作区 + index）
-      gitTry(root, ['rm', '--force', '--', p]);
-      const abs = path.join(root, p);
-      if (fs.existsSync(abs)) {
-        try { fs.unlinkSync(abs); } catch {}
-      }
+  try {
+    const branch = effectiveSkillsBranch(syncCfg);
+    gitExec(root, ['fetch', 'origin', branch]);
+
+    const remoteRef = `origin/${branch}`;
+    const head = gitTry(root, ['rev-parse', '--verify', remoteRef]);
+    if (!head) {
+      throw new Error(`E_SYNC_BRANCH_MISSING::${branch}`);
     }
-  }
 
-  updateLastSync('success');
-  return getSkillsSyncStatus();
+    let applied = 0;
+    for (const d of (Array.isArray(decisions) ? decisions : [])) {
+      if (d.direction !== 'remote') continue;
+      const p = (d.path || '').trim();
+      if (!p) continue;
+      const existsInRemote = gitOk(root, ['cat-file', '-e', `${remoteRef}:${p}`]);
+      if (existsInRemote) {
+        gitTry(root, ['checkout', remoteRef, '--', p]);
+      } else {
+        // 远端已删除：删除本地文件（工作区 + index）
+        gitTry(root, ['rm', '--force', '--', p]);
+        const abs = path.join(root, p);
+        if (fs.existsSync(abs)) {
+          try { fs.unlinkSync(abs); } catch {}
+        }
+      }
+      applied += 1;
+    }
+
+    const summary = `${applied} files applied`;
+    updateLastSync('success', trig, 'apply', undefined, summary);
+    return getSkillsSyncStatus();
+  } finally {
+    releaseSyncFlight();
+  }
 }
 
 export interface GitStatus {
