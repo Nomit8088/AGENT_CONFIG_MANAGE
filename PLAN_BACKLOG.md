@@ -37,7 +37,7 @@
 
 | 编号 | 状态 | 优先级 | 工作项 | 描述 | 验收标准 | 关联 | 备注 |
 |---|---|---|---|---|---|---|---|
-| WI-001 | 计划中 | P2 | 后台常驻与系统托盘 | 应用支持最小化/关闭到系统托盘后台运行，托盘图标提供「显示主窗口 / 退出」菜单 | 关闭窗口后应用仍在托盘驻留；托盘可唤回主窗口与彻底退出 | `src-tauri`（Tauri 2 tray） | 仅桌面端；Web 模式不适用；⭐ 下一步（开发提示词见 `PROMPT_WI001_TRAY.md`，PR 流程合入） |
+| WI-001 | 已完成 | P2 | 后台常驻与系统托盘 | 应用支持最小化/关闭到系统托盘后台运行，托盘图标提供「显示主窗口 / 退出」菜单 | 关闭窗口后应用仍在托盘驻留；托盘可唤回主窗口与彻底退出 | `src-tauri`（Tauri 2 tray） | 仅桌面端；Web 模式不适用；✅ 已完成（2026-08-25，PR #21 合入） |
 | WI-002 | 待开发 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | 备注/tag 不入 `~/.dsh` 事实源，存 AgentHub 本地缓存 |
 | WI-003 | 已完成 | P1 | 一键启动 dsh + 错误堆栈复制 | 插件管理 / 一键诊断页新增「启动 dsh」按钮，启动失败时捕获完整 stderr 堆栈并支持一键复制 | 点击即启动 dsh；失败时展示堆栈并可复制 | 复用 `PLAN_DSH_PLUGIN_MANAGER` §4.3 堆栈解析、`DshDiagnose.vue` | ✅ 一键启动已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制；端口占用(EADDRINUSE)提示、不算失败 |
 | WI-004 | 待开发 | P2 | 首启卡顿定位与研究 | 定位首次启动程序卡顿的原因，产出结论与可执行的优化方向 | 给出卡顿原因说明 + 优化项列表（可转成后续工作项） | 前端初始化、Rust 启动、sync / 扫描 | 先研究后决策，本轮不改代码 |
@@ -57,7 +57,7 @@
 
 ### WI-001 — 后台常驻与系统托盘
 
-> ⭐ **计划中（2026-08-25）**：开发提示词见 `PROMPT_WI001_TRAY.md`（含 PR 合入流程）；验收清单见 `REVIEW_WI001.md`。合入流程从本项起改为 **PR**（不再直推 main）。
+> ✅ **已完成（2026-08-25，PR #21 合入，mergeCommit `bde3f84`）**：`tray-icon` 特性 + `setup_tray`（图标「显示主窗口 / 退出」菜单 + 左键唤回 Windows/Linux / macOS 平台默认）+ `CloseRequested → prevent_close + hide` 关窗驻留 + `app.exit(0)` 退出 + WI-007 logger 埋点（`tray` 模块）+ HANDOVER §8F + CHANGELOG。PR 流程：分支 `feature/wi-001-tray` → CI（Frontend Typecheck & Build + Rust cargo check）全绿 → PR #21 → `--admin` 合入（作者不能自批，经用户确认）。可选增强（close_to_tray 开关 / single-instance / 菜单双语 / Linux appindicator 实测）留待后续。
 
 - **背景**：当前应用关闭/最小化即退出（或仅缩到任务栏），无法后台常驻；用户希望收进系统托盘后台运行。
 - **方案要点**：
@@ -236,7 +236,7 @@
 | | WI-009 | DSH 版本升级与版本管理（✅ 已完成 v1.0.6） |
 | | WI-012 | 国际化（i18n）（✅ 已完成 feature/wi-012-i18n） |
 | | WI-013 | 同步交互重设计（方向化命名 + 逐条勾选对齐）（✅ 已完成 PR #19） |
-| **P2 中** | WI-001 | 后台常驻与系统托盘（计划中） |
+| **P2 中** | WI-001 | 后台常驻与系统托盘（✅ 已完成） |
 | | WI-004 | 首启卡顿定位与研究 |
 | | WI-007 | 应用日志系统（✅ 已完成） |
 | | WI-008 | 同步中心增强 |
@@ -257,7 +257,7 @@
 | 8 | T2 基建 | WI-007 | 应用日志 | P2 | ✅ 已完成：基础设施，支撑 WI-004 排查 |
 | 9 | T2 | WI-004 | 首启卡顿研究 | P2 | 有日志支撑后再定位 |
 | 10 | T3 横切 | WI-012 | 国际化 | P1 | 横切大工程，插件核心完成后做 |
-| 11 | T4 体验完善 | WI-001 | 系统托盘 | P2 | ⭐ 下一步：独立小功能（PR 合入） |
+| 11 | T4 体验完善 | WI-001 | 系统托盘 | P2 | ✅ 已完成（PR #21） |
 | 12 | T4 | WI-002 | 插件卡片 tag / 备注 | P3 | 低优先增强 |
 | 13 | T5 远期 | WI-010 | MCP 总线 | P3 | 远期推后 |
 
@@ -298,6 +298,7 @@
 | 2026-08-25 | WI-007 排期 | 整理 WI-007 开发提示词（`PROMPT_WI007_LOGGING.md`）并标记「计划中」，转入新会话开发；主会话仅负责需求管理与代码合入 |
 | 2026-08-25 | WI-007 完成 | 应用日志系统合入 main（merge `ad72963`）：Rust `logger.rs` + Node `logger.ts` 双端对齐 + 3 命令/3 路由 + 关键路径埋点 + `LogViewerModal.vue` UI + zh/en i18n + HANDOVER §8E + CHANGELOG `[Unreleased]`；WI-007 标记「已完成」，版本保持 v1.0.6 |
 | 2026-08-25 | WI-001 排期 | 生成 WI-001 开发提示词（`PROMPT_WI001_TRAY.md`）+ 验收清单（`REVIEW_WI001.md`）并标记「计划中 / ⭐ 下一步」；**合入流程改为 PR**（后续所有合入走 PR，不再直推 main） |
+| 2026-08-25 | WI-001 完成 | 系统托盘与后台常驻经 **PR #21** 合入 main（mergeCommit `bde3f84`）：`tray-icon` 特性 + 托盘菜单（显示主窗口/退出）+ 关窗驻留 + 左键唤回（Windows/Linux）+ macOS 平台默认 + WI-007 埋点 + HANDOVER §8F + CHANGELOG；CI 全绿（Frontend Typecheck & Build + Rust cargo check）；因作者不能自批，经用户确认用 `--admin` 合入；WI-001 标记「已完成」 |
 
 ---
 
