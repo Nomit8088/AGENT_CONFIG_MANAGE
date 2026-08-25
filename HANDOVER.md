@@ -534,6 +534,39 @@ npm run tauri build
 
 ---
 
+## 8E. 应用日志系统（WI-007）
+
+内置自研轮转文件日志，用于排查启动、扫描、同步、安装、更新等链路问题；日志写入 App 数据目录 `logs/`（与 skills / dsh 快照同源），Rust 与 Node 双端行为完全一致。
+
+### 统一格式与轮转
+- 单行格式：`<ISO 本地时间> [LEVEL] [module] message`，LEVEL ∈ DEBUG / INFO / WARN / ERROR，module 覆盖 startup / scan / sync / install / update / dsh / snapshot。
+- 活动文件：`logs/agenthub.log`；单文件 ≥ 5MB 触发轮转 `agenthub.log.N`，保留最近 5 份（`.1` 最新，`.5` 最旧，超出删除）。
+- 落盘为追加写 + 写入失败静默降级（不阻塞主流程）；`logs/` 已加入技能与 DSH 插件同步仓库 `.gitignore`，不参与跨机同步。
+- 时间戳统一为本地时间 `YYYY-MM-DD HH:mm:ss.mmm`（Rust `chrono::Local` / Node `Date` 手写格式化，双端一致）。
+
+### 埋点覆盖
+- startup：Rust `init_storage` + `run()`；Node `initLogger()` + `initStorage()`。
+- sync：技能同步 `pull_skills_sync` / `push_skills_sync`（Rust + Node 成功/失败）。
+- dsh：DSH 插件同步 pull/push、`install_dsh_plugins_v2` / `scan_dsh_plugins` / `create_dsh_config_snapshot`。
+- update：应用更新检查 `check_app_update` / `checkAppUpdate`。
+- 读取与导出：`export_app_logs` 导出快照时记录目标路径。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `get_app_logs` | `GET /api/app/logs` | 读取最近日志（`limit` / `level` 过滤） |
+| `export_app_logs` | `GET /api/app/logs/export` | 导出一份日志快照，返回文件路径与大小 |
+| `get_app_log_path` | `GET /api/app/logs/path` | 返回日志文件路径（UI 一键复制） |
+
+### UI 与 i18n
+- 设置页新增「应用日志」入口，打开 `LogViewerModal.vue`：级别过滤（全部/DEBUG/INFO/WARN/ERROR 分段控件）、刷新、导出、复制日志路径。
+- 日志查看器含脱敏提示：日志内容包含本机文件路径与命令输出，分享/导出前需先检查脱敏。
+- 中文/英文文案分别落在 `src/locales/zh.ts` / `en.ts` 的 `settings.*` 与 `logs.*` 命名空间。
+
+> 日志为纯文本追加、不加密；导出与查看可能暴露本机路径，UI 已给出脱敏提示，仍请勿在公开渠道直接粘贴完整日志。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -555,6 +588,8 @@ npm run tauri build
 
 ### 变更记录 (Changelog)
 
+- **2026-08-24 (Session — WI-007)**:
+  - **应用日志系统**：新增 §8E 日志模块；自研轮转文件日志（`logs/agenthub.log`，单文件 5MB × 保留 5 份）；统一格式 `<时间> [LEVEL] [module] message`；Rust 3 命令 + Node 3 路由 + 前端 `LogViewerModal.vue`（查看/导出/复制路径/级别过滤 + 脱敏提示）+ zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-24 (Session — WI-009)**:
   - **DSH 版本升级与版本管理**：新增 §8D 版本管理模块；`DshVersionManager.vue` 版本页签 UI（当前/远端版本 + 升级 + 一键回滚 + 版本历史 + 指定版本安装）；升级前自动快照（`trigger=upgrade`）+ 升级后诊断对比失败插件数；回滚覆盖版本 + 配置两层。Rust 6 命令 + Node 6 路由 + 前端 store 动作双端对齐，版本保持 v1.0.6（与 WI-006 同版发布）。
 - **2026-08-24 (Session — WI-006)**:

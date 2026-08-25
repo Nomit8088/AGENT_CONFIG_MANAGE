@@ -2,6 +2,15 @@
 
 All notable changes to AgentHub are documented in this file.
 
+## [Unreleased]
+
+### Added
+- 应用日志系统（WI-007）：内置自研轮转文件日志（`logs/agenthub.log`，单文件 ≥5MB 触发 `agenthub.log.N`，保留最近 5 份），级别 DEBUG/INFO/WARN/ERROR，模块覆盖 startup/scan/sync/install/update/dsh/snapshot。
+- 统一日志格式 `<ISO 本地时间> [LEVEL] [module] message`，Rust 与 Node 双端字节级一致；日志目录经 `storage.rs::get_app_data_dir` / `appPaths.ts::getAppDataDir` 统一解析，不硬编码平台路径。
+- 关键路径埋点：启动、技能/DSH 插件同步 pull/push、DSH 插件安装/扫描/配置快照、应用更新检查等。
+- 双端 API 对齐：Rust 新增 `get_app_logs` / `export_app_logs` / `get_app_log_path` 命令，Node 同步新增 `GET /api/app/logs` / `GET /api/app/logs/export` / `GET /api/app/logs/path` 路由。
+- 前端日志查看器（`LogViewerModal.vue`）：设置页新增「应用日志」入口，支持级别过滤、刷新、导出快照、复制日志路径；含「日志含本机路径，分享/导出前注意脱敏」提示；zh/en 双语文案。
+
 ## [1.0.6] - 2026-08-24
 
 ### Added
