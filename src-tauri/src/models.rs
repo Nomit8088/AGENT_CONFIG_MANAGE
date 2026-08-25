@@ -168,10 +168,20 @@ pub struct DshPluginEntry {
     pub spec: Option<String>,
     #[serde(rename = "installedVersion", default, skip_serializing_if = "Option::is_none")]
     pub installed_version: Option<String>,
+    #[serde(rename = "description", default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     pub enabled: bool,
     pub portability: String, // "portable" | "unportable"
     #[serde(rename = "disabledBy", default, skip_serializing_if = "Option::is_none")]
     pub disabled_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DshPluginMetaItem {
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +200,12 @@ pub struct DshPluginInstallEntry {
     pub installed_version: Option<String>,
     #[serde(rename = "requiredVersion", default, skip_serializing_if = "Option::is_none")]
     pub required_version: Option<String>,
+    #[serde(rename = "description", default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub note: String,
     pub status: String, // "ok" | "pending" | "orphan" | "version-mismatch" | "failed"
     #[serde(rename = "installError", default, skip_serializing_if = "Option::is_none")]
     pub install_error: Option<String>,
