@@ -6,7 +6,7 @@
   >
     <div class="flex items-center gap-3 min-w-0 flex-1">
       <div
-        class="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-xs transition-transform group-hover:scale-105"
+        class="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-xs"
         :class="protocolInfo.iconCls"
       >
         <component :is="iconFor(entry.kind)" class="w-4 h-4" />
@@ -64,20 +64,37 @@
         </div>
 
         <div v-if="metaLine" class="mt-1 space-y-1">
-          <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60 line-clamp-1" :title="entry.description">{{ entry.description }}</p>
+          <ClampText
+            v-if="entry.description"
+            :text="entry.description"
+            :lines="1"
+            text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
+          />
           <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
             <button
-              v-for="tag in entry.tags"
+              v-for="tag in visibleTags"
               :key="tag"
               type="button"
               :title="t('plugins.filterByTag', { tag })"
               class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
               @click.stop="emit('filter-tag', tag)"
             >{{ tag }}</button>
+            <button
+              v-if="hiddenTagCount > 0"
+              type="button"
+              :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
+              class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
+              @click.stop="tagsExpanded = !tagsExpanded"
+            >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
           </div>
           <div v-if="entry.note" class="flex items-start gap-1 text-[11px] text-slate-600 dark:text-white/70">
             <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
-            <span class="line-clamp-2 leading-snug break-words" :title="entry.note">{{ entry.note }}</span>
+            <ClampText
+              :text="entry.note"
+              :lines="2"
+              root-class="flex-1 min-w-0"
+              text-class="text-[11px] text-slate-600 dark:text-white/70"
+            />
           </div>
         </div>
       </div>
@@ -179,7 +196,7 @@
   <!-- 卡片形态 -->
   <div
     v-else
-    class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 hover:border-indigo-500/30 dark:hover:border-indigo-400/40 p-4 flex flex-col justify-between space-y-3.5 transition-all duration-250 hover:-translate-y-0.5 hover:shadow-md group"
+    class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 hover:border-indigo-500/30 dark:hover:border-indigo-400/40 p-4 flex flex-col gap-3 transition-colors duration-200 group"
     :class="cardAccentClass"
   >
     <div>
@@ -259,20 +276,37 @@
       </div>
 
       <div v-if="metaLine" class="mt-2 space-y-1.5">
-        <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60 line-clamp-2" :title="entry.description">{{ entry.description }}</p>
+        <ClampText
+          v-if="entry.description"
+          :text="entry.description"
+          :lines="2"
+          text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
+        />
         <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
           <button
-            v-for="tag in entry.tags"
+            v-for="tag in visibleTags"
             :key="tag"
             type="button"
             :title="t('plugins.filterByTag', { tag })"
             class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
             @click.stop="emit('filter-tag', tag)"
           >{{ tag }}</button>
+          <button
+            v-if="hiddenTagCount > 0"
+            type="button"
+            :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
+            class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
+            @click.stop="tagsExpanded = !tagsExpanded"
+          >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
         </div>
         <div v-if="entry.note" class="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-white/70">
           <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
-          <span class="line-clamp-2 leading-snug break-words" :title="entry.note">{{ entry.note }}</span>
+          <ClampText
+            :text="entry.note"
+            :lines="2"
+            root-class="flex-1 min-w-0"
+            text-class="text-[11px] text-slate-600 dark:text-white/70"
+          />
         </div>
       </div>
     </div>
@@ -455,6 +489,7 @@ import type {
   DshPluginKind,
   DshPluginUpdateCheck,
 } from '../types';
+import ClampText from './ClampText.vue';
 
 const props = defineProps<{
   entry: DshPluginInstallEntry;
@@ -494,6 +529,14 @@ const canEditMeta = computed(() => !isInbox.value);
 const metaLine = computed(
   () => Boolean(entry.value.description || (entry.value.tags?.length ?? 0) > 0 || entry.value.note)
 );
+
+// 标签超量折叠：默认只显示前 MAX_VISIBLE_TAGS 个，其余收进「+N」可点击展开
+const MAX_VISIBLE_TAGS = 3;
+const tagsExpanded = ref(false);
+const visibleTags = computed(() =>
+  tagsExpanded.value ? (entry.value.tags || []) : (entry.value.tags || []).slice(0, MAX_VISIBLE_TAGS)
+);
+const hiddenTagCount = computed(() => Math.max(0, (entry.value.tags?.length ?? 0) - MAX_VISIBLE_TAGS));
 
 function openMetaEditor() {
   draftTags.value = [...(entry.value.tags || [])];
@@ -549,7 +592,7 @@ const protocolInfo = computed(() => {
     return {
       label: 'OFFICIAL',
       cls: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-      iconCls: 'bg-gradient-to-br from-indigo-500/15 to-purple-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+      iconCls: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
     };
   }
   if (entry.value.kind === 'row') {

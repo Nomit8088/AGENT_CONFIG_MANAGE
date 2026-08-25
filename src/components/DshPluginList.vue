@@ -227,7 +227,7 @@
             @filter-tag="toggleTagFilter"
           />
         </div>
-        <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 items-start">
           <DshPluginRow
             v-for="entry in pagedEntries(sec)"
             :key="entry.key"

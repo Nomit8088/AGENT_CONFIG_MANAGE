@@ -905,6 +905,9 @@ export default {
     metaNote: '备注',
     metaNotePlaceholder: '记录该插件的用途 / 注意事项…',
     metaNoteHint: '最多 {max} 个字符，随 DSH 插件配置远程同步',
+    expand: '展开',
+    collapse: '收起',
+    moreTags: '还有 {n} 个标签',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: '尚未初始化同步仓库，请先在同步中心初始化',

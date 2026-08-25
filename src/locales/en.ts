@@ -905,6 +905,9 @@ export default {
     metaNote: 'Note',
     metaNotePlaceholder: 'Note the purpose / caveats of this plugin…',
     metaNoteHint: 'Up to {max} characters, synced with DSH plugin config',
+    expand: 'Expand',
+    collapse: 'Collapse',
+    moreTags: '{n} more tags',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: 'Sync repository not initialized; initialize it in Sync Center first',
