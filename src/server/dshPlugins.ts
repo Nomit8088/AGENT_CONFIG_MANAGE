@@ -192,7 +192,9 @@ function writeInstallState(state: DshInstallState): void {
 }
 
 // ==================== 插件卡片元信息持久化 (WI-002) ====================
-// tag / note 只写 AgentHub 本地缓存，不入 ~/.dsh 事实源、不入同步镜像。
+// tag / note 存同步镜像的 per-profile 文件（dsh/profiles/<name>/agenthub-meta.json），
+// 随 DSH 插件同步 push/pull 一起远程同步；不写 ~/.dsh 的 package.json / cordis.patch.yml，
+// DSH 事实源不受影响。
 
 const MAX_PLUGIN_TAGS = 10;
 const MAX_PLUGIN_TAG_LEN = 32;
@@ -203,14 +205,14 @@ interface DshPluginMetaItem {
   note: string;
 }
 
-type DshPluginMeta = Record<string, Record<string, DshPluginMetaItem>>;
+type DshPluginMeta = Record<string, DshPluginMetaItem>;
 
-function pluginMetaFile(): string {
-  return path.join(appDataDir(), 'dsh_plugin_meta.json');
+function pluginMetaFile(profile: string): string {
+  return path.join(dshMirrorDir(), 'profiles', profile, 'agenthub-meta.json');
 }
 
-function readPluginMeta(): DshPluginMeta {
-  const f = pluginMetaFile();
+function readPluginMeta(profile: string): DshPluginMeta {
+  const f = pluginMetaFile(profile);
   if (fs.existsSync(f)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(f, 'utf-8'));
@@ -220,9 +222,9 @@ function readPluginMeta(): DshPluginMeta {
   return {};
 }
 
-function writePluginMeta(meta: DshPluginMeta): void {
-  fs.mkdirSync(appDataDir(), { recursive: true });
-  fs.writeFileSync(pluginMetaFile(), JSON.stringify(meta, null, 2) + '\n', 'utf-8');
+function writePluginMeta(profile: string, meta: DshPluginMeta): void {
+  fs.mkdirSync(path.dirname(pluginMetaFile(profile)), { recursive: true });
+  fs.writeFileSync(pluginMetaFile(profile), JSON.stringify(meta, null, 2) + '\n', 'utf-8');
 }
 
 function sanitizeTags(tags: string[]): string[] {
@@ -243,11 +245,9 @@ function sanitizeNote(note: string): string {
 /** 保存某条目 tags/note（幂等覆盖；不写 description，description 由后端 reconcile 回填）。 */
 export function setDshPluginMeta(profile: string, key: string, tags: string[], note: string): void {
   const profileName = (profile || '').trim() || 'web';
-  const meta = readPluginMeta();
-  const profileMeta = meta[profileName] || {};
-  profileMeta[key] = { tags: sanitizeTags(tags), note: sanitizeNote(note) };
-  meta[profileName] = profileMeta;
-  writePluginMeta(meta);
+  const meta = readPluginMeta(profileName);
+  meta[key] = { tags: sanitizeTags(tags), note: sanitizeNote(note) };
+  writePluginMeta(profileName, meta);
 }
 
 export function clearDshInstallState(profile: string, pkg?: string): void {
@@ -472,9 +472,8 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
   const profileState = state[profileName] || {};
   const installedSet = new Set(listInstalledTopLevelPkgs(profileDir));
 
-  // WI-002：本地缓存元信息（tags/note）merge 进对账结果；description 由 package.json 派生。
-  const meta = readPluginMeta();
-  const profileMeta = meta[profileName] || {};
+  // WI-002：元信息（tags/note）从同步镜像 per-profile 文件读取并 merge 进对账结果；description 由 package.json 派生。
+  const profileMeta = readPluginMeta(profileName);
   const metaFor = (key: string): DshPluginMetaItem => {
     const m = profileMeta[key];
     return {

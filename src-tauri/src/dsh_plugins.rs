@@ -214,20 +214,26 @@ fn write_install_state(state: &InstallStateMap) {
 }
 
 // ==================== 插件卡片元信息持久化 (WI-002) ====================
-// tag / note 只写 AgentHub 本地缓存，不入 ~/.dsh 事实源、不入同步镜像。
+// tag / note 存同步镜像的 per-profile 文件（dsh/profiles/<name>/agenthub-meta.json），
+// 随 DSH 插件同步 push/pull 一起远程同步；不写 ~/.dsh 的 package.json / cordis.patch.yml，
+// DSH 事实源不受影响。
 
 const MAX_PLUGIN_TAGS: usize = 10;
 const MAX_PLUGIN_TAG_LEN: usize = 32;
 const MAX_PLUGIN_NOTE_LEN: usize = 500;
 
-type PluginMetaMap = HashMap<String, HashMap<String, DshPluginMetaItem>>;
+type PluginMetaMap = HashMap<String, DshPluginMetaItem>;
 
-fn plugin_meta_file() -> PathBuf {
-    crate::storage::get_app_data_dir().join("dsh_plugin_meta.json")
+fn plugin_meta_file(profile: &str) -> PathBuf {
+    crate::storage::get_app_data_dir()
+        .join("dsh")
+        .join("profiles")
+        .join(profile)
+        .join("agenthub-meta.json")
 }
 
-fn read_plugin_meta() -> PluginMetaMap {
-    let f = plugin_meta_file();
+fn read_plugin_meta(profile: &str) -> PluginMetaMap {
+    let f = plugin_meta_file(profile);
     if !f.exists() {
         return HashMap::new();
     }
@@ -235,15 +241,9 @@ fn read_plugin_meta() -> PluginMetaMap {
         if let Ok(v) = serde_json::from_str::<JsonValue>(&text) {
             if let Some(obj) = v.as_object() {
                 let mut out = HashMap::new();
-                for (profile, key_map) in obj {
-                    if let Some(keys) = key_map.as_object() {
-                        let mut km = HashMap::new();
-                        for (key, item) in keys {
-                            if let Ok(m) = serde_json::from_value::<DshPluginMetaItem>(item.clone()) {
-                                km.insert(key.clone(), m);
-                            }
-                        }
-                        out.insert(profile.clone(), km);
+                for (key, item) in obj {
+                    if let Ok(m) = serde_json::from_value::<DshPluginMetaItem>(item.clone()) {
+                        out.insert(key.clone(), m);
                     }
                 }
                 return out;
@@ -253,11 +253,13 @@ fn read_plugin_meta() -> PluginMetaMap {
     HashMap::new()
 }
 
-fn write_plugin_meta(meta: &PluginMetaMap) {
-    let dir = crate::storage::get_app_data_dir();
-    let _ = fs::create_dir_all(&dir);
+fn write_plugin_meta(profile: &str, meta: &PluginMetaMap) {
+    let f = plugin_meta_file(profile);
+    if let Some(dir) = f.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
     let pretty = serde_json::to_string_pretty(meta).unwrap_or_else(|_| "{}".to_string());
-    let _ = fs::write(plugin_meta_file(), format!("{}\n", pretty));
+    let _ = fs::write(f, format!("{}\n", pretty));
 }
 
 fn sanitize_tags(tags: Vec<String>) -> Vec<String> {
@@ -290,16 +292,15 @@ pub fn set_dsh_plugin_meta(profile: String, key: String, tags: Vec<String>, note
     if key.trim().is_empty() {
         return Err(coded(E_PLUGIN_KEY_UNKNOWN, key));
     }
-    let mut meta = read_plugin_meta();
-    let profile_meta = meta.entry(profile_name).or_default();
-    profile_meta.insert(
+    let mut meta = read_plugin_meta(&profile_name);
+    meta.insert(
         key,
         DshPluginMetaItem {
             tags: sanitize_tags(tags),
             note: sanitize_note(note),
         },
     );
-    write_plugin_meta(&meta);
+    write_plugin_meta(&profile_name, &meta);
     Ok(())
 }
 
@@ -614,9 +615,8 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
         .into_iter()
         .collect();
 
-    // WI-002：本地缓存元信息（tags/note）merge 进对账结果；description 由 package.json 派生。
-    let meta = read_plugin_meta();
-    let profile_meta = meta.get(&profile_name).cloned().unwrap_or_default();
+    // WI-002：元信息（tags/note）从同步镜像 per-profile 文件读取并 merge 进对账结果；description 由 package.json 派生。
+    let profile_meta = read_plugin_meta(&profile_name);
 
     let mut entries: Vec<DshPluginInstallEntry> = Vec::new();
     let mut declared: HashSet<String> = HashSet::new();
