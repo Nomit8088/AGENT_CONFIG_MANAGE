@@ -11,6 +11,8 @@ pub const E_SYNC_PULL_FAILED: &str = "E_SYNC_PULL_FAILED";
 pub const E_SYNC_PUSH_FAILED: &str = "E_SYNC_PUSH_FAILED";
 pub const E_SYNC_FETCH_FAILED: &str = "E_SYNC_FETCH_FAILED";
 pub const E_SYNC_CONNECT_FAILED: &str = "E_SYNC_CONNECT_FAILED";
+pub const E_SYNC_BUSY: &str = "E_SYNC_BUSY";
+pub const E_SYNC_SCHEDULE_UNSUPPORTED: &str = "E_SYNC_SCHEDULE_UNSUPPORTED";
 
 pub const E_GIT_NOT_FOUND: &str = "E_GIT_NOT_FOUND";
 pub const E_GIT_TIMEOUT: &str = "E_GIT_TIMEOUT";

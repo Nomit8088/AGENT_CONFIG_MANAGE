@@ -116,6 +116,35 @@ export interface SkillsSyncDecision {
   direction: 'remote' | 'local'; // remote=采用仓库 / local=保留本地（上传）
 }
 
+// ==================== 定时同步 + 同步历史 (WI-008) ====================
+
+export type SyncScheduleMode = 'interval' | 'cron';
+export type SyncScope = 'skills' | 'dsh';
+export type SyncTrigger = 'manual' | 'startup' | 'scheduled';
+export type SyncHistoryAction = 'pull' | 'push' | 'apply' | 'align' | 'reset';
+export type SyncHistoryResult = 'success' | 'error' | 'skipped';
+
+/** 定时同步配置（WI-008）：应用运行期间按间隔静默 fast-forward 拉取，禁止自动 push。 */
+export interface SyncSchedule {
+  enabled: boolean;
+  mode: SyncScheduleMode;          // MVP 仅 interval；cron 预留
+  intervalMinutes?: number;        // interval 模式必填，最小 5
+  cron?: string;                   // 5 段 cron（预留，未实现）
+  scopes: SyncScope[];             // 默认 ['skills', 'dsh']
+}
+
+/** 单条同步历史（WI-008）：手动 / 启动 / 定时触发的一次同步动作。 */
+export interface SyncHistoryEntry {
+  id: string;                       // 时间戳 + 随机后缀
+  at: number;                       // epoch ms
+  trigger: SyncTrigger;             // manual | startup | scheduled
+  scope: SyncScope;                 // skills | dsh
+  action: SyncHistoryAction;        // pull | push | apply | align | reset
+  result: SyncHistoryResult;        // success | error | skipped
+  summary?: string;                 // 如 "ahead 2 / behind 1"、"pushed <hash>"
+  error?: string;                   // 失败时错误码 / 摘要
+}
+
 // ==================== DSH 插件中心 ====================
 
 export type DshPluginKind = 'inbox' | 'bundle' | 'plain' | 'row';
@@ -390,6 +419,7 @@ export interface AppConfig {
   skills_sync?: SkillsSyncConfig;
   dsh_plugins?: DshPluginsConfig;
   sync_repo?: SyncRepoConfig;
+  sync_schedule?: SyncSchedule;
 }
 
 /** 当前客户端版本，供前端展示使用（需与 package.json / Cargo.toml / tauri.conf.json 保持一致）。 */
