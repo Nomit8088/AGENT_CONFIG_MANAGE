@@ -2,6 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::git_sync::run_git;
 use crate::error_codes::*;
+use crate::sync_guard::SyncFlightGuard;
+use crate::sync_history;
 
 use crate::models::{SkillsSyncConfig, SkillsSyncDecision, SkillsSyncStatus, SyncDiffEntry};
 use crate::storage::{get_app_data_dir, load_config, save_config};
@@ -18,6 +20,7 @@ agents.json
 projects.json
 dsh_install_state.json
 dsh_version_history.json
+sync_history.json
 backups/
 logs/
 *.log
@@ -148,12 +151,33 @@ fn save_sync_config(cfg: &SkillsSyncConfig) -> Result<(), String> {
     save_config(&app_cfg)
 }
 
-fn update_last_sync(status: &str, error: Option<&str>) -> Result<(), String> {
+fn normalize_trigger(trigger: Option<String>) -> String {
+    trigger
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| "manual".to_string())
+}
+
+fn update_last_sync(
+    status: &str,
+    error: Option<&str>,
+    trigger: &str,
+    action: &str,
+    summary: Option<String>,
+) -> Result<(), String> {
     let mut cfg = sync_config();
     cfg.last_sync_status = status.to_string();
     cfg.last_sync_at = chrono::Utc::now().timestamp_millis() as u64;
     cfg.last_error = error.map(|s| s.to_string());
-    save_sync_config(&cfg)
+    save_sync_config(&cfg)?;
+    sync_history::record(
+        trigger,
+        "skills",
+        action,
+        status,
+        summary,
+        error.map(|s| s.to_string()),
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -260,34 +284,54 @@ pub fn init_skills_sync(remote_url: String, branch: Option<String>) -> Result<Sk
 }
 
 #[tauri::command]
-pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
+pub fn pull_skills_sync(trigger: Option<String>) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "skills", "pull", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "skills", "pull", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "skills",
+                "pull",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     let dirty = git_dirty_count_paths(&root, &["skills", ".gitignore"]);
     if dirty > 0 {
         let msg = coded(E_SYNC_DIRTY, dirty.to_string());
-        let _ = update_last_sync("error", Some(&msg));
+        let _ = update_last_sync("error", Some(&msg), &trigger, "pull", None);
         return Err(msg);
     }
 
     let branch = effective_branch(&cfg);
     match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
-            update_last_sync("success", None)?;
+            let st = get_skills_sync_status();
+            let summary = format!("ahead {} / behind {}", st.ahead, st.behind);
+            update_last_sync("success", None, &trigger, "pull", Some(summary))?;
             crate::log_info!("sync", "技能库拉取成功（branch={}）", branch);
-            Ok(get_skills_sync_status())
+            Ok(st)
         }
         Err(e) => {
             let msg = coded(E_SYNC_PULL_FAILED, e);
-            let _ = update_last_sync("error", Some(&msg));
+            let _ = update_last_sync("error", Some(&msg), &trigger, "pull", None);
             crate::log_warn!("sync", "技能库拉取失败: {}", msg);
             Err(msg)
         }
@@ -295,16 +339,38 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
 }
 
 #[tauri::command]
-pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<SkillsSyncStatus, String> {
+pub fn push_skills_sync(
+    message: Option<String>,
+    paths: Vec<String>,
+    trigger: Option<String>,
+) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "skills", "push", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "skills", "push", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "skills",
+                "push",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     // 按功能隔离：传 paths 时按逐文件勾选，否则全量 skills/ + .gitignore
     let mut add_args: Vec<String> = vec!["add".to_string(), "-A".to_string(), "--".to_string()];
@@ -339,12 +405,14 @@ pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<S
     let branch = effective_branch(&cfg);
     if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = coded(E_SYNC_PUSH_FAILED, e);
-        let _ = update_last_sync("error", Some(&msg));
+        let _ = update_last_sync("error", Some(&msg), &trigger, "push", None);
         crate::log_warn!("sync", "技能库推送失败: {}", msg);
         return Err(msg);
     }
 
-    update_last_sync("success", None)?;
+    let head = run_git(&root, ["rev-parse", "--short", "HEAD"]).unwrap_or_default();
+    let summary = format!("pushed {} (branch={})", head.trim(), branch);
+    update_last_sync("success", None, &trigger, "push", Some(summary))?;
     crate::log_info!("sync", "技能库推送成功（branch={}）", branch);
     Ok(get_skills_sync_status())
 }
@@ -385,16 +453,34 @@ pub fn test_skills_sync_connection() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
+pub fn reset_skills_sync_to_remote(trigger: Option<String>) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "skills", "reset", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "skills", "reset", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "skills",
+                "reset",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     let branch = effective_branch(&cfg);
     run_git(&root, ["fetch", "origin", branch.as_str()]).map_err(|e| format!("拉取远端失败: {}", e))?;
@@ -426,7 +512,8 @@ pub fn reset_skills_sync_to_remote() -> Result<SkillsSyncStatus, String> {
         let _ = run_git(&root, checkout_args);
     }
 
-    update_last_sync("success", None)?;
+    let summary = format!("reset to origin/{}", branch);
+    update_last_sync("success", None, &trigger, "reset", Some(summary))?;
     Ok(get_skills_sync_status())
 }
 
@@ -453,16 +540,35 @@ pub fn fetch_skills_sync() -> Result<(), String> {
 #[tauri::command]
 pub fn apply_skills_from_remote(
     decisions: Vec<SkillsSyncDecision>,
+    trigger: Option<String>,
 ) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "skills", "apply", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "skills", "apply", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "skills",
+                "apply",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     let branch = effective_branch(&cfg);
     run_git(&root, ["fetch", "origin", branch.as_str()])
@@ -473,6 +579,7 @@ pub fn apply_skills_from_remote(
         return Err(coded(E_SYNC_BRANCH_MISSING, branch));
     }
 
+    let mut applied = 0usize;
     for d in &decisions {
         if d.direction != "remote" {
             continue;
@@ -493,8 +600,10 @@ pub fn apply_skills_from_remote(
                 let _ = fs::remove_file(&abs);
             }
         }
+        applied += 1;
     }
 
-    update_last_sync("success", None)?;
+    let summary = format!("{} files applied", applied);
+    update_last_sync("success", None, &trigger, "apply", Some(summary))?;
     Ok(get_skills_sync_status())
 }

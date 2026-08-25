@@ -3,6 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::git_sync::run_git;
 use crate::error_codes::*;
+use crate::sync_guard::SyncFlightGuard;
+use crate::sync_history;
 
 use serde_json::Value as JsonValue;
 
@@ -32,6 +34,7 @@ agents.json
 projects.json
 dsh_install_state.json
 dsh_version_history.json
+sync_history.json
 backups/
 logs/
 *.log
@@ -167,12 +170,33 @@ fn effective_branch(cfg: &DshPluginsSyncConfig) -> String {
         .unwrap_or_else(|| "main".to_string())
 }
 
-fn update_last_sync(status: &str, error: Option<&str>) -> Result<(), String> {
+fn normalize_trigger(trigger: Option<String>) -> String {
+    trigger
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| "manual".to_string())
+}
+
+fn update_last_sync(
+    status: &str,
+    error: Option<&str>,
+    trigger: &str,
+    action: &str,
+    summary: Option<String>,
+) -> Result<(), String> {
     let mut cfg = sync_config();
     cfg.last_sync_status = status.to_string();
     cfg.last_sync_at = chrono::Utc::now().timestamp_millis() as u64;
     cfg.last_error = error.map(|s| s.to_string());
-    save_sync_config(&cfg)
+    save_sync_config(&cfg)?;
+    sync_history::record(
+        trigger,
+        "dsh",
+        action,
+        status,
+        summary,
+        error.map(|s| s.to_string()),
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -284,34 +308,54 @@ pub fn init_dsh_plugins_sync(
 }
 
 #[tauri::command]
-pub fn pull_dsh_plugins_sync() -> Result<SkillsSyncStatus, String> {
+pub fn pull_dsh_plugins_sync(trigger: Option<String>) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "dsh", "pull", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "dsh", "pull", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "dsh",
+                "pull",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     let dirty = git_dirty_count_paths(&root, &["dsh", ".gitignore"]);
     if dirty > 0 {
         let msg = format!("DSH 插件同步：本地有 {} 个未提交修改（dsh/.gitignore），已跳过拉取；请先推送或手动处理", dirty);
-        let _ = update_last_sync("error", Some(&msg));
+        let _ = update_last_sync("error", Some(&msg), &trigger, "pull", None);
         return Err(msg);
     }
 
     let branch = effective_branch(&cfg);
     match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
-            update_last_sync("success", None)?;
+            let st = get_dsh_plugins_sync_status();
+            let summary = format!("ahead {} / behind {}", st.ahead, st.behind);
+            update_last_sync("success", None, &trigger, "pull", Some(summary))?;
             crate::log_info!("sync", "DSH 插件配置拉取成功（branch={}）", branch);
-            Ok(get_dsh_plugins_sync_status())
+            Ok(st)
         }
         Err(e) => {
             let msg = format!("拉取失败: {}", e);
-            let _ = update_last_sync("error", Some(&msg));
+            let _ = update_last_sync("error", Some(&msg), &trigger, "pull", None);
             crate::log_warn!("sync", "DSH 插件配置拉取失败: {}", msg);
             Err(msg)
         }
@@ -527,16 +571,34 @@ fn snapshot_local_to_mirror() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus, String> {
+pub fn push_dsh_plugins_sync(message: Option<String>, trigger: Option<String>) -> Result<SkillsSyncStatus, String> {
+    let trigger = normalize_trigger(trigger);
     let root = sync_root();
     let cfg = sync_config();
 
     if !root.join(".git").exists() {
+        sync_history::record(&trigger, "dsh", "push", "error", None, Some(E_SYNC_NOT_INITIALIZED.to_string()));
         return Err(E_SYNC_NOT_INITIALIZED.to_string());
     }
     if effective_remote_url(&cfg).is_empty() {
+        sync_history::record(&trigger, "dsh", "push", "error", None, Some(E_SYNC_NO_REMOTE.to_string()));
         return Err(E_SYNC_NO_REMOTE.to_string());
     }
+
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "dsh",
+                "push",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
 
     let _warnings = snapshot_local_to_mirror();
 
@@ -565,12 +627,14 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
     let branch = effective_branch(&cfg);
     if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = format!("推送失败: {}", e);
-        let _ = update_last_sync("error", Some(&msg));
+        let _ = update_last_sync("error", Some(&msg), &trigger, "push", None);
         crate::log_warn!("sync", "DSH 插件配置推送失败: {}", msg);
         return Err(msg);
     }
 
-    update_last_sync("success", None)?;
+    let head = git_try(&root, &["rev-parse", "--short", "HEAD"]);
+    let summary = format!("pushed {} (branch={})", head.trim(), branch);
+    update_last_sync("success", None, &trigger, "push", Some(summary))?;
     crate::log_info!("sync", "DSH 插件配置推送成功（branch={}）", branch);
     Ok(get_dsh_plugins_sync_status())
 }
@@ -763,6 +827,22 @@ pub fn reconcile_dsh_plugins() -> DshPluginDiff {
 
 #[tauri::command]
 pub fn align_dsh_plugins(profile: Option<String>, decisions: Vec<DshAlignDecision>) -> Result<(), String> {
+    let trigger = "manual".to_string();
+    let _guard = match SyncFlightGuard::acquire() {
+        Some(g) => g,
+        None => {
+            sync_history::record(
+                &trigger,
+                "dsh",
+                "align",
+                "skipped",
+                Some("另一个同步任务正在进行".to_string()),
+                None,
+            );
+            return Err(E_SYNC_BUSY.to_string());
+        }
+    };
+
     let profiles_dir = resolve_dsh_home().join("profiles");
     let mirror_root = dsh_mirror_dir().join("profiles");
 
@@ -785,6 +865,7 @@ pub fn align_dsh_plugins(profile: Option<String>, decisions: Vec<DshAlignDecisio
         None => list_profile_dirs(&mirror_root),
     };
 
+    let mut aligned_profiles = 0usize;
     for name in targets {
         let local_dir = profiles_dir.join(&name);
         let mirror_dir = mirror_root.join(&name);
@@ -954,7 +1035,13 @@ pub fn align_dsh_plugins(profile: Option<String>, decisions: Vec<DshAlignDecisio
             }
         }
 
-        let report = run_install_blocking(name.clone(), "incremental".to_string())?;
+        let report = match run_install_blocking(name.clone(), "incremental".to_string()) {
+            Ok(r) => r,
+            Err(e) => {
+                sync_history::record(&trigger, "dsh", "align", "error", None, Some(e.clone()));
+                return Err(e);
+            }
+        };
         if !report.ok {
             // 安装失败：回滚对齐写盘前的本地配置
             for (f, content) in &snapshots {
@@ -978,9 +1065,14 @@ pub fn align_dsh_plugins(profile: Option<String>, decisions: Vec<DshAlignDecisio
                 .map(|f| format!("{}: {}", f.name, f.reason))
                 .collect::<Vec<_>>()
                 .join("\n");
-            return Err(format!("对齐安装失败: {}", detail));
+            let msg = format!("对齐安装失败: {}", detail);
+            sync_history::record(&trigger, "dsh", "align", "error", None, Some(msg.clone()));
+            return Err(msg);
         }
+        aligned_profiles += 1;
     }
 
+    let summary = format!("{} profiles aligned", aligned_profiles);
+    sync_history::record(&trigger, "dsh", "align", "success", Some(summary), None);
     Ok(())
 }

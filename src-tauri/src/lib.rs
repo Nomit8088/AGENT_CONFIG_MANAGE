@@ -10,6 +10,9 @@ pub mod git_sync;
 pub mod dsh_plugins;
 pub mod dsh_plugins_sync;
 pub mod sync_repo;
+pub mod sync_guard;
+pub mod sync_history;
+pub mod sync_scheduler;
 pub mod app_update;
 pub mod watcher;
 pub mod error_codes;
@@ -698,6 +701,7 @@ pub fn run() {
     let _ = init_storage();
     logger::init_logger();
     logger::log_info("startup", "AgentHub 启动，初始化存储与日志系统完成");
+    sync_scheduler::start();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -724,6 +728,10 @@ pub fn run() {
             sync_repo::validate_sync_repo,
             sync_repo::save_sync_repo,
             sync_repo::unbind_sync_repo,
+            sync_scheduler::get_sync_schedule,
+            sync_scheduler::set_sync_schedule,
+            sync_history::get_sync_history,
+            sync_history::clear_sync_history,
             get_agents,
             scan_agents,
             save_agents_list,
