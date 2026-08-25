@@ -62,6 +62,12 @@
             >req: v{{ entry.requiredVersion }}</span>
           </template>
         </div>
+
+        <div v-if="metaLine" class="mt-1 flex items-center gap-1.5 flex-wrap">
+          <span v-if="entry.description" class="text-[10px] text-slate-400 dark:text-white/40 truncate max-w-[380px]" :title="entry.description">{{ entry.description }}</span>
+          <span v-for="tag in entry.tags" :key="tag" class="text-[9px] px-1.5 py-0.2 rounded-md font-mono border bg-slate-500/10 text-slate-600 dark:text-white/70 border-black/10 dark:border-white/10">{{ tag }}</span>
+          <span v-if="entry.note" class="text-[10px] text-amber-600 dark:text-amber-400 truncate max-w-[220px]" :title="entry.note">{{ entry.note }}</span>
+        </div>
       </div>
     </div>
 
@@ -99,6 +105,15 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <button
+          v-if="canEditMeta"
+          type="button"
+          :title="t('plugins.metaEdit')"
+          :class="actionCls()"
+          @click="openMetaEditor"
+        >
+          <Pencil class="w-3.5 h-3.5" />
+        </button>
         <button
           v-if="isOrphan"
           type="button"
@@ -229,6 +244,14 @@
           <span v-if="entry.requiredVersion" class="opacity-60 font-mono">req: v{{ entry.requiredVersion }}</span>
         </div>
       </div>
+
+      <div v-if="metaLine" class="mt-2 space-y-1">
+        <p v-if="entry.description" class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60" :title="entry.description">{{ entry.description }}</p>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span v-for="tag in entry.tags" :key="tag" class="text-[9px] px-1.5 py-0.2 rounded-md font-mono border bg-slate-500/10 text-slate-600 dark:text-white/70 border-black/10 dark:border-white/10">{{ tag }}</span>
+          <span v-if="entry.note" class="text-[10px] text-amber-600 dark:text-amber-400 truncate max-w-[180px]" :title="entry.note">{{ entry.note }}</span>
+        </div>
+      </div>
     </div>
 
     <div class="flex items-center justify-between gap-1 pt-2 border-t border-black/5 dark:border-white/5 text-[11px]" @click.stop>
@@ -237,6 +260,15 @@
         <span>就绪</span>
       </span>
       <div class="flex items-center gap-1">
+        <button
+          v-if="canEditMeta"
+          type="button"
+          :title="t('plugins.metaEdit')"
+          :class="actionCls()"
+          @click="openMetaEditor"
+        >
+          <Pencil class="w-3.5 h-3.5" />
+        </button>
         <button
           v-if="isOrphan"
           type="button"
@@ -285,10 +317,99 @@
       </div>
     </div>
   </div>
+
+  <!-- tag / 备注编辑弹窗（Teleport 到 body，避免卡片 grid 截断） -->
+  <Teleport to="body">
+    <div
+      v-if="metaEditing"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-colors duration-200"
+      @click.self="metaEditing = false"
+    >
+      <div class="w-[min(560px,92vw)] max-h-[80vh] overflow-auto rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-serif text-sm text-slate-900 dark:text-white/95">{{ t('plugins.metaTitle') }}</h3>
+          <button
+            type="button"
+            @click="metaEditing = false"
+            class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-[#282a32] text-slate-500 dark:text-white/50 transition-colors duration-200"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <div v-if="entry.description" class="mt-3 text-xs text-slate-500 dark:text-white/60">
+          <span class="text-slate-400 dark:text-white/40">{{ t('plugins.metaDescription') }}</span>
+          <p class="mt-1 text-slate-600 dark:text-white/70">{{ entry.description }}</p>
+        </div>
+
+        <div class="mt-4">
+          <label class="text-xs font-medium text-slate-600 dark:text-white/70">{{ t('plugins.metaTags') }}</label>
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span
+              v-for="tag in draftTags"
+              :key="tag"
+              class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10"
+            >
+              {{ tag }}
+              <button type="button" @click="removeTag(tag)" class="text-slate-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-colors duration-200">
+                <X class="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+          <div class="mt-2 flex items-center gap-1.5">
+            <input
+              v-model="draftTagInput"
+              type="text"
+              :maxlength="MAX_PLUGIN_TAG_LEN"
+              :placeholder="t('plugins.metaTagPlaceholder')"
+              class="flex-1 bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              @keyup.enter.prevent="addTag"
+            />
+            <button
+              type="button"
+              :disabled="draftTags.length >= MAX_PLUGIN_TAGS"
+              @click="addTag"
+              class="p-1.5 rounded-lg bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/30 hover:bg-[#8b5cf6]/15 transition-colors duration-200 disabled:opacity-40"
+            >
+              <Plus class="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p class="mt-1 text-[10px] text-slate-400 dark:text-white/40">{{ t('plugins.metaTagHint', { max: MAX_PLUGIN_TAGS, len: MAX_PLUGIN_TAG_LEN }) }}</p>
+        </div>
+
+        <div class="mt-3">
+          <label class="text-xs font-medium text-slate-600 dark:text-white/70">{{ t('plugins.metaNote') }}</label>
+          <textarea
+            v-model="draftNote"
+            rows="3"
+            :maxlength="MAX_PLUGIN_NOTE_LEN"
+            :placeholder="t('plugins.metaNotePlaceholder')"
+            class="mt-1.5 w-full resize-none bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          ></textarea>
+          <p class="mt-1 text-[10px] text-slate-400 dark:text-white/40">{{ t('plugins.metaNoteHint', { max: MAX_PLUGIN_NOTE_LEN }) }}</p>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            @click="metaEditing = false"
+            class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 transition-colors duration-200"
+          >{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            :disabled="metaSaving"
+            @click="saveMeta"
+            class="px-3 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-medium transition-colors duration-200 disabled:opacity-50"
+          >{{ t('common.save') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Package,
   CircleDot,
@@ -299,6 +420,9 @@ import {
   RefreshCw,
   Download,
   AlertTriangle,
+  Pencil,
+  Plus,
+  X,
 } from 'lucide-vue-next';
 import type {
   DshPluginInstallEntry,
@@ -321,12 +445,63 @@ const emit = defineEmits<{
   (e: 'show-error', stack: string): void;
   (e: 'check-update', entry: DshPluginInstallEntry): void;
   (e: 'update', entry: DshPluginInstallEntry): void;
+  (e: 'save-meta', entry: DshPluginInstallEntry, tags: string[], note: string): void;
 }>();
+
+const { t } = useI18n();
+
+const MAX_PLUGIN_TAGS = 10;
+const MAX_PLUGIN_TAG_LEN = 32;
+const MAX_PLUGIN_NOTE_LEN = 500;
+
+const metaEditing = ref(false);
+const metaSaving = ref(false);
+const draftTags = ref<string[]>([]);
+const draftTagInput = ref('');
+const draftNote = ref('');
 
 const entry = computed(() => props.entry);
 const isInbox = computed(() => entry.value.kind === 'inbox');
 const isOrphan = computed(() => entry.value.status === 'orphan');
 const showToggle = computed(() => !isInbox.value && !isOrphan.value);
+const canEditMeta = computed(() => !isInbox.value);
+const metaLine = computed(
+  () => Boolean(entry.value.description || (entry.value.tags?.length ?? 0) > 0 || entry.value.note)
+);
+
+function openMetaEditor() {
+  draftTags.value = [...(entry.value.tags || [])];
+  draftNote.value = entry.value.note || '';
+  draftTagInput.value = '';
+  metaEditing.value = true;
+}
+
+function addTag() {
+  const t2 = draftTagInput.value.trim().slice(0, MAX_PLUGIN_TAG_LEN);
+  if (!t2) return;
+  if (draftTags.value.includes(t2)) {
+    draftTagInput.value = '';
+    return;
+  }
+  if (draftTags.value.length >= MAX_PLUGIN_TAGS) return;
+  draftTags.value.push(t2);
+  draftTagInput.value = '';
+}
+
+function removeTag(tag: string) {
+  draftTags.value = draftTags.value.filter(x => x !== tag);
+}
+
+function saveMeta() {
+  if (metaSaving.value) return;
+  metaSaving.value = true;
+  try {
+    emit('save-meta', props.entry, draftTags.value, draftNote.value.trim());
+  } finally {
+    metaSaving.value = false;
+    metaEditing.value = false;
+  }
+}
 const updateAvailable = computed(() => Boolean(props.updateCheck?.updateAvailable));
 const canCheckUpdate = computed(
   () =>

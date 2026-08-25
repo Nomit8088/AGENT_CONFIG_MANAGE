@@ -203,6 +203,7 @@
             @show-error="showError = $event"
             @check-update="checkUpdate"
             @update="updatePlugin"
+            @save-meta="saveMeta"
           />
         </div>
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
@@ -219,6 +220,7 @@
             @show-error="showError = $event"
             @check-update="checkUpdate"
             @update="updatePlugin"
+            @save-meta="saveMeta"
           />
         </div>
 
@@ -344,6 +346,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAppStore } from '../stores/useAppStore';
 import {
   Puzzle,
@@ -388,6 +391,7 @@ interface SectionDef {
 }
 
 const store = useAppStore();
+const { t } = useI18n();
 const selectedProfile = ref(store.dshPluginsScan?.profiles[0]?.name || 'web');
 const showError = ref('');
 const view = ref<'source' | 'status'>('source');
@@ -788,6 +792,14 @@ async function clearFailed() {
     await store.clearDshInstallState(selectedProfile.value);
   } catch (e: any) {
     store.showToast({ title: '清除失败', message: e?.message || '无法清除安装状态', type: 'error' });
+  }
+}
+
+async function saveMeta(entry: DshPluginInstallEntry, tags: string[], note: string) {
+  try {
+    await store.setDshPluginMeta(entry.profileName, entry.key, tags, note);
+  } catch (e: any) {
+    store.showToast({ title: t('toast.pluginMetaSaveFailedTitle'), message: e?.message || t('toast.pluginMetaSaveFailedMsg'), type: 'error' });
   }
 }
 </script>
