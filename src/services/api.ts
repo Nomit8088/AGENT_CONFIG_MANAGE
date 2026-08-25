@@ -1,6 +1,9 @@
 import {
   AgentInfo,
   AppConfig,
+  AppLogExportResult,
+  AppLogPathResult,
+  AppLogsResult,
   AppUpdateCheck,
   AppUpdateDownload,
   DshAlignDecision,
@@ -762,6 +765,33 @@ export const api = {
       return invokeTauri('install_app_update', { path: installPath });
     }
     return requestApi<void>('/api/app/update/install', 'POST', { path: installPath });
+  },
+
+  // ==================== 应用日志系统 (WI-007) ====================
+
+  async getAppLogs(limit?: number, level?: string): Promise<AppLogsResult> {
+    if (isTauri()) {
+      return invokeTauri<AppLogsResult>('get_app_logs', { limit, level });
+    }
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (level) params.set('level', level);
+    const qs = params.toString();
+    return requestApi<AppLogsResult>(`/api/app/logs${qs ? `?${qs}` : ''}`);
+  },
+
+  async exportAppLogs(): Promise<AppLogExportResult> {
+    if (isTauri()) {
+      return invokeTauri<AppLogExportResult>('export_app_logs');
+    }
+    return requestApi<AppLogExportResult>('/api/app/logs/export');
+  },
+
+  async getAppLogPath(): Promise<AppLogPathResult> {
+    if (isTauri()) {
+      return invokeTauri<AppLogPathResult>('get_app_log_path');
+    }
+    return requestApi<AppLogPathResult>('/api/app/logs/path');
   },
 
   onExternalSkillCreated(callback: (path: string) => void): void {

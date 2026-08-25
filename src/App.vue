@@ -23,6 +23,7 @@
     <AddProjectModal />
     <DiffModal />
     <SettingsModal />
+    <LogViewerModal />
     <UpdateModal />
     <ToastContainer />
   </div>
@@ -43,6 +44,7 @@ import SkillEditorModal from './components/SkillEditorModal.vue';
 import AddProjectModal from './components/AddProjectModal.vue';
 import DiffModal from './components/DiffModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import LogViewerModal from './components/LogViewerModal.vue';
 import UpdateModal from './components/UpdateModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 

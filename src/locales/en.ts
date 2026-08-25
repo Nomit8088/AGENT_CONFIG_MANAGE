@@ -101,6 +101,9 @@ export default {
     repoValidateSavedMsg: 'Sync enabled; you can pull/push in Sync Center',
     repoValidateSaveFailedTitle: 'Failed to save repository',
     repoValidateSaveFailedMsg: 'Pass validation first',
+    logsTitle: 'Application Logs',
+    logsSubtitle: 'View runtime logs, export a snapshot and copy the log file path',
+    openLogs: 'Open Logs',
   },
   agent: {
     addTitle: 'Add custom Agent',
@@ -672,6 +675,18 @@ export default {
     sideRemote: 'Remote ahead',
     sideBoth: 'Both modified',
   },
+  logs: {
+    title: 'Application Logs',
+    subtitle: 'View and export runtime logs (logs contain local paths; desensitize before sharing)',
+    desensitizeHint: '⚠️ Logs contain local file paths and command output. Review and desensitize sensitive information before sharing or exporting.',
+    pathLabel: 'Log file path',
+    refresh: 'Refresh',
+    export: 'Export',
+    copyPath: 'Copy path',
+    copied: 'Copied',
+    empty: 'No logs',
+    loading: 'Loading…',
+  },
   toast: {
     settingsUpdatedTitle: 'Settings updated',
     settingsUpdatedMsg: 'Global client config saved successfully',
@@ -837,6 +852,7 @@ export default {
     hookReadyMsg: 'Installed and repaired pre-checkout / post-checkout / pre-commit guard protection',
     hookRepairFailedTitle: 'Repair failed',
     hookRepairFailedMsg: 'An error occurred while installing Git Hooks',
+    logExportDoneTitle: 'Logs exported',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: 'Sync repository not initialized; initialize it in Sync Center first',
