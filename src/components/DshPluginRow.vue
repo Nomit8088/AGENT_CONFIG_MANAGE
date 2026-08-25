@@ -67,7 +67,8 @@
           <ClampText
             v-if="entry.description"
             :text="entry.description"
-            :lines="1"
+            mode="truncate"
+            max-width-class="max-w-[50%]"
             text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
           />
           <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">

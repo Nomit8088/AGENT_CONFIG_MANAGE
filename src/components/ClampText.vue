@@ -4,8 +4,8 @@
       ref="el"
       :class="[
         textClass,
-        collapsed ? clampClass : 'line-clamp-none',
         'break-words leading-snug',
+        collapsed ? collapsedCls : expandedCls,
         overflow ? 'cursor-pointer' : '',
       ]"
       :title="collapsed ? text : undefined"
@@ -35,7 +35,12 @@ import { ChevronDown, ChevronUp } from 'lucide-vue-next';
 
 const props = defineProps<{
   text: string;
+  /** 垂直截断模式（默认）：折叠态 line-clamp 到 lines 行 */
   lines?: number;
+  /** 截断模式：clamp（多行垂直截断）| truncate（单行横向截断 + 省略号） */
+  mode?: 'clamp' | 'truncate';
+  /** truncate 模式下折叠态的宽度上限类（如 max-w-[50%]） */
+  maxWidthClass?: string;
   textClass?: string;
   rootClass?: string;
 }>();
@@ -54,16 +59,29 @@ const CLAMP: Record<number, string> = {
   4: 'line-clamp-4',
   5: 'line-clamp-5',
 };
-const clampClass = computed(() => CLAMP[props.lines ?? 2] || 'line-clamp-2');
 
-// 仅在「折叠」态测量真实溢出（折叠时 scrollHeight 会反映被截断前的内容高度）。
+const isTruncate = computed(() => props.mode === 'truncate');
+
+const collapsedCls = computed(() =>
+  isTruncate.value
+    ? `truncate ${props.maxWidthClass || ''}`
+    : CLAMP[props.lines ?? 2] || 'line-clamp-2'
+);
+
+const expandedCls = computed(() =>
+  isTruncate.value ? 'whitespace-normal' : 'line-clamp-none'
+);
+
+// 折叠态测量真实溢出：clamp 用垂直高度，truncate 用水平宽度。
 function measure() {
   const node = el.value;
   if (!node) {
     overflow.value = false;
     return;
   }
-  overflow.value = node.scrollHeight > node.clientHeight + 1;
+  overflow.value = isTruncate.value
+    ? node.scrollWidth > node.clientWidth + 1
+    : node.scrollHeight > node.clientHeight + 1;
 }
 
 function toggle() {
@@ -85,7 +103,9 @@ onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && el.value) {
     ro = new ResizeObserver(() => {
       if (collapsed.value && el.value) {
-        overflow.value = el.value.scrollHeight > el.value.clientHeight + 1;
+        overflow.value = isTruncate.value
+          ? el.value.scrollWidth > el.value.clientWidth + 1
+          : el.value.scrollHeight > el.value.clientHeight + 1;
       }
     });
     ro.observe(el.value);
