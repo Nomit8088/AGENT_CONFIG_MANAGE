@@ -768,6 +768,7 @@ pub fn run() {
             dsh_plugins::install_dsh_plugins_v2,
             dsh_plugins::install_dsh_plugins_streamed,
             dsh_plugins::clear_dsh_install_state,
+            dsh_plugins::set_dsh_plugin_meta,
             dsh_plugins::check_dsh_plugin_update,
             dsh_plugins::update_dsh_plugin,
             dsh_plugins::create_dsh_config_snapshot,

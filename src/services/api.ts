@@ -471,6 +471,13 @@ export const api = {
     return requestApi<void>('/api/dsh/plugins/install-state/clear', 'POST', { profile, pkg });
   },
 
+  async setDshPluginMeta(profile: string, key: string, tags: string[], note: string): Promise<void> {
+    if (isTauri()) {
+      return invokeTauri('set_dsh_plugin_meta', { profile, key, tags, note });
+    }
+    return requestApi<void>('/api/dsh/plugins/meta', 'POST', { profile, key, tags, note });
+  },
+
   async checkDshPluginUpdate(profile: string, key: string): Promise<DshPluginUpdateCheck> {
     if (isTauri()) {
       return invokeTauri<DshPluginUpdateCheck>('check_dsh_plugin_update', { profile, key });

@@ -43,6 +43,7 @@ import {
   installDshPluginsV2,
   reconcileDshInstall,
   clearDshInstallState,
+  setDshPluginMeta,
   checkDshPluginUpdate,
   updateDshPlugin,
   getDshPluginsSyncStatus,
@@ -803,6 +804,19 @@ function localApiPlugin(): Plugin {
             if (pathname === '/api/dsh/plugins/install-state/clear' && req.method === 'POST') {
               const { profile, pkg } = jsonBody;
               clearDshInstallState(profile || 'web', pkg || undefined);
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true }));
+            }
+
+            // POST /api/dsh/plugins/meta (保存插件卡片 tags/note；description 由后端回填)
+            if (pathname === '/api/dsh/plugins/meta' && req.method === 'POST') {
+              const { profile, key, tags, note } = jsonBody;
+              setDshPluginMeta(
+                profile || 'web',
+                typeof key === 'string' ? key : '',
+                Array.isArray(tags) ? tags : [],
+                typeof note === 'string' ? note : '',
+              );
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
             }

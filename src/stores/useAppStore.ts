@@ -965,6 +965,16 @@ export const useAppStore = defineStore('app', {
       });
     },
 
+    async setDshPluginMeta(profile: string, key: string, tags: string[], note: string) {
+      await api.setDshPluginMeta(profile, key, tags, note);
+      await this.loadDshInstallEntries(profile);
+      this.showToast({
+        title: t('toast.pluginMetaSavedTitle'),
+        message: t('toast.pluginMetaSavedMsg', { key }),
+        type: 'success',
+      });
+    },
+
     async checkDshPluginUpdate(profile: string, key: string) {
       const result = await api.checkDshPluginUpdate(profile, key);
       this.dshPluginUpdates = {

@@ -159,6 +159,18 @@ fn read_installed_version(profile_dir: &Path, pkg_name: &str) -> Option<String> 
     v.get("version")?.as_str().map(|s| s.to_string())
 }
 
+/// 从 node_modules/<pkg>/package.json 读取 description（WI-002 回填，缺失/未安装时 None）。
+fn read_installed_description(profile_dir: &Path, pkg_name: &str) -> Option<String> {
+    let mut pkg_dir = profile_dir.join("node_modules");
+    for part in pkg_name.split('/') {
+        pkg_dir = pkg_dir.join(part);
+    }
+    let pkg = read_pkg_from_dir(&pkg_dir)?;
+    pkg.get("description")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
 // ==================== 安装状态持久化 ====================
 
 type InstallStateMap = HashMap<String, HashMap<String, DshInstallStateItem>>;
@@ -199,6 +211,96 @@ fn write_install_state(state: &InstallStateMap) {
     let _ = fs::create_dir_all(&dir);
     let pretty = serde_json::to_string_pretty(state).unwrap_or_else(|_| "{}".to_string());
     let _ = fs::write(dir.join("dsh_install_state.json"), format!("{}\n", pretty));
+}
+
+// ==================== 插件卡片元信息持久化 (WI-002) ====================
+// tag / note 只写 AgentHub 本地缓存，不入 ~/.dsh 事实源、不入同步镜像。
+
+const MAX_PLUGIN_TAGS: usize = 10;
+const MAX_PLUGIN_TAG_LEN: usize = 32;
+const MAX_PLUGIN_NOTE_LEN: usize = 500;
+
+type PluginMetaMap = HashMap<String, HashMap<String, DshPluginMetaItem>>;
+
+fn plugin_meta_file() -> PathBuf {
+    crate::storage::get_app_data_dir().join("dsh_plugin_meta.json")
+}
+
+fn read_plugin_meta() -> PluginMetaMap {
+    let f = plugin_meta_file();
+    if !f.exists() {
+        return HashMap::new();
+    }
+    if let Ok(text) = fs::read_to_string(&f) {
+        if let Ok(v) = serde_json::from_str::<JsonValue>(&text) {
+            if let Some(obj) = v.as_object() {
+                let mut out = HashMap::new();
+                for (profile, key_map) in obj {
+                    if let Some(keys) = key_map.as_object() {
+                        let mut km = HashMap::new();
+                        for (key, item) in keys {
+                            if let Ok(m) = serde_json::from_value::<DshPluginMetaItem>(item.clone()) {
+                                km.insert(key.clone(), m);
+                            }
+                        }
+                        out.insert(profile.clone(), km);
+                    }
+                }
+                return out;
+            }
+        }
+    }
+    HashMap::new()
+}
+
+fn write_plugin_meta(meta: &PluginMetaMap) {
+    let dir = crate::storage::get_app_data_dir();
+    let _ = fs::create_dir_all(&dir);
+    let pretty = serde_json::to_string_pretty(meta).unwrap_or_else(|_| "{}".to_string());
+    let _ = fs::write(plugin_meta_file(), format!("{}\n", pretty));
+}
+
+fn sanitize_tags(tags: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in tags {
+        let t: String = raw.trim().chars().take(MAX_PLUGIN_TAG_LEN).collect();
+        if t.is_empty() || out.iter().any(|x| x == &t) {
+            continue;
+        }
+        out.push(t);
+        if out.len() >= MAX_PLUGIN_TAGS {
+            break;
+        }
+    }
+    out
+}
+
+fn sanitize_note(note: String) -> String {
+    note.trim().chars().take(MAX_PLUGIN_NOTE_LEN).collect()
+}
+
+/// 保存某条目 tags/note（幂等覆盖；不写 description，description 由后端 reconcile 回填）。
+#[tauri::command]
+pub fn set_dsh_plugin_meta(profile: String, key: String, tags: Vec<String>, note: String) -> Result<(), String> {
+    let profile_name = if profile.trim().is_empty() {
+        "web".to_string()
+    } else {
+        profile.trim().to_string()
+    };
+    if key.trim().is_empty() {
+        return Err(coded(E_PLUGIN_KEY_UNKNOWN, key));
+    }
+    let mut meta = read_plugin_meta();
+    let profile_meta = meta.entry(profile_name).or_default();
+    profile_meta.insert(
+        key,
+        DshPluginMetaItem {
+            tags: sanitize_tags(tags),
+            note: sanitize_note(note),
+        },
+    );
+    write_plugin_meta(&meta);
+    Ok(())
 }
 
 // ==================== 对账（配置 ∪ 本机磁盘） ====================
@@ -512,6 +614,10 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
         .into_iter()
         .collect();
 
+    // WI-002：本地缓存元信息（tags/note）merge 进对账结果；description 由 package.json 派生。
+    let meta = read_plugin_meta();
+    let profile_meta = meta.get(&profile_name).cloned().unwrap_or_default();
+
     let mut entries: Vec<DshPluginInstallEntry> = Vec::new();
     let mut declared: HashSet<String> = HashSet::new();
 
@@ -529,6 +635,19 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
         } else {
             None
         };
+        let description = if installed {
+            read_installed_description(&profile_dir, &name)
+        } else {
+            None
+        };
+        let key = if is_inbox {
+            format!("bundle:{}", name)
+        } else {
+            format!("{}:{}", if kind == "plain" { "dep" } else { "bundle" }, name)
+        };
+        let pm = profile_meta.get(&key);
+        let tags = pm.map(|m| m.tags.clone()).unwrap_or_default();
+        let note = pm.map(|m| m.note.clone()).unwrap_or_default();
 
         let mut required_version: Option<String> = None;
         if is_semver_spec(spec.as_deref()) {
@@ -542,7 +661,7 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
 
         if is_inbox {
             entries.push(DshPluginInstallEntry {
-                key: format!("bundle:{}", name),
+                key,
                 profile_name: profile_name.clone(),
                 name,
                 kind: "inbox".to_string(),
@@ -551,6 +670,9 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
                 installed: false,
                 installed_version: None,
                 required_version: None,
+                description,
+                tags,
+                note,
                 status: "ok".to_string(),
                 install_error: None,
                 portability: "portable".to_string(),
@@ -600,7 +722,7 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
         }
 
         entries.push(DshPluginInstallEntry {
-            key: format!("{}:{}", if kind == "plain" { "dep" } else { "bundle" }, name),
+            key,
             profile_name: profile_name.clone(),
             name,
             kind: kind.to_string(),
@@ -609,6 +731,9 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
             installed,
             installed_version,
             required_version,
+            description,
+            tags,
+            note,
             status,
             install_error,
             portability,
@@ -657,8 +782,12 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
             .clone()
             .or_else(|| row.name.clone())
             .unwrap_or_else(|| format!("row-{}", row_idx));
+        let row_key = format!("row:{}", row_name);
+        let pm = profile_meta.get(&row_key);
+        let tags = pm.map(|m| m.tags.clone()).unwrap_or_default();
+        let note = pm.map(|m| m.note.clone()).unwrap_or_default();
         entries.push(DshPluginInstallEntry {
-            key: format!("row:{}", row_name),
+            key: row_key,
             profile_name: profile_name.clone(),
             name: row_name.clone(),
             kind: "row".to_string(),
@@ -667,6 +796,9 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
             installed: false,
             installed_version: None,
             required_version: None,
+            description: None,
+            tags,
+            note,
             status: "ok".to_string(),
             install_error: None,
             portability: "portable".to_string(),
@@ -695,8 +827,13 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
     orphans.sort();
     for o in orphans {
         let installed_version = read_installed_version(&profile_dir, &o);
+        let description = read_installed_description(&profile_dir, &o);
+        let orphan_key = format!("orphan:{}", o);
+        let pm = profile_meta.get(&orphan_key);
+        let tags = pm.map(|m| m.tags.clone()).unwrap_or_default();
+        let note = pm.map(|m| m.note.clone()).unwrap_or_default();
         entries.push(DshPluginInstallEntry {
-            key: format!("orphan:{}", o),
+            key: orphan_key,
             profile_name: profile_name.clone(),
             name: o.clone(),
             kind: "plain".to_string(),
@@ -705,6 +842,9 @@ pub fn reconcile_dsh_install(profile: String) -> Result<Vec<DshPluginInstallEntr
             installed: true,
             installed_version,
             required_version: None,
+            description,
+            tags,
+            note,
             status: "orphan".to_string(),
             install_error: None,
             portability: "portable".to_string(),
@@ -1528,6 +1668,7 @@ fn scan_profile(profiles_dir: &Path, name: &str) -> DshProfileScan {
             kind: if is_inbox { "inbox".to_string() } else { "bundle".to_string() },
             spec: spec.clone(),
             installed_version: read_installed_version(&dir, b),
+            description: read_installed_description(&dir, b),
             enabled: !patch_disabled_hit,
             portability: if is_portable_spec(spec.as_deref()) {
                 "portable".to_string()
@@ -1551,6 +1692,7 @@ fn scan_profile(profiles_dir: &Path, name: &str) -> DshProfileScan {
             kind: "plain".to_string(),
             spec: Some(spec.clone()),
             installed_version: read_installed_version(&dir, &dep),
+            description: read_installed_description(&dir, &dep),
             enabled: false,
             portability: if is_portable_spec(Some(&spec)) {
                 "portable".to_string()
@@ -1575,6 +1717,7 @@ fn scan_profile(profiles_dir: &Path, name: &str) -> DshProfileScan {
             kind: "row".to_string(),
             spec: None,
             installed_version: None,
+            description: None,
             enabled: row.disabled != Some(true),
             portability: "portable".to_string(),
             disabled_by: if row.disabled == Some(true) { Some("patch".to_string()) } else { None },
