@@ -276,48 +276,36 @@
         </div>
       </div>
 
-      <div v-if="metaLine" class="mt-2 space-y-1.5">
-        <ClampText
-          v-if="entry.description"
-          :text="entry.description"
-          :lines="2"
-          text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
-        />
-        <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
-          <button
-            v-for="tag in visibleTags"
-            :key="tag"
-            type="button"
-            :title="t('plugins.filterByTag', { tag })"
-            class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
-            @click.stop="emit('filter-tag', tag)"
-          >{{ tag }}</button>
-          <button
-            v-if="hiddenTagCount > 0"
-            type="button"
-            :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
-            class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
-            @click.stop="tagsExpanded = !tagsExpanded"
-          >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
-        </div>
-        <div v-if="entry.note" class="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-white/70">
-          <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
-          <ClampText
-            :text="entry.note"
-            :lines="2"
-            root-class="flex-1 min-w-0"
-            text-class="text-[11px] text-slate-600 dark:text-white/70"
-          />
-        </div>
-      </div>
+      <ClampText
+        v-if="entry.description"
+        :text="entry.description"
+        :lines="2"
+        root-class="mt-2"
+        text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
+      />
     </div>
 
-    <div class="flex items-center justify-between gap-1 pt-2 border-t border-black/5 dark:border-white/5 text-[11px]" @click.stop>
-      <span class="text-slate-400 dark:text-white/40 font-mono text-[10px] flex items-center gap-1">
-        <i data-lucide="check-circle" class="w-3 h-3 text-indigo-400"></i>
-        <span>就绪</span>
-      </span>
-      <div class="flex items-center gap-1">
+    <div class="flex items-center justify-between gap-2 pt-2 border-t border-black/5 dark:border-white/5 text-[11px]" @click.stop>
+      <div class="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+        <button
+          v-for="tag in visibleTags"
+          :key="tag"
+          type="button"
+          :title="t('plugins.filterByTag', { tag })"
+          class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
+          @click.stop="emit('filter-tag', tag)"
+        >{{ tag }}</button>
+        <button
+          v-if="hiddenTagCount > 0"
+          type="button"
+          :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
+          class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
+          @click.stop="tagsExpanded = !tagsExpanded"
+        >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
+        <span v-if="entry.note" class="flex items-center gap-1 min-w-0 text-slate-600 dark:text-white/70">
+          <StickyNote class="w-3.5 h-3.5 shrink-0 text-amber-500/80" />
+          <span class="truncate max-w-[200px]" :title="entry.note">{{ entry.note }}</span>
+        </span>
         <button
           v-if="canEditMeta"
           type="button"
@@ -328,6 +316,8 @@
           <Pencil class="w-3 h-3" />
           <span>{{ t('plugins.metaEditShort') }}</span>
         </button>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
         <button
           v-if="isOrphan"
           type="button"
