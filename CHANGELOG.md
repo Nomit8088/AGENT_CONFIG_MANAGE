@@ -10,6 +10,8 @@ All notable changes to AgentHub are documented in this file.
 - 关键路径埋点：启动、技能/DSH 插件同步 pull/push、DSH 插件安装/扫描/配置快照、应用更新检查等。
 - 双端 API 对齐：Rust 新增 `get_app_logs` / `export_app_logs` / `get_app_log_path` 命令，Node 同步新增 `GET /api/app/logs` / `GET /api/app/logs/export` / `GET /api/app/logs/path` 路由。
 - 前端日志查看器（`LogViewerModal.vue`）：设置页新增「应用日志」入口，支持级别过滤、刷新、导出快照、复制日志路径；含「日志含本机路径，分享/导出前注意脱敏」提示；zh/en 双语文案。
+- 系统托盘与后台常驻（WI-001）：Tauri 桌面端启用 `tray-icon` 特性，关闭主窗口隐藏到托盘后台驻留而非退出；托盘图标菜单「显示主窗口 / 退出」，可唤回主窗口或彻底退出；Windows/Linux 托盘左键单击唤回主窗口，macOS 遵循平台默认（左键弹出菜单）。
+- 托盘关键事件（创建 / 唤回 / 退出 / 关窗驻留）复用 WI-007 日志系统，模块标签 `tray`；纯桌面端能力，Web 模式（vite dev）完全不受影响。
 
 ## [1.0.6] - 2026-08-24
 
