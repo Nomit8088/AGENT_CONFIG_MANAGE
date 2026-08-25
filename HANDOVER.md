@@ -615,6 +615,42 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ---
 
+## 8H. 插件卡片元信息：tag / 备注 / 描述（WI-002）
+
+在 DSH 插件卡片上补齐「描述 / 标签 / 备注」三块信息，其中描述为派生展示、标签与备注为用户自定义并本地持久化。
+
+### 能力与关键决策
+- **描述自动回填**：`reconcile_dsh_install`（Rust）/ `reconcileDshInstall`（Node）与 `scan_dsh_plugins` / `scanDshPlugins` 在扫描/对账时读取 `node_modules/<pkg>/package.json` 的 `description` 回填；缺失或未安装（`installed=false`）时兜底为空，UI 不显示该行。
+- **tag**：每条插件卡片可增删改多个 tag（上限 10 个、每个 ≤32 字符，去重、超长截断）。
+- **备注**：每条插件卡片一条备注（≤500 字符）。
+- **持久化边界（锁定）**：tag/note 只写 AgentHub 本地缓存 `dsh_plugin_meta.json`（应用数据目录，与 `dsh_install_state.json` 同级），**不入 `~/.dsh` 事实源、不入同步镜像**；`description` 派生自 package.json，不落缓存。缓存文件已加入同步仓库共享 `.gitignore`（`SYNC_GITIGNORE_CONTENT` / Rust `GITIGNORE_CONTENT` 两处）。
+
+### 数据模型（双端 100% 对齐）
+```jsonc
+// dsh_plugin_meta.json
+{
+  "<profile>": {
+    "<entry.key>": { "tags": ["..."], "note": "..." }
+  }
+}
+```
+- `entry.key` 复用稳定键：`bundle:<pkg>` / `dep:<pkg>` / `row:<id>` / `orphan:<pkg>`，保证重扫后 meta 不丢。
+- `DshPluginInstallEntry` 增加 `description?: string`、`tags: string[]`、`note: string`（卡片使用此类型）；`DshPluginEntry` 增加 `description?: string`（scan 也回填，供列表展示）。
+- Rust `DshPluginMetaItem { tags, note }` + `DshPluginInstallEntry` / `DshPluginEntry` 字段与 TS 一致（`#[serde(rename, default, skip_serializing_if...)]`）。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `set_dsh_plugin_meta` | `POST /api/dsh/plugins/meta` | 保存某条目 tags/note（入参 `profile` + `key` + `tags` + `note`） |
+
+- `description` 无需单独 set：reconcile 时后端回填；meta 直接 merge 进 reconcile 结果，UI 无需单独 get。
+
+### UI 与 i18n
+- `DshPluginRow.vue`：列表与卡片形态均展示 description / tag / 备注；新增「编辑标签/备注」弹窗（`Teleport` 到 body，避免卡片 grid 截断）。
+- 文案走 `t()` + `src/locales/zh.ts` / `en.ts` 的 `plugins.*` 与 `toast.*` 命名空间。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -636,6 +672,8 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ### 变更记录 (Changelog)
 
+- **2026-08-25 (Session — WI-002)**:
+  - **插件卡片 tag / 备注 / 描述**：新增 §8H 模块；`reconcile`/`scan` 回填 `node_modules/<pkg>/package.json` 的 `description`；卡片支持自定义 tag（≤10 个、每个 ≤32 字符）与备注（≤500 字符）；tag/note 存 AgentHub 本地缓存 `dsh_plugin_meta.json`（不入 `~/.dsh`、不入同步镜像，已入共享 `.gitignore`）；Rust `set_dsh_plugin_meta` 命令 + Node `POST /api/dsh/plugins/meta` 路由 + 前端 `DshPluginRow.vue` 编辑弹窗 + zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-25 (Session — WI-008)**:
   - **同步中心增强（定时同步 + 同步历史）**：新增 §8G 模块；`sync_schedule` 配置（interval 定时静默快进拉取，禁止 auto-push）+ `sync_history.json` 历史（最新在前，保留 100 条，可查看/清空）；Rust `sync_scheduler.rs` 后台线程 + Node `setInterval` 双端调度、`sync_guard.rs` / `syncFlight.ts` 单飞守卫、`sync_history.rs` / `syncHistory.ts` 历史读写；Rust 4 命令 + Node 4 路由 + 前端 `SyncView.vue` 定时配置区/历史区 + zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-25 (Session — WI-001)**:

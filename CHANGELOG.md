@@ -18,6 +18,10 @@ All notable changes to AgentHub are documented in this file.
 - 双端 API 对齐：Rust 新增 `get_sync_schedule` / `set_sync_schedule` / `get_sync_history` / `clear_sync_history` 命令，Node 同步新增 `GET/POST /api/sync/schedule` 与 `GET/DELETE /api/sync/history` 路由。
 - 同步历史覆盖 pull / push / apply / align / reset 动作，trigger 区分 manual / startup / scheduled；`sync_history.json` 加入共享仓库 `.gitignore`（双端统一补齐 `dsh_version_history.json` / `logs/` 等条目）。
 - 前端同步中心新增「定时同步配置区 + 同步历史区」（`SyncView.vue`），遵循 DESIGN_GUIDELINES（1px 细边框、`dark:` 前缀、分段滑块开关），全部文案走 `t()` + zh/en。
+- 插件卡片 tag / 备注 / 描述（WI-002）：reconcile / scan 时自动回填 `node_modules/<pkg>/package.json` 的 `description`（缺失/未安装不显示）；卡片支持用户自定义 tag（最多 10 个、每个 ≤32 字符）与备注（≤500 字符），增删改即时持久化。
+- tag / 备注存 AgentHub 本地缓存 `dsh_plugin_meta.json`（应用数据目录，与 `dsh_install_state.json` 同级），只写本地、不入 `~/.dsh` 事实源、不入同步镜像；缓存文件已加入同步仓库共享 `.gitignore`（Node/Rust 双端）。
+- 双端 API 对齐：Rust 新增 `set_dsh_plugin_meta` 命令，Node 新增 `POST /api/dsh/plugins/meta` 路由；`DshPluginEntry` / `DshPluginInstallEntry` 双端扩展 `description` / `tags` / `note` 字段。
+- 前端 `DshPluginRow.vue` 卡片与列表均展示 description / tag / 备注，新增「编辑标签/备注」弹窗（`Teleport` 到 body，避免卡片 grid 截断），文案走 `t()` + zh/en。
 
 ## [1.0.6] - 2026-08-24
 
