@@ -588,7 +588,7 @@ npm run tauri build
 
 ### 变更记录 (Changelog)
 
-- **2026-08-24 (Session — WI-007)**:
+- **2026-08-25 (Session — WI-007)**:
   - **应用日志系统**：新增 §8E 日志模块；自研轮转文件日志（`logs/agenthub.log`，单文件 5MB × 保留 5 份）；统一格式 `<时间> [LEVEL] [module] message`；Rust 3 命令 + Node 3 路由 + 前端 `LogViewerModal.vue`（查看/导出/复制路径/级别过滤 + 脱敏提示）+ zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-24 (Session — WI-009)**:
   - **DSH 版本升级与版本管理**：新增 §8D 版本管理模块；`DshVersionManager.vue` 版本页签 UI（当前/远端版本 + 升级 + 一键回滚 + 版本历史 + 指定版本安装）；升级前自动快照（`trigger=upgrade`）+ 升级后诊断对比失败插件数；回滚覆盖版本 + 配置两层。Rust 6 命令 + Node 6 路由 + 前端 store 动作双端对齐，版本保持 v1.0.6（与 WI-006 同版发布）。
