@@ -101,6 +101,9 @@ export default {
     repoValidateSavedMsg: '同步功能已启用，可在同步中心执行拉取/推送',
     repoValidateSaveFailedTitle: '保存仓库配置失败',
     repoValidateSaveFailedMsg: '请先通过校验',
+    logsTitle: '应用日志 (Application Logs)',
+    logsSubtitle: '查看运行日志、导出快照与复制日志文件路径',
+    openLogs: '打开日志',
   },
   agent: {
     addTitle: '添加自定义 Agent',
@@ -672,6 +675,18 @@ export default {
     sideRemote: '远端领先',
     sideBoth: '双方修改',
   },
+  logs: {
+    title: '应用日志',
+    subtitle: '运行日志查看与导出（日志含本机路径，请注意脱敏）',
+    desensitizeHint: '⚠️ 日志内容包含本机文件路径与命令输出，分享或导出前请先检查并脱敏敏感信息。',
+    pathLabel: '日志文件路径',
+    refresh: '刷新',
+    export: '导出',
+    copyPath: '复制路径',
+    copied: '已复制',
+    empty: '暂无日志',
+    loading: '加载中…',
+  },
   toast: {
     settingsUpdatedTitle: '设置已更新',
     settingsUpdatedMsg: '客户端全局配置已成功保存',
@@ -837,6 +852,7 @@ export default {
     hookReadyMsg: '已成功安装并修复 pre-checkout / post-checkout / pre-commit 守卫防护',
     hookRepairFailedTitle: '修复失败',
     hookRepairFailedMsg: '安装 Git Hook 时发生异常',
+    logExportDoneTitle: '日志已导出',
   },
   errors: {
     E_SYNC_NOT_INITIALIZED: '尚未初始化同步仓库，请先在同步中心初始化',

@@ -76,12 +76,19 @@ import {
   downloadAppUpdate,
   installAppUpdate,
 } from './src/server/appUpdate';
+import {
+  initLogger,
+  getAppLogs,
+  exportAppLogs,
+  getAppLogPath,
+} from './src/server/logger';
 
 function localApiPlugin(): Plugin {
   return {
     name: 'local-api-plugin',
     configureServer(server) {
       initStorage();
+      initLogger();
 
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/')) {
@@ -90,7 +97,6 @@ function localApiPlugin(): Plugin {
 
         const url = new URL(req.url, `http://${req.headers.host}`);
         const pathname = url.pathname;
-
         let body = '';
         req.on('data', chunk => { body += chunk; });
         req.on('end', async () => {
@@ -1021,6 +1027,29 @@ function localApiPlugin(): Plugin {
               installAppUpdate(installPath);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: true }));
+            }
+
+            // GET /api/app/logs (读取最近日志，支持 limit / level 过滤)
+            if (pathname === '/api/app/logs' && req.method === 'GET') {
+              const limit = url.searchParams.get('limit');
+              const level = url.searchParams.get('level');
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getAppLogs(
+                limit ? parseInt(limit, 10) : undefined,
+                level || undefined,
+              )));
+            }
+
+            // GET /api/app/logs/export (导出日志，返回导出文件路径)
+            if (pathname === '/api/app/logs/export' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(exportAppLogs()));
+            }
+
+            // GET /api/app/logs/path (返回日志文件路径，UI 一键复制)
+            if (pathname === '/api/app/logs/path' && req.method === 'GET') {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(getAppLogPath()));
             }
 
             // 404 fallback

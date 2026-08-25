@@ -1600,11 +1600,12 @@ pub fn scan_dsh_plugins() -> DshPluginScanResult {
     let profiles_dir = home_dir.join("profiles");
     let cfg = load_config();
 
-    let profiles = list_profile_dirs(&profiles_dir)
+    let profiles: Vec<DshProfileScan> = list_profile_dirs(&profiles_dir)
         .iter()
         .map(|name| scan_profile(&profiles_dir, name))
         .collect();
 
+    crate::log_info!("scan", "扫描 DSH 插件完成（profile 数 {}）", profiles.len());
     DshPluginScanResult {
         home_dir: home_dir.to_string_lossy().to_string(),
         dsh_command: resolve_dsh_command(&cfg),
@@ -2777,9 +2778,17 @@ pub fn install_dsh_plugins(profile: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn install_dsh_plugins_v2(profile: String, mode: String) -> Result<DshInstallReport, String> {
-    tauri::async_runtime::spawn_blocking(move || install_inner(profile, mode, None))
+    crate::log_info!("install", "开始安装 DSH 插件（profile={}, mode={}）", profile, mode);
+    let profile_label = profile.clone();
+    let report = tauri::async_runtime::spawn_blocking(move || install_inner(profile.clone(), mode.clone(), None))
         .await
-        .map_err(|e| format!("安装执行失败: {}", e))?
+        .map_err(|e| format!("安装执行失败: {}", e))??;
+    if report.ok {
+        crate::log_info!("install", "DSH 插件安装完成（profile={}, 成功 {} 个）", profile_label, report.installed.len());
+    } else {
+        crate::log_warn!("install", "DSH 插件安装部分失败（profile={}, 失败 {} 个）", profile_label, report.failed.len());
+    }
+    Ok(report)
 }
 
 #[tauri::command]
@@ -2920,6 +2929,7 @@ pub fn create_dsh_config_snapshot(
     fs::write(snap_dir.join("meta.json"), meta_text).map_err(|e| e.to_string())?;
 
     prune_snapshots(&profile_name);
+    crate::log_info!("snapshot", "创建配置快照 {}（profile={}, trigger={}）", id, profile_name, meta.trigger);
     Ok(meta)
 }
 

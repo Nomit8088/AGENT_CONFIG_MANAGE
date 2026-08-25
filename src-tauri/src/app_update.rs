@@ -169,7 +169,8 @@ fn check_inner() -> AppUpdateCheck {
 
 #[tauri::command]
 pub async fn check_app_update() -> AppUpdateCheck {
-    tauri::async_runtime::spawn_blocking(check_inner)
+    crate::log_info!("update", "检查应用更新…");
+    let result = tauri::async_runtime::spawn_blocking(check_inner)
         .await
         .unwrap_or_else(|_| AppUpdateCheck {
             current_version: current_version().to_string(),
@@ -181,7 +182,13 @@ pub async fn check_app_update() -> AppUpdateCheck {
             asset_name: None,
             asset_size: 0,
             error: Some("检查更新执行失败".to_string()),
-        })
+        });
+    if result.update_available {
+        crate::log_info!("update", "发现新版本: {} -> {}", result.current_version, result.latest_version);
+    } else if result.error.is_some() {
+        crate::log_warn!("update", "检查更新出错: {}", result.error.as_deref().unwrap_or(""));
+    }
+    result
 }
 
 fn download_to_file(
@@ -499,6 +506,7 @@ pub fn install_app_update(path: String, app: tauri::AppHandle) -> Result<(), Str
         return Err("安装包不存在，请先重新下载".to_string());
     }
 
+    crate::log_info!("update", "启动安装程序并退出应用: {}", path);
     launch_installer(&p)?;
     std::thread::sleep(std::time::Duration::from_millis(800));
     app.exit(0);

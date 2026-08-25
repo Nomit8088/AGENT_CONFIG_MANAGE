@@ -407,3 +407,26 @@ export interface ToastMessage {
   type: 'info' | 'success' | 'warning' | 'error';
   timestamp: number;
 }
+
+// ==================== 应用日志系统 (WI-007) ====================
+
+export type AppLogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+export interface AppLogEntry {
+  level: AppLogLevel;
+  message: string;
+}
+
+export interface AppLogsResult {
+  logPath: string;
+  entries: AppLogEntry[];
+}
+
+export interface AppLogExportResult {
+  exportPath: string;
+  size: number;
+}
+
+export interface AppLogPathResult {
+  logPath: string;
+}

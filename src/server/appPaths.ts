@@ -17,3 +17,8 @@ export function getAppDataDir(): string {
   }
   return path.join(base, 'AgentHub');
 }
+
+/** 应用日志目录（三平台，与 Rust storage.rs::get_logs_dir 语义一致）。 */
+export function getLogsDir(): string {
+  return path.join(getAppDataDir(), 'logs');
+}

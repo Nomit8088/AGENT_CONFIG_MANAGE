@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import {
   AgentInfo,
   AppConfig,
+  AppLogEntry,
+  AppLogLevel,
   AppUpdateCheck,
   DshAlignDecision,
   DshConfigSnapshot,
@@ -201,6 +203,15 @@ export const useAppStore = defineStore('app', {
       visible: false,
       agentId: '',
       activeTab: 'unmanaged' as 'unmanaged' | 'ignored' | 'skills',
+    },
+
+    // 应用日志系统 (WI-007)
+    appLogs: [] as AppLogEntry[],
+    appLogPath: '' as string,
+    appLogsLoading: false,
+    appLogLevel: '' as '' | AppLogLevel,
+    logViewerModal: {
+      visible: false,
     },
   }),
 
@@ -1747,6 +1758,45 @@ export const useAppStore = defineStore('app', {
 
     removeToast(id: string) {
       this.toasts = this.toasts.filter(t => t.id !== id);
+    },
+
+    // ==================== 应用日志系统 (WI-007) ====================
+
+    openLogViewer() {
+      this.logViewerModal.visible = true;
+      this.loadAppLogs(undefined, this.appLogLevel || undefined).catch(() => {});
+    },
+
+    closeLogViewer() {
+      this.logViewerModal.visible = false;
+    },
+
+    async loadAppLogs(limit?: number, level?: string) {
+      this.appLogsLoading = true;
+      try {
+        const result = await api.getAppLogs(limit ?? 500, level);
+        this.appLogs = result.entries;
+        this.appLogPath = result.logPath;
+        return result;
+      } finally {
+        this.appLogsLoading = false;
+      }
+    },
+
+    async exportAppLogs() {
+      const result = await api.exportAppLogs();
+      this.showToast({
+        title: t('toast.logExportDoneTitle'),
+        message: result.exportPath,
+        type: 'success',
+      });
+      return result;
+    },
+
+    async refreshAppLogPath() {
+      const result = await api.getAppLogPath();
+      this.appLogPath = result.logPath;
+      return result;
     },
   },
 });

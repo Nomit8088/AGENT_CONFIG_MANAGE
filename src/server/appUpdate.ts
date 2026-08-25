@@ -10,6 +10,7 @@ import { spawn, spawnSync, execFileSync } from 'child_process';
 import { URL } from 'url';
 import { getAppDataDir } from './localApi';
 import { detectSystemProxy } from './gitSyncUtil';
+import { logInfo } from './logger';
 import type { AppUpdateCheck, AppUpdateDownload } from '../types';
 import { APP_VERSION } from '../types';
 const UPDATE_REPO = 'Nomit8088/AGENT_CONFIG_MANAGE';
@@ -178,6 +179,7 @@ function pickAsset(assets: unknown[]): PickedAsset | null {
 
 export async function checkAppUpdate(): Promise<AppUpdateCheck> {
   const current = APP_VERSION;
+  logInfo('update', '检查应用更新…');
   try {
     const res = await httpsGet(UPDATE_API_URL, {
       'User-Agent': USER_AGENT,

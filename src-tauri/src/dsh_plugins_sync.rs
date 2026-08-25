@@ -33,6 +33,7 @@ projects.json
 dsh_install_state.json
 dsh_version_history.json
 backups/
+logs/
 *.log
 .DS_Store
 Thumbs.db
@@ -305,11 +306,13 @@ pub fn pull_dsh_plugins_sync() -> Result<SkillsSyncStatus, String> {
     match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
             update_last_sync("success", None)?;
+            crate::log_info!("sync", "DSH 插件配置拉取成功（branch={}）", branch);
             Ok(get_dsh_plugins_sync_status())
         }
         Err(e) => {
             let msg = format!("拉取失败: {}", e);
             let _ = update_last_sync("error", Some(&msg));
+            crate::log_warn!("sync", "DSH 插件配置拉取失败: {}", msg);
             Err(msg)
         }
     }
@@ -563,10 +566,12 @@ pub fn push_dsh_plugins_sync(message: Option<String>) -> Result<SkillsSyncStatus
     if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = format!("推送失败: {}", e);
         let _ = update_last_sync("error", Some(&msg));
+        crate::log_warn!("sync", "DSH 插件配置推送失败: {}", msg);
         return Err(msg);
     }
 
     update_last_sync("success", None)?;
+    crate::log_info!("sync", "DSH 插件配置推送成功（branch={}）", branch);
     Ok(get_dsh_plugins_sync_status())
 }
 

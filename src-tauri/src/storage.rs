@@ -23,11 +23,16 @@ pub fn get_backups_dir() -> PathBuf {
     get_app_data_dir().join("backups")
 }
 
+pub fn get_logs_dir() -> PathBuf {
+    get_app_data_dir().join("logs")
+}
+
 pub fn init_storage() -> Result<(), String> {
     let base = get_app_data_dir();
     fs::create_dir_all(&base).map_err(|e| format!("无法创建存储目录: {}", e))?;
     fs::create_dir_all(get_central_skills_dir()).map_err(|e| format!("无法创建技能库目录: {}", e))?;
     fs::create_dir_all(get_backups_dir()).map_err(|e| format!("无法创建备份目录: {}", e))?;
+    fs::create_dir_all(get_logs_dir()).map_err(|e| format!("无法创建日志目录: {}", e))?;
 
     let config_file = base.join("config.json");
     if !config_file.exists() {
@@ -36,6 +41,7 @@ pub fn init_storage() -> Result<(), String> {
         let _ = fs::write(&config_file, s);
     }
 
+    crate::log_info!("startup", "存储初始化完成: {}", base.display());
     Ok(())
 }
 

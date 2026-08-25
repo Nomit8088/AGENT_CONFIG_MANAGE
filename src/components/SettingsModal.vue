@@ -33,6 +33,22 @@
           </div>
         </div>
 
+        <!-- Application Logs -->
+        <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
+          <div>
+            <div class="font-serif font-semibold text-slate-900 dark:text-white/90">{{ $t('settings.logsTitle') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-white/50">{{ $t('settings.logsSubtitle') }}</div>
+          </div>
+          <button
+            type="button"
+            @click="openLogs"
+            class="px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-[#1c1d22] dark:hover:bg-white/8 text-slate-700 dark:text-white/80 border border-black/10 dark:border-white/10 text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+          >
+            <FileText class="w-3.5 h-3.5" />
+            <span>{{ $t('settings.openLogs') }}</span>
+          </button>
+        </div>
+
         <!-- Theme Switcher (Dark / Light / System) -->
         <div class="flex items-center justify-between py-2 border-b border-black/8 dark:border-white/8">
           <div>
@@ -388,7 +404,7 @@
 import { computed, reactive, ref, watch, onBeforeUnmount } from 'vue';
 import { useAppStore } from '../stores/useAppStore';
 import { t, translateError } from '../i18n';
-import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink, PackageOpen } from 'lucide-vue-next';
+import { Settings, X, Save, Moon, Sun, Monitor, RefreshCw, Unlink, PackageOpen, FileText } from 'lucide-vue-next';
 
 const store = useAppStore();
 
@@ -479,6 +495,10 @@ function openUpdate() {
   if (!store.appUpdate && !store.appUpdateChecking) {
     store.checkAppUpdate(false);
   }
+}
+
+function openLogs() {
+  store.openLogViewer();
 }
 
 function close() {

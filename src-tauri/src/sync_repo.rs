@@ -17,6 +17,7 @@ projects.json
 dsh_install_state.json
 dsh_version_history.json
 backups/
+logs/
 *.log
 .DS_Store
 Thumbs.db

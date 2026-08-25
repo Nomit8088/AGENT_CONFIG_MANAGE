@@ -8,8 +8,8 @@ import { globalSyncRemoteUrl, globalSyncBranch } from './syncRepo';
 import { getAppDataDir as resolveAppDataDir } from './appPaths';
 import { linkStrategyFor } from '../shared/linkStrategy';
 import type { SkillsSyncDecision } from '../types';
+import { logInfo, logWarn } from './logger';
 export { linkStrategyFor };
-
 export function expandTilde(p: string): string {
   if (p.startsWith('~/') || p.startsWith('~\\') || p === '~') {
     const home = os.homedir();
@@ -538,6 +538,7 @@ agents.json
 projects.json
 dsh_install_state.json
 backups/
+logs/
 *.log
 .DS_Store
 Thumbs.db
@@ -774,10 +775,12 @@ export function pullSkillsSync(): SkillsSyncStatus {
   try {
     gitExec(root, ['pull', '--ff-only', 'origin', branch]);
     updateLastSync('success');
+    logInfo('sync', `技能库拉取成功（branch=${branch}）`);
     return getSkillsSyncStatus();
   } catch (e: any) {
     const msg = `E_SYNC_PULL_FAILED::${e.message}`;
     updateLastSync('error', msg);
+    logWarn('sync', `技能库拉取失败: ${msg}`);
     throw new Error(msg);
   }
 }
@@ -811,10 +814,12 @@ export function pushSkillsSync(message?: string, paths?: string[]): SkillsSyncSt
   try {
     gitExec(root, ['push', '-u', 'origin', branch]);
     updateLastSync('success');
+    logInfo('sync', `技能库推送成功（branch=${branch}）`);
     return getSkillsSyncStatus();
   } catch (e: any) {
     const msg = `E_SYNC_PUSH_FAILED::${e.message}`;
     updateLastSync('error', msg);
+    logWarn('sync', `技能库推送失败: ${msg}`);
     throw new Error(msg);
   }
 }
@@ -1195,6 +1200,7 @@ export function uninstallGitHooks(projectPath: string, backupDir?: string): void
 // DSH 插件中心（web 模式后端，与 src-tauri 侧行为对齐）
 export * from './dshPlugins';
 export * from './syncRepo';
+export * from './logger';
 
 export function applyProjectRules(proj: any, allAgents: any[]): void {
   const pPath = proj.path;

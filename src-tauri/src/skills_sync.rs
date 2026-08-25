@@ -19,6 +19,7 @@ projects.json
 dsh_install_state.json
 dsh_version_history.json
 backups/
+logs/
 *.log
 .DS_Store
 Thumbs.db
@@ -281,11 +282,13 @@ pub fn pull_skills_sync() -> Result<SkillsSyncStatus, String> {
     match run_git(&root, ["pull", "--ff-only", "origin", branch.as_str()]) {
         Ok(_) => {
             update_last_sync("success", None)?;
+            crate::log_info!("sync", "技能库拉取成功（branch={}）", branch);
             Ok(get_skills_sync_status())
         }
         Err(e) => {
             let msg = coded(E_SYNC_PULL_FAILED, e);
             let _ = update_last_sync("error", Some(&msg));
+            crate::log_warn!("sync", "技能库拉取失败: {}", msg);
             Err(msg)
         }
     }
@@ -337,10 +340,12 @@ pub fn push_skills_sync(message: Option<String>, paths: Vec<String>) -> Result<S
     if let Err(e) = run_git(&root, ["push", "-u", "origin", branch.as_str()]) {
         let msg = coded(E_SYNC_PUSH_FAILED, e);
         let _ = update_last_sync("error", Some(&msg));
+        crate::log_warn!("sync", "技能库推送失败: {}", msg);
         return Err(msg);
     }
 
     update_last_sync("success", None)?;
+    crate::log_info!("sync", "技能库推送成功（branch={}）", branch);
     Ok(get_skills_sync_status())
 }
 

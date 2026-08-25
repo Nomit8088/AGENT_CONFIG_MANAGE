@@ -12,6 +12,7 @@ pub fn start_watcher(app_handle: AppHandle) {
             Ok(w) => w,
             Err(e) => {
                 eprintln!("无法初始化文件监听器: {}", e);
+                crate::log_error!("scan", "文件监听器初始化失败: {}", e);
                 return;
             }
         };
@@ -44,6 +45,7 @@ pub fn start_watcher(app_handle: AppHandle) {
                         for path in event.paths {
                             if path.is_file() && path.file_name().map_or(false, |n| n == "SKILL.md") {
                                 let path_str = path.to_string_lossy().to_string();
+                                crate::log_info!("scan", "检测到外部技能创建: {}", path_str);
                                 let _ = app_handle.emit("external-skill-created", path_str);
                             }
                         }
