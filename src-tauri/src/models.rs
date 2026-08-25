@@ -515,6 +515,39 @@ pub struct AppUpdateDownload {
     pub error: Option<String>,
 }
 
+// ==================== 应用日志系统 (WI-007) ====================
+
+/// 单条日志：级别 + 原始文本行（`<ts> [LEVEL] [module] message`）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntry {
+    pub level: String, // "DEBUG" | "INFO" | "WARN" | "ERROR"
+    pub message: String,
+}
+
+/// 读取最近日志的结果：较新在前。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppLogsResult {
+    #[serde(rename = "logPath")]
+    pub log_path: String,
+    pub entries: Vec<LogEntry>,
+}
+
+/// 导出日志的结果：返回导出文件路径（另存为当前活动日志文件快照）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppLogExportResult {
+    #[serde(rename = "exportPath")]
+    pub export_path: String,
+    #[serde(rename = "size")]
+    pub size: u64,
+}
+
+/// 返回应用日志文件路径（UI 一键复制）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppLogPathResult {
+    #[serde(rename = "logPath")]
+    pub log_path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub auto_start: bool,

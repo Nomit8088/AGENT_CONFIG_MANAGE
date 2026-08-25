@@ -1,4 +1,5 @@
 pub mod models;
+pub mod logger;
 pub mod process;
 pub mod fs_junction;
 pub mod git_guard;
@@ -579,9 +580,51 @@ fn repair_git_hooks(project_id: String) -> Result<bool, String> {
     Ok(true)
 }
 
+// ==================== 应用日志系统 (WI-007) ====================
+
+/// 读取最近应用日志（支持 limit / level 过滤）。level: debug|info|warn|error。
+#[tauri::command]
+fn get_app_logs(limit: Option<usize>, level: Option<String>) -> Result<AppLogsResult, String> {
+    let entries = logger::read_logs(limit, level)
+        .into_iter()
+        .map(|(lvl, msg)| LogEntry { level: lvl, message: msg })
+        .collect();
+    Ok(AppLogsResult {
+        log_path: logger::log_file_path().to_string_lossy().to_string(),
+        entries,
+    })
+}
+
+/// 导出一份日志文件快照到应用数据目录（返回导出文件路径）。
+#[tauri::command]
+fn export_app_logs() -> Result<AppLogExportResult, String> {
+    let src = logger::log_file_path();
+    let export_path = get_logs_dir().join(format!(
+        "agenthub-export-{}.log",
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    ));
+    std::fs::copy(&src, &export_path).map_err(|e| format!("导出日志失败: {}", e))?;
+    let size = std::fs::metadata(&export_path).map(|m| m.len()).unwrap_or(0);
+    logger::log_info("startup", &format!("用户导出日志快照: {}", export_path.to_string_lossy()));
+    Ok(AppLogExportResult {
+        export_path: export_path.to_string_lossy().to_string(),
+        size,
+    })
+}
+
+/// 返回日志文件路径（UI 一键复制）。
+#[tauri::command]
+fn get_app_log_path() -> AppLogPathResult {
+    AppLogPathResult {
+        log_path: logger::log_file_path().to_string_lossy().to_string(),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = init_storage();
+    logger::init_logger();
+    logger::log_info("startup", "AgentHub 启动，初始化存储与日志系统完成");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -664,6 +707,9 @@ pub fn run() {
             app_update::check_app_update,
             app_update::download_app_update,
             app_update::install_app_update,
+            get_app_logs,
+            export_app_logs,
+            get_app_log_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
