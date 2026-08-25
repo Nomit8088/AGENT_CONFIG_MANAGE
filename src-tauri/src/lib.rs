@@ -22,6 +22,11 @@ use fs_junction::*;
 use git_guard::*;
 use storage::*;
 use agent_detector::*;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager, WindowEvent,
+};
 
 /// DSH 的 skill-filesystem 会扫描多个用户级根目录（主目录 ~/.dsh/skills 与
 /// 通用根 ~/.agents/skills）。首个元素必须是 AgentHub 的主挂载目录；停用/删除
@@ -620,6 +625,74 @@ fn get_app_log_path() -> AppLogPathResult {
     }
 }
 
+// ==================== 系统托盘与后台常驻 (WI-001) ====================
+
+/// 显示主窗口（从隐藏/最小化任意状态恢复）。托盘菜单「显示主窗口」与托盘左键单击复用。
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        // unminimize 在窗口仅隐藏而未最小化时是安全的 no-op。
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else {
+        crate::log_warn!("tray", "未找到主窗口（label=main），无法唤回");
+    }
+}
+
+/// 系统托盘：图标 + 「显示主窗口 / 退出」菜单。
+/// Windows/Linux：左键单击唤回主窗口，右键弹出菜单；
+/// macOS：遵循平台默认（左键弹出菜单）。
+/// 托盘图标句柄托管到 app state，避免因局部 drop 而被移除。
+fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
+    let show_item = MenuItem::with_id(app, "tray_show", "显示主窗口", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+    let mut builder = TrayIconBuilder::new()
+        .icon(
+            app.default_window_icon()
+                .cloned()
+                .expect("missing default window icon"),
+        )
+        .tooltip("AgentHub")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "tray_show" => {
+                crate::log_info!("tray", "托盘菜单：显示主窗口");
+                show_main_window(app);
+            }
+            "tray_quit" => {
+                crate::log_info!("tray", "托盘菜单：退出应用");
+                app.exit(0);
+            }
+            _ => {}
+        });
+
+    // Windows/Linux：左键单击唤回主窗口（右键仍弹出菜单）。
+    // macOS 保持平台默认行为：左键弹出菜单，不做左键唤回（PROMPT_WI001_TRAY.md §3.1.5）。
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder
+            .show_menu_on_left_click(false)
+            .on_tray_icon_event(|tray, event| {
+                if let tauri::tray::TrayIconEvent::Click {
+                    button: tauri::tray::MouseButton::Left,
+                    button_state: tauri::tray::MouseButtonState::Up,
+                    ..
+                } = event
+                {
+                    crate::log_info!("tray", "托盘左键单击：显示主窗口");
+                    show_main_window(tray.app_handle());
+                }
+            });
+    }
+
+    let tray = builder.build(app)?;
+    app.manage(tray);
+    crate::log_info!("tray", "系统托盘创建成功（菜单：显示主窗口 / 退出）");
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = init_storage();
@@ -631,8 +704,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // 关闭窗口 → 隐藏到托盘后台驻留（而非退出）；「退出」托盘菜单才真正退出。
+                api.prevent_close();
+                let _ = window.hide();
+                crate::log_info!("tray", "窗口关闭请求已拦截，隐藏到托盘后台驻留");
+            }
+        })
         .setup(|app| {
             watcher::start_watcher(app.handle().clone());
+            setup_tray(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

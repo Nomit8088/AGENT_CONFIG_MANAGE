@@ -567,13 +567,36 @@ npm run tauri build
 
 ---
 
+## 8F. 系统托盘与后台常驻（WI-001）
+
+Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再退出进程，而是隐藏到托盘后台运行；托盘图标提供「显示主窗口 / 退出」菜单，可唤回主窗口或彻底退出。Web 模式（`npm run dev`）无托盘，此能力仅在 Tauri `setup` 中启用，浏览器模式完全不受影响。
+
+### 实现要点
+- **依赖特性**：`src-tauri/Cargo.toml` 的 `tauri` 启用 `tray-icon` feature（`features = ["tray-icon"]`）。
+- **托盘创建**：`src-tauri/src/lib.rs::setup_tray` 在 `run()` 的 `setup` 中调用——`TrayIconBuilder` 克隆 `app.default_window_icon()` 作为图标，菜单两项 `显示主窗口` / `退出`；托盘句柄 `app.manage(tray)` 托管到应用状态，避免因局部 drop 被移除。
+- **关闭驻留**：`Builder::on_window_event` 拦截 `WindowEvent::CloseRequested` → `api.prevent_close()` + `window.hide()`，应用继续后台运行。
+- **托盘唤回**：菜单「显示主窗口」与（Windows/Linux）托盘左键单击复用 `show_main_window`：`unminimize()` + `show()` + `set_focus()`，覆盖最小化/隐藏任意状态。
+- **彻底退出**：菜单「退出」→ `app.exit(0)`。
+- **埋点**：托盘创建 / 唤回 / 退出 / 关窗驻留均用 WI-007 logger，模块标签 `tray`（`log_info!("tray", ...)`）。
+
+### 平台差异（AGENTS.md §5）
+- **Windows**：系统托盘，左键单击唤回主窗口、右键弹出菜单；真机实测。
+- **macOS**：菜单栏图标遵循平台默认（左键弹出菜单），代码经 `#[cfg(not(target_os = "macos"))]` 仅对 Windows/Linux 启用「左键单击唤回」。
+- **Linux**：`TrayIconBuilder` 代码路径跨平台一致，但托盘依赖 appindicator（`libayatana-appindicator`），`.deb` / `.AppImage` 需在运行时携带该依赖；左键唤回依赖 DE 对 StatusNotifierItem 的支持。
+
+### 与可选增强的边界
+- 本次落地为「固定关闭即托盘」，未做 `AppConfig.close_to_tray` 设置开关、`tauri-plugin-single-instance` 单实例与托盘菜单双语（均记录在 PR 说明中作为后续可选增强）。
+- 纯桌面端能力，Node Web 端（`src/server/localApi.ts`）不实现、无对齐项。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
 - [ ] **MCP Server 配置总线**：扩展多 Agent 的 MCP Server（`claude_desktop_config.json`, `gemini/mcp`, `codex/mcp`）集中可视化管理与共享。
 - [ ] **Skills 市场导入**：接入 GitHub / npm skills 生态一键搜索并远程下载至中央库。
 - [ ] **CodeMirror 6 嵌入双栏 Diff**：在 ProjectEditor 与 DiffModal 中进一步引入 CodeMirror 6 的 MergeView 实时行级对比。
-- [ ] **系统托盘与最小化常驻**：Tauri 2.0 增加系统托盘图标、托盘右键菜单与快捷唤起快捷键。
+- [x] **系统托盘与最小化常驻**：Tauri 2.0 增加系统托盘图标、托盘右键菜单与快捷唤起快捷键（WI-001 落地：关闭驻留 + 显示主窗口/退出菜单 + 左键唤回）。
 
 ---
 
@@ -588,6 +611,8 @@ npm run tauri build
 
 ### 变更记录 (Changelog)
 
+- **2026-08-25 (Session — WI-001)**:
+  - **系统托盘与后台常驻**：新增 §8F 托盘模块；`Cargo.toml` 启用 `tray-icon` feature；`lib.rs` 建托盘（`显示主窗口` / `退出`）+ 关窗拦截隐藏驻留 + 左键唤回（Windows/Linux）+ 彻底退出，关键事件用 WI-007 logger 模块标签 `tray` 埋点；纯桌面端能力，Web 模式不受影响，版本保持 v1.0.6（PR 合入）。
 - **2026-08-25 (Session — WI-007)**:
   - **应用日志系统**：新增 §8E 日志模块；自研轮转文件日志（`logs/agenthub.log`，单文件 5MB × 保留 5 份）；统一格式 `<时间> [LEVEL] [module] message`；Rust 3 命令 + Node 3 路由 + 前端 `LogViewerModal.vue`（查看/导出/复制路径/级别过滤 + 脱敏提示）+ zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-24 (Session — WI-009)**:
