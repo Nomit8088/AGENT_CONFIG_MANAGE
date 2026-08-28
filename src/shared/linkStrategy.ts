@@ -1,7 +1,6 @@
 // 链接策略（能力枚举 × 平台 → 具体操作 + fallback 链）。
 // 单一事实源，供服务端（localApi.ts / vite.config.ts）与 UI 组件（AgentCard / AgentDetailModal）共用；
 // 与 Rust 端 src-tauri/src/fs_junction.rs 的 LinkStrategy / link_strategy_for 保持对齐。
-// 见 PLAN_WI011_MULTI_PLATFORM.md §4.2.2。
 export type LinkStrategy = 'default' | 'hardlinkTree' | 'copy';
 
 const HARD_LINK_TREE_AGENTS = new Set(['antigravity']);

@@ -672,7 +672,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
         });
 
     // Windows/Linux：左键单击唤回主窗口（右键仍弹出菜单）。
-    // macOS 保持平台默认行为：左键弹出菜单，不做左键唤回（PROMPT_WI001_TRAY.md §3.1.5）。
+    // macOS 保持平台默认行为：左键弹出菜单，不做左键唤回。
     #[cfg(not(target_os = "macos"))]
     {
         builder = builder

@@ -5,7 +5,7 @@
 
 ## 跨平台开发规范（WI-011 落地后强制生效）
 
-来源：`PLAN_BACKLOG.md` §5 权威版。所有新增功能与改动必须满足：
+来源：`docs/PLAN_BACKLOG.md` §5 权威版。所有新增功能与改动必须满足：
 
 1. **三平台一致**：所有新功能在 Windows / macOS / Linux 三平台行为一致，禁止只验证单一平台。
 2. **Dual-Mode 双端对齐**：涉及底层文件系统 / 配置 / Git 的改动，Rust Tauri 端（`src-tauri/src/`）与 Node Web 端（`src/server/localApi.ts`）实现 100% 对齐。

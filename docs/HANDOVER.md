@@ -439,7 +439,7 @@ npm run tauri build
 
 ## 8B. DSH 插件面板 V2 — 安装状态对账与安装器
 
-将「插件面板」从只读配置声明升级为「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账视图，补齐安装器能力（详见 `PLAN_DSH_PLUGIN_PANEL_V2.md`）：
+将「插件面板」从只读配置声明升级为「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账视图，补齐安装器能力：
 
 | 能力 | 实现 |
 |---|---|
@@ -869,7 +869,7 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 - **2026-08-20 (Session 21)**:
-  - **DSH 插件面板 V2：安装状态对账与安装器（PLAN_DSH_PLUGIN_PANEL_V2 落地）**:
+  - **DSH 插件面板 V2：安装状态对账与安装器**:
     - 新增 `DshPluginInstallEntry` / `DshInstallFailure` / `DshInstallReport` / `DshInstallMode` / `DshPluginInstallStatus` 数据模型（TS + Rust `models.rs` 双端对齐）。
     - P1 全量状态对账：`reconcile_dsh_install`（Rust）/ `reconcileDshInstall`（Node）按「配置声明 ∪ 本机已装」生成 `ok / pending / orphan / version-mismatch / failed` 状态；内置 bundle 整体豁免；版本对比仅限语义化 spec 且只扫 `pnpm-lock.yaml` 的 `packages:` 段；孤儿只扫顶层 node_modules 并排除 `.bin` / `.pnpm` / 隐藏目录。
     - P2 分模式安装：`install_dsh_plugins_v2`（Rust）/ `installDshPluginsV2`（Node）支持 `incremental / update / reinstall-all / reinstall-failed`，异步执行 pnpm（Rust `spawn_blocking`；Node 异步 `spawn`，600s 超时）。
