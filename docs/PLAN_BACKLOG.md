@@ -38,18 +38,19 @@
 | 编号 | 状态 | 优先级 | 工作项 | 描述 | 验收标准 | 关联 | 备注 |
 |---|---|---|---|---|---|---|---|
 | WI-001 | 已完成 | P2 | 后台常驻与系统托盘 | 应用支持最小化/关闭到系统托盘后台运行，托盘图标提供「显示主窗口 / 退出」菜单 | 关闭窗口后应用仍在托盘驻留；托盘可唤回主窗口与彻底退出 | `src-tauri`（Tauri 2 tray） | 仅桌面端；Web 模式不适用；✅ 已完成（2026-08-25，PR #21 合入） |
-| WI-002 | 待开发 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | 备注/tag 不入 `~/.dsh` 事实源，存 AgentHub 本地缓存 |
-| WI-003 | 已完成 | P1 | 一键启动 dsh + 错误堆栈复制 | 插件管理 / 一键诊断页新增「启动 dsh」按钮，启动失败时捕获完整 stderr 堆栈并支持一键复制 | 点击即启动 dsh；失败时展示堆栈并可复制 | 复用 `PLAN_DSH_PLUGIN_MANAGER` §4.3 堆栈解析、`DshDiagnose.vue` | ✅ 一键启动已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制；端口占用(EADDRINUSE)提示、不算失败 |
-| WI-004 | 待开发 | P2 | 首启卡顿定位与研究 | 定位首次启动程序卡顿的原因，产出结论与可执行的优化方向 | 给出卡顿原因说明 + 优化项列表（可转成后续工作项） | 前端初始化、Rust 启动、sync / 扫描 | 先研究后决策，本轮不改代码 |
+| WI-002 | 已完成 | P3 | 插件卡片 tag / 备注 / 描述 | 插件卡片支持用户自定义 tag/备注，并自动读取插件 `package.json` 的 `description` 回填 | 卡片展示 description；可增删改 tag 与备注并持久化 | `DshPluginList.vue`、`DshPluginEntry`、`dsh_plugins.rs` | ✅ 已完成（PR #23）；备注/tag 存同步镜像随插件同步，不入 `~/.dsh` 事实源 |
+| WI-003 | 已完成 | P1 | 一键启动 dsh + 错误堆栈复制 | 插件管理 / 一键诊断页新增「启动 dsh」按钮，启动失败时捕获完整 stderr 堆栈并支持一键复制 | 点击即启动 dsh；失败时展示堆栈并可复制 | 复用 `DshDiagnose.vue` | ✅ 一键启动已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制；端口占用(EADDRINUSE)提示、不算失败 |
+| WI-004 | 待开发 | P3 | 首启卡顿定位与研究 | 定位首次启动程序卡顿的原因，产出结论与可执行的优化方向 | 给出卡顿原因说明 + 优化项列表（可转成后续工作项） | 前端初始化、Rust 启动、sync / 扫描 | 先研究后决策，本轮不改代码；优先级后移（2026-08-25） |
 | WI-005 | 待开发 | P1 | 插件选择性同步（按卡片勾选） | 同步从「整份 profile 全量镜像」细化为「每条插件卡片可独立勾选是否同步」 | 卡片有同步开关；推送/拉取只包含勾选条目 | `dsh_plugins_sync.rs`、`dshPlugins.ts`、`DshPluginRow/List.vue` | 内置包/不可移植依赖仍按现有规则剔除；→ 并入 WI-013 |
 | WI-006 | 已完成 | P1 | 配置快照与回滚 | 对 DSH 插件配置做快照，支持时间线查看与一键回滚 | 可手动/自动创建快照、列出历史、一键回滚 | `dsh_plugins.rs`、`dshPlugins.ts`、`backups/` | ✅ 已完成 v1.0.6：手动/安装/对齐快照 + 时间线 + 一键回滚 + 最近 20 份 + 永久保留 |
 | WI-007 | 已完成 | P2 | 应用日志系统 | 统一日志采集/分级/导出，配合排障 | 关键路径有日志；可查看与一键导出 | Rust `log`/`tracing`、Node 端日志模块、`SettingsModal.vue` | 支撑 WI-004 首启卡顿排查；✅ 已完成（2026-08-25，合入 main `ad72963`） |
-| WI-008 | 待开发 | P2 | 同步中心增强 | 定时同步 + 冲突可视化解决 + 同步历史，与 WI-005/WI-006 联动设计 | 支持定时触发、冲突解决、历史记录 | `SyncView.vue`、`syncRepo.ts`、`git_sync.rs` | 与 WI-005/WI-006 统一进同一条同步链路；→ 并入 WI-013 |
+| WI-008 | 已完成 | P2 | 同步中心增强（定时同步 + 同步历史） | 定时同步 + 同步历史（冲突可视化解决已并入 WI-013），与 WI-005/WI-006 联动设计 | 支持定时触发、同步历史 | `SyncView.vue`、`syncRepo.ts`、`git_sync.rs` | ✅ 已完成（2026-08-25，PR #22 合入）：定时同步 + 同步历史 + 单飞守卫，双端对齐；冲突解决随 WI-013 落地 |
 | WI-009 | 已完成 | P1 | DSH 版本升级与版本管理 | 插件管理页新增 DSH 本体版本升级 + 版本管理，升级前自动快照，支持回滚 | 可查看当前/远端版本、升级、回滚到历史版本 | 插件管理页、WI-006 快照、`dsh_plugins.rs` 命令探测 | ✅ 已完成 v1.0.6：当前/远端版本 + 升级（自动快照 + 诊断对比）+ 一键回滚（版本 + 配置）+ 版本历史 |
 | WI-010 | 待开发 | P3 | MCP Server 配置总线 | 多 Agent 的 MCP Server 配置（claude_desktop_config.json / gemini/mcp / codex/mcp）集中可视化管理与共享 | 扫描 / 对账 / 启停 / 多端同步 | `syncRepo.ts`、`skills_sync.rs` 的 mcp/ 分类、新组件 | 既定 TODO；用户明确「要做但推后」 |
-| WI-011 | 已完成 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | ✅ 已完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`）；详见 `PLAN_WI011_MULTI_PLATFORM.md` |
+| WI-011 | 已完成 | P0 | macOS / Linux 系统适配 | 去 Windows 强耦合（NTFS Junction / taskkill / WinINET 代理 / npm 全局路径），适配 macOS 与 Linux | 三平台软链/进程清理/代理/npm 路径一致；三平台打包产物 | `fs_junction.rs`、`process.rs`、`git_sync.rs`、`localApi.ts`、CI | ✅ 已完成并发布 v1.0.5（Windows `.exe/.msi` + macOS universal `.dmg` + Linux `.deb/.AppImage`） |
 | WI-012 | 已完成 | P1 | 国际化（i18n） | UI 文案 + 后端错误消息多语言化，引入 vue-i18n，支持中/英切换 | 语言包覆盖全 UI 与后端提示；可切换并持久化 | 20+ `.vue` 组件、`useAppStore.ts`、`server/*.ts` 错误消息、`SettingsModal.vue` | ✅ 已完成：vue-i18n v9 + `src/locales/zh|en.ts` + `src/i18n/index.ts`；语言切换（设置页）经 `AppConfig.locale` 双端持久化；后端错误码化（`src/shared/errorCodes.ts` ↔ `src-tauri/src/error_codes.rs`，同步/插件/git 家族已对齐） |
 | WI-013 | 已完成 | P1 | 同步交互重设计（方向化命名 + 逐条勾选对齐） | 同步按钮按数据流方向重组（上传到仓库 / 从仓库应用 / 预览差异）；DSH 插件对齐细化为逐插件 decisions，Skills 同步细化为逐文件 apply/push | 按钮方向与后果明确；覆盖操作强制前置差异预览；diff 逐条勾选方向并逐条应用 | `SyncView.vue`、`DshPluginSync.vue`、`DshPluginDiffModal.vue`、`SkillsDiffModal.vue`、`dshPlugins.ts`、`localApi.ts`、`dsh_plugins_sync.rs`、`skills_sync.rs` | ✅ 已完成（PR #19）；吸收 WI-005/WI-008；WI-006 快照继续兜底 |
+| WI-014 | 待开发 | P2 | 会话清单与迁移（多 Agent） | 扫描多 Agent 会话存储，清单化展示（工作区/时间/大小），支持备份到数据目录与导出中立交接文档；迁移以「备份 + 交接文档」为主，首期覆盖 DSH / Claude Code / Codex / OpenCode | 三平台可扫描列出并备份/导出；双端行为一致；导出不入同步仓库 | `session_inventory.rs`、`localApi.ts`、`PLAN_WI014_SESSION_MIGRATION.md` | 需求讨论期（2026-08-28）；MVP=清单+备份/导出；详见设计文档 |
 
 ---
 
@@ -71,9 +72,9 @@
 
 - **背景**：插件卡片目前只展示 name / spec / version / portability，缺少描述与自定义备注。
 - **方案要点**：自动读 `node_modules/<pkg>/package.json` 的 `description` 回填；用户可为条目打 tag 或写备注。
-- **关键决策（已锁定）**：备注/tag 存 AgentHub 本地缓存（类似 `dsh_install_state.json`），**不写进 `~/.dsh` 事实源**，避免污染同步镜像；缓存文件加入 `.gitignore`。
-- **依赖**：`DshPluginEntry` 类型扩展（Rust/Node 双端）、`DshPluginList.vue` 卡片交互、本地缓存读写。
-- **风险/边界**：`description` 缺失兜底；备注与同步镜像边界要清晰（纯本地、不参与对账）。
+- **关键决策（已锁定）**：备注/tag 存同步镜像 per-profile 文件 `dsh/profiles/<name>/agenthub-meta.json`，随 DSH 插件同步 push/pull 远程同步；**不写进 `~/.dsh` 的 `package.json` / `cordis.patch.yml` 事实源**。
+- **依赖**：`DshPluginEntry` 类型扩展（Rust/Node 双端）、`DshPluginList.vue` 卡片交互与标签筛选、同步镜像读写。
+- **风险/边界**：`description` 缺失兜底；备注/tag 是同步 git 树内的额外文件，不参与插件级对账。
 
 ### WI-003 — 一键启动 dsh + 错误堆栈复制
 
@@ -128,12 +129,14 @@
 - **依赖**：Rust `log`/`tracing` + 文件 appender；Node 端日志模块；`SettingsModal.vue` 入口。
 - **风险/边界**：日志文件轮转/大小上限，避免无限膨胀；含本机路径，导出时提示脱敏。
 
-### WI-008 — 同步中心增强（联动 WI-005 / WI-006）
+### WI-008 — 同步中心增强（定时同步 + 同步历史）
+
+> ✅ **已完成（2026-08-25，PR #22 合入，merge `8e44dc4`）**：定时同步（interval 静默快进拉取，禁止自动 push）+ 同步历史（`sync_history.json`，最新在前、保留 100 条）+ 单飞守卫（Rust `sync_guard.rs` / Node `syncFlight.ts`）双端对齐；「冲突可视化解决」已并入 WI-013。
 
 - **背景**：当前同步手动 + 启动 fast-forward 自动拉取，冲突只能跳过，无历史记录。
 - **方案要点**：
   - 定时同步（可选间隔 / cron）。
-  - 冲突可视化解决（本地 vs 远端 diff，选择覆盖方向）。
+  - ~~冲突可视化解决（本地 vs 远端 diff，选择覆盖方向）。~~ 已并入 WI-013
   - 同步历史记录（时间、结果、变更摘要）。
 - **与 WI-005/WI-006 的联动**：选择性同步的条目过滤、同步前的自动快照，统一纳入同步中心这条链路设计，避免三处各写一套。
 - **依赖**：`SyncView.vue`、`syncRepo.ts` / `git_sync.rs`、`gitSyncUtil.ts`。
@@ -165,7 +168,7 @@
 
 ### WI-011 — macOS / Linux 系统适配
 
-> ✅ **已完成（2026-08-23，发布 v1.0.5）**：三平台适配（macOS universal / Linux / Windows）的代码、CI、打包、发布全部闭环。实现方案与评审见 `PLAN_WI011_MULTI_PLATFORM.md`，版本变更见 `CHANGELOG.md`。剩余：V1~V4 真机抽验（用户侧）、macOS 签名/公证（WI-011 之后可选）。
+> ✅ **已完成（2026-08-23，发布 v1.0.5）**：三平台适配（macOS universal / Linux / Windows）的代码、CI、打包、发布全部闭环。版本变更见 `CHANGELOG.md`。剩余：V1~V4 真机抽验（用户侧）、macOS 签名/公证（WI-011 之后可选）。
 
 - **背景**：当前大量核心逻辑 Windows 强耦合（`mklink /J` NTFS Junction、`taskkill /T /F`、`AppData\Roaming\npm`、WinINET 代理自愈、Antigravity Hardlink Tree、`.cmd` shim）。README badge 宣称支持三平台，实际仅 Windows 验证。**用户标记为当前最高优先级。**
 - **实施策略（已锁定：不做完整底层重构）**：
@@ -219,6 +222,15 @@
   - `cordis.patch.yml` 目前是整文件 diff，真正按插件粒度需把 patch 行按插件分组（WI-005 延伸）。
   - Rust/Node 双端对齐是硬约束（`AGENTS.md` §5）。
 
+### WI-014 — 会话清单与迁移（多 Agent）
+
+- **背景**：多 Agent 并行开发时会话分散于各 Agent 私有目录，无统一视图，难以查找/备份/交接。
+- **结论（已与用户锁定）**：首期 MVP = 会话清单 + 备份/导出；「迁移」以「备份 + 中立交接文档」为主（不做写私有库的原生 resume）；首期覆盖 DSH / Claude Code / Codex / OpenCode。
+- **真机探测（2026-08-28）**：DSH=`~/.dsh/sessions/<cwd编码>/<uuid>/session.jsonl.zstd`（标准 zstd 压缩 JSONL，魔数 28 B5 2F FD）；Claude Code=`~/.claude/projects/<cwd编码>/<uuid>.jsonl`（明文 JSONL）+ `history.jsonl` 索引；Codex=`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`（明文，单文件可达 177MB）；OpenCode=`~/.local/share/opencode/opencode.db`（SQLite + WAL）。
+- **方案要点**：新增 `session_inventory`（Rust ↔ Node 双端）；per-Agent 解析器注册表；数据目录 `%APPDATA%\AgentHub\sessions\`（Windows）/ `~/.config/agenthub/sessions\`（其他）入 `.gitignore`；大文件流式读取；zstd 解码（Rust `zstd` crate / Node wasm）；导出中立 Markdown/JSONL。
+- **依赖**：`agent_detector.rs`、`appPaths.ts`、`localApi.ts`、WI-006 backups 范式、WI-007 logger、vue-i18n。
+- **风险/边界**：格式漂移需版本锁定；DSH 内部 schema 实施期先解压抽样确认；OpenCode SQLite 只读 + WAL；隐私脱敏提示；三平台路径收敛（AGENTS.md §5）；详见 `PLAN_WI014_SESSION_MIGRATION.md`。
+
 ---
 
 ## 4. 优先级与推荐开发顺序
@@ -237,10 +249,11 @@
 | | WI-012 | 国际化（i18n）（✅ 已完成 feature/wi-012-i18n） |
 | | WI-013 | 同步交互重设计（方向化命名 + 逐条勾选对齐）（✅ 已完成 PR #19） |
 | **P2 中** | WI-001 | 后台常驻与系统托盘（✅ 已完成） |
-| | WI-004 | 首启卡顿定位与研究 |
 | | WI-007 | 应用日志系统（✅ 已完成） |
-| | WI-008 | 同步中心增强 |
-| **P3 低** | WI-002 | 插件卡片 tag / 备注 / 描述 |
+| | WI-008 | 同步中心增强（✅ 已完成 PR #22） |
+| | WI-014 | 会话清单与迁移（备份+交接文档） |
+| **P3 低** | WI-002 | 插件卡片 tag / 备注 / 描述（⭐ 下一步） |
+| | WI-004 | 首启卡顿定位与研究 |
 | | WI-010 | MCP Server 配置总线（推后） |
 
 ### 4.2 推荐开发顺序
@@ -252,14 +265,15 @@
 | 3 | T1 | WI-003 | 一键启动 dsh | P1 | 独立功能，可并行 |
 | 4 | T1 | WI-005 | 插件选择性同步 | P1 | 插件管理核心；→ 并入 WI-013 |
 | 5 | T1 | WI-009 | DSH 版本管理 | P1 | ✅ 已完成 v1.0.6；依赖 WI-006 快照 |
-| 6 | T1 | WI-008 | 同步中心增强 | P2 | 联动 WI-005 / WI-006 统一设计；→ 并入 WI-013 |
+| 6 | T1 | WI-008 | 同步中心增强 | P2 | ✅ 已完成（PR #22）；→ 并入 WI-013 |
 | 7 | T1 | WI-013 | 同步交互重设计 | P1 | ✅ 已完成（PR #19）；吸收 WI-005 / WI-008 的勾选与冲突解决 |
 | 8 | T2 基建 | WI-007 | 应用日志 | P2 | ✅ 已完成：基础设施，支撑 WI-004 排查 |
-| 9 | T2 | WI-004 | 首启卡顿研究 | P2 | 有日志支撑后再定位 |
+| 9 | T2 | WI-004 | 首启卡顿研究 | P3 | 有日志支撑后再定位；P3 后移（2026-08-25） |
 | 10 | T3 横切 | WI-012 | 国际化 | P1 | 横切大工程，插件核心完成后做 |
 | 11 | T4 体验完善 | WI-001 | 系统托盘 | P2 | ✅ 已完成（PR #21） |
-| 12 | T4 | WI-002 | 插件卡片 tag / 备注 | P3 | 低优先增强 |
+| 12 | T4 | WI-002 | 插件卡片 tag / 备注 | P3 | ⭐ 下一步 |
 | 13 | T5 远期 | WI-010 | MCP 总线 | P3 | 远期推后 |
+| 14 | T5 远期 | WI-014 | 会话清单与迁移 | P2 | 新需求；MVP 先做清单+备份/导出 |
 
 ---
 
@@ -295,10 +309,14 @@
 | 2026-08-24 | WI-013 完成 | DSH 插件同步与 Skills 同步均落地方向化命名 + 逐条勾选对齐（DSH 逐插件 decisions 合并 / Skills 逐文件 apply-push，双端 Node/Rust 对齐），提交 PR #19 |
 | 2026-08-25 | WI-003 完成 | 一键启动 dsh 已随 WI-009 落地，本次补失败堆栈捕获 + 一键复制：Rust `launch_dsh_web` 改 async + 4s 宽限窗口捕获 stderr，Node `launchDshWeb` 同步对齐，UI 失败展示 stderr + 复制按钮，EADDRINUSE 给「端口占用」hint 不算失败 |
 | 2026-08-25 | WI-012 完成 | 国际化（i18n）落地：vue-i18n v9 + zh/en 语言包 + 设置页语言切换（AppConfig.locale 双端持久化）；后端错误消息错误码化（TS/Rust 双端共享 code，前端查语言包）；主要页面与 store toast 抽取为 `t()` |
-| 2026-08-25 | WI-007 排期 | 整理 WI-007 开发提示词（`PROMPT_WI007_LOGGING.md`）并标记「计划中」，转入新会话开发；主会话仅负责需求管理与代码合入 |
+| 2026-08-25 | WI-007 排期 | 整理 WI-007 开发提示词并标记「计划中」，转入新会话开发；主会话仅负责需求管理与代码合入 |
 | 2026-08-25 | WI-007 完成 | 应用日志系统合入 main（merge `ad72963`）：Rust `logger.rs` + Node `logger.ts` 双端对齐 + 3 命令/3 路由 + 关键路径埋点 + `LogViewerModal.vue` UI + zh/en i18n + HANDOVER §8E + CHANGELOG `[Unreleased]`；WI-007 标记「已完成」，版本保持 v1.0.6 |
-| 2026-08-25 | WI-001 排期 | 生成 WI-001 开发提示词（`PROMPT_WI001_TRAY.md`）+ 验收清单（`REVIEW_WI001.md`）并标记「计划中 / ⭐ 下一步」；**合入流程改为 PR**（后续所有合入走 PR，不再直推 main） |
+| 2026-08-25 | WI-001 排期 | 生成 WI-001 开发提示词 + 验收清单并标记「计划中 / ⭐ 下一步」；**合入流程改为 PR**（后续所有合入走 PR，不再直推 main） |
 | 2026-08-25 | WI-001 完成 | 系统托盘与后台常驻经 **PR #21** 合入 main（mergeCommit `bde3f84`）：`tray-icon` 特性 + 托盘菜单（显示主窗口/退出）+ 关窗驻留 + 左键唤回（Windows/Linux）+ macOS 平台默认 + WI-007 埋点 + HANDOVER §8F + CHANGELOG；CI 全绿（Frontend Typecheck & Build + Rust cargo check）；因作者不能自批，经用户确认用 `--admin` 合入；WI-001 标记「已完成」 |
+| 2026-08-25 | WI-008 账目校正 + WI-004 后移 | 校正 WI-008 状态为「已完成」（PR #22 / merge `8e44dc4`，定时同步 + 同步历史，冲突解决随 WI-013）；WI-004 优先级 P2 → P3 并补「优先级后移（2026-08-25）」备注 |
+| 2026-08-25 | WI-008 完成 | 同步中心增强（定时同步 + 同步历史）合入 main（PR #22，merge `8e44dc4`）：定时同步 + 同步历史 + 单飞守卫，双端对齐；冲突解决随 WI-013 落地 |
+| 2026-08-25 | WI-002 完成 | 插件卡片 tag / 备注 / 描述 经 **PR #23** 提交合入（分支 `feature/wi-002-plugin-card-meta`）：description 回填 + tag 可点击筛选 + 顶部标签筛选条 + 备注行 + tag/备注存同步镜像随插件同步（不入 `~/.dsh` 事实源）+ 双端 API + 前端编辑弹窗 + zh/en i18n；版本保持 v1.0.6 |
+| 2026-08-28 | WI-014 立项 | 新增「会话清单与迁移」需求：可行性讨论 + 真机探测 4 个 Agent 会话存储格式（DSH=zstd JSONL / Claude=JSONL / Codex=JSONL / OpenCode=SQLite），锁定 MVP=清单+备份/导出、迁移=备份+交接文档、首期覆盖 DSH·Claude Code·Codex·OpenCode；产出 `PLAN_WI014_SESSION_MIGRATION.md` |
 
 ---
 

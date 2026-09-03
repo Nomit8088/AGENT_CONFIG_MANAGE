@@ -148,7 +148,7 @@ pub fn create_hardlink_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// 链接策略（能力枚举 × 平台 → 具体操作 + fallback 链）。见 PLAN_WI011_MULTI_PLATFORM.md §4.2.2。
+/// 链接策略（能力枚举 × 平台 → 具体操作 + fallback 链）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkStrategy {
     /// 默认：Windows junction / Unix symlink → 回退 hardlink-tree → 回退 copy。

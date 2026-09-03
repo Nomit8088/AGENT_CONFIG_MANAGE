@@ -6,7 +6,7 @@
   >
     <div class="flex items-center gap-3 min-w-0 flex-1">
       <div
-        class="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-xs transition-transform group-hover:scale-105"
+        class="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-xs"
         :class="protocolInfo.iconCls"
       >
         <component :is="iconFor(entry.kind)" class="w-4 h-4" />
@@ -62,6 +62,42 @@
             >req: v{{ entry.requiredVersion }}</span>
           </template>
         </div>
+
+        <div v-if="metaLine" class="mt-1 space-y-1">
+          <ClampText
+            v-if="entry.description"
+            :text="entry.description"
+            mode="truncate"
+            max-width-class="max-w-[50%]"
+            text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
+          />
+          <div v-if="entry.tags.length" class="flex items-center gap-1.5 flex-wrap">
+            <button
+              v-for="tag in visibleTags"
+              :key="tag"
+              type="button"
+              :title="t('plugins.filterByTag', { tag })"
+              class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
+              @click.stop="emit('filter-tag', tag)"
+            >{{ tag }}</button>
+            <button
+              v-if="hiddenTagCount > 0"
+              type="button"
+              :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
+              class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
+              @click.stop="tagsExpanded = !tagsExpanded"
+            >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
+          </div>
+          <div v-if="entry.note" class="flex items-start gap-1 text-[11px] text-slate-600 dark:text-white/70">
+            <StickyNote class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500/80" />
+            <ClampText
+              :text="entry.note"
+              :lines="2"
+              root-class="flex-1 min-w-0"
+              text-class="text-[11px] text-slate-600 dark:text-white/70"
+            />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -99,6 +135,16 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <button
+          v-if="canEditMeta"
+          type="button"
+          :title="t('plugins.metaEdit')"
+          class="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 flex items-center gap-1 transition-colors duration-200"
+          @click="openMetaEditor"
+        >
+          <Pencil class="w-3 h-3" />
+          <span>{{ t('plugins.metaEditShort') }}</span>
+        </button>
         <button
           v-if="isOrphan"
           type="button"
@@ -151,7 +197,7 @@
   <!-- 卡片形态 -->
   <div
     v-else
-    class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 hover:border-indigo-500/30 dark:hover:border-indigo-400/40 p-4 flex flex-col justify-between space-y-3.5 transition-all duration-250 hover:-translate-y-0.5 hover:shadow-md group"
+    class="rounded-xl bg-white dark:bg-[#14161f] border border-black/8 dark:border-white/8 hover:border-indigo-500/30 dark:hover:border-indigo-400/40 p-4 flex flex-col gap-3 transition-colors duration-200 group"
     :class="cardAccentClass"
   >
     <div>
@@ -229,14 +275,49 @@
           <span v-if="entry.requiredVersion" class="opacity-60 font-mono">req: v{{ entry.requiredVersion }}</span>
         </div>
       </div>
+
+      <ClampText
+        v-if="entry.description"
+        :text="entry.description"
+        :lines="2"
+        root-class="mt-2"
+        text-class="text-[11px] leading-relaxed text-slate-500 dark:text-white/60"
+      />
     </div>
 
-    <div class="flex items-center justify-between gap-1 pt-2 border-t border-black/5 dark:border-white/5 text-[11px]" @click.stop>
-      <span class="text-slate-400 dark:text-white/40 font-mono text-[10px] flex items-center gap-1">
-        <i data-lucide="check-circle" class="w-3 h-3 text-indigo-400"></i>
-        <span>就绪</span>
-      </span>
-      <div class="flex items-center gap-1">
+    <div class="flex items-center justify-between gap-2 pt-2 border-t border-black/5 dark:border-white/5 text-[11px]" @click.stop>
+      <div class="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+        <button
+          v-for="tag in visibleTags"
+          :key="tag"
+          type="button"
+          :title="t('plugins.filterByTag', { tag })"
+          class="text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10 hover:bg-slate-500/20 dark:hover:bg-white/15 transition-colors duration-200"
+          @click.stop="emit('filter-tag', tag)"
+        >{{ tag }}</button>
+        <button
+          v-if="hiddenTagCount > 0"
+          type="button"
+          :title="tagsExpanded ? t('plugins.collapse') : t('plugins.moreTags', { n: hiddenTagCount })"
+          class="text-[11px] px-2 py-0.5 rounded-md font-mono border border-dashed border-black/10 dark:border-white/10 text-slate-500 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/8 hover:text-slate-700 dark:hover:text-white/80 transition-colors duration-200"
+          @click.stop="tagsExpanded = !tagsExpanded"
+        >{{ tagsExpanded ? t('plugins.collapse') : `+${hiddenTagCount}` }}</button>
+        <span v-if="entry.note" class="flex items-center gap-1 min-w-0 text-slate-600 dark:text-white/70">
+          <StickyNote class="w-3.5 h-3.5 shrink-0 text-amber-500/80" />
+          <span class="truncate max-w-[200px]" :title="entry.note">{{ entry.note }}</span>
+        </span>
+        <button
+          v-if="canEditMeta"
+          type="button"
+          :title="t('plugins.metaEdit')"
+          class="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 flex items-center gap-1 transition-colors duration-200"
+          @click="openMetaEditor"
+        >
+          <Pencil class="w-3 h-3" />
+          <span>{{ t('plugins.metaEditShort') }}</span>
+        </button>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
         <button
           v-if="isOrphan"
           type="button"
@@ -285,10 +366,99 @@
       </div>
     </div>
   </div>
+
+  <!-- tag / 备注编辑弹窗（Teleport 到 body，避免卡片 grid 截断） -->
+  <Teleport to="body">
+    <div
+      v-if="metaEditing"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-colors duration-200"
+      @click.self="metaEditing = false"
+    >
+      <div class="w-[min(560px,92vw)] max-h-[80vh] overflow-auto rounded-xl bg-white dark:bg-[#1c1d22] border border-black/8 dark:border-white/8 shadow-sm dark:shadow-none p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-serif text-sm text-slate-900 dark:text-white/95">{{ t('plugins.metaTitle') }}</h3>
+          <button
+            type="button"
+            @click="metaEditing = false"
+            class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-[#282a32] text-slate-500 dark:text-white/50 transition-colors duration-200"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <div v-if="entry.description" class="mt-3 text-xs text-slate-500 dark:text-white/60">
+          <span class="text-slate-400 dark:text-white/40">{{ t('plugins.metaDescription') }}</span>
+          <p class="mt-1 text-slate-600 dark:text-white/70">{{ entry.description }}</p>
+        </div>
+
+        <div class="mt-4">
+          <label class="text-xs font-medium text-slate-600 dark:text-white/70">{{ t('plugins.metaTags') }}</label>
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span
+              v-for="tag in draftTags"
+              :key="tag"
+              class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md font-mono border bg-slate-500/10 text-slate-700 dark:text-white/80 border-black/10 dark:border-white/10"
+            >
+              {{ tag }}
+              <button type="button" @click="removeTag(tag)" class="text-slate-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-colors duration-200">
+                <X class="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+          <div class="mt-2 flex items-center gap-1.5">
+            <input
+              v-model="draftTagInput"
+              type="text"
+              :maxlength="MAX_PLUGIN_TAG_LEN"
+              :placeholder="t('plugins.metaTagPlaceholder')"
+              class="flex-1 bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+              @keyup.enter.prevent="addTag"
+            />
+            <button
+              type="button"
+              :disabled="draftTags.length >= MAX_PLUGIN_TAGS"
+              @click="addTag"
+              class="p-1.5 rounded-lg bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/30 hover:bg-[#8b5cf6]/15 transition-colors duration-200 disabled:opacity-40"
+            >
+              <Plus class="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p class="mt-1 text-[10px] text-slate-400 dark:text-white/40">{{ t('plugins.metaTagHint', { max: MAX_PLUGIN_TAGS, len: MAX_PLUGIN_TAG_LEN }) }}</p>
+        </div>
+
+        <div class="mt-3">
+          <label class="text-xs font-medium text-slate-600 dark:text-white/70">{{ t('plugins.metaNote') }}</label>
+          <textarea
+            v-model="draftNote"
+            rows="3"
+            :maxlength="MAX_PLUGIN_NOTE_LEN"
+            :placeholder="t('plugins.metaNotePlaceholder')"
+            class="mt-1.5 w-full resize-none bg-white dark:bg-[#121316] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white/90 placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors duration-200"
+          ></textarea>
+          <p class="mt-1 text-[10px] text-slate-400 dark:text-white/40">{{ t('plugins.metaNoteHint', { max: MAX_PLUGIN_NOTE_LEN }) }}</p>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            @click="metaEditing = false"
+            class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-medium text-slate-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/8 transition-colors duration-200"
+          >{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            :disabled="metaSaving"
+            @click="saveMeta"
+            class="px-3 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-medium transition-colors duration-200 disabled:opacity-50"
+          >{{ t('common.save') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Package,
   CircleDot,
@@ -299,6 +469,10 @@ import {
   RefreshCw,
   Download,
   AlertTriangle,
+  Pencil,
+  StickyNote,
+  Plus,
+  X,
 } from 'lucide-vue-next';
 import type {
   DshPluginInstallEntry,
@@ -306,6 +480,7 @@ import type {
   DshPluginKind,
   DshPluginUpdateCheck,
 } from '../types';
+import ClampText from './ClampText.vue';
 
 const props = defineProps<{
   entry: DshPluginInstallEntry;
@@ -321,12 +496,72 @@ const emit = defineEmits<{
   (e: 'show-error', stack: string): void;
   (e: 'check-update', entry: DshPluginInstallEntry): void;
   (e: 'update', entry: DshPluginInstallEntry): void;
+  (e: 'save-meta', entry: DshPluginInstallEntry, tags: string[], note: string): void;
+  (e: 'filter-tag', tag: string): void;
 }>();
+
+const { t } = useI18n();
+
+const MAX_PLUGIN_TAGS = 10;
+const MAX_PLUGIN_TAG_LEN = 32;
+const MAX_PLUGIN_NOTE_LEN = 500;
+
+const metaEditing = ref(false);
+const metaSaving = ref(false);
+const draftTags = ref<string[]>([]);
+const draftTagInput = ref('');
+const draftNote = ref('');
 
 const entry = computed(() => props.entry);
 const isInbox = computed(() => entry.value.kind === 'inbox');
 const isOrphan = computed(() => entry.value.status === 'orphan');
 const showToggle = computed(() => !isInbox.value && !isOrphan.value);
+const canEditMeta = computed(() => !isInbox.value);
+const metaLine = computed(
+  () => Boolean(entry.value.description || (entry.value.tags?.length ?? 0) > 0 || entry.value.note)
+);
+
+// 标签超量折叠：默认只显示前 MAX_VISIBLE_TAGS 个，其余收进「+N」可点击展开
+const MAX_VISIBLE_TAGS = 3;
+const tagsExpanded = ref(false);
+const visibleTags = computed(() =>
+  tagsExpanded.value ? (entry.value.tags || []) : (entry.value.tags || []).slice(0, MAX_VISIBLE_TAGS)
+);
+const hiddenTagCount = computed(() => Math.max(0, (entry.value.tags?.length ?? 0) - MAX_VISIBLE_TAGS));
+
+function openMetaEditor() {
+  draftTags.value = [...(entry.value.tags || [])];
+  draftNote.value = entry.value.note || '';
+  draftTagInput.value = '';
+  metaEditing.value = true;
+}
+
+function addTag() {
+  const t2 = draftTagInput.value.trim().slice(0, MAX_PLUGIN_TAG_LEN);
+  if (!t2) return;
+  if (draftTags.value.includes(t2)) {
+    draftTagInput.value = '';
+    return;
+  }
+  if (draftTags.value.length >= MAX_PLUGIN_TAGS) return;
+  draftTags.value.push(t2);
+  draftTagInput.value = '';
+}
+
+function removeTag(tag: string) {
+  draftTags.value = draftTags.value.filter(x => x !== tag);
+}
+
+function saveMeta() {
+  if (metaSaving.value) return;
+  metaSaving.value = true;
+  try {
+    emit('save-meta', props.entry, draftTags.value, draftNote.value.trim());
+  } finally {
+    metaSaving.value = false;
+    metaEditing.value = false;
+  }
+}
 const updateAvailable = computed(() => Boolean(props.updateCheck?.updateAvailable));
 const canCheckUpdate = computed(
   () =>
@@ -348,7 +583,7 @@ const protocolInfo = computed(() => {
     return {
       label: 'OFFICIAL',
       cls: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-      iconCls: 'bg-gradient-to-br from-indigo-500/15 to-purple-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+      iconCls: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
     };
   }
   if (entry.value.kind === 'row') {

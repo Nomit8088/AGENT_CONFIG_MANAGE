@@ -156,6 +156,7 @@ export interface DshPluginEntry {
   kind: DshPluginKind;      // inbox=内置 dsh-* / bundle=用户 bundle / plain=无 dsh.bundle 依赖 / row=patch 行
   spec?: string;            // 依赖规格（version / link: / file: / git+）
   installedVersion?: string;
+  description?: string;     // 从 node_modules/<pkg>/package.json 回填（WI-002）
   enabled: boolean;
   portability: 'portable' | 'unportable'; // link:/file:/git+ => unportable
   disabledBy?: 'bundles' | 'patch';
@@ -211,6 +212,12 @@ export type DshPluginInstallStatus =
 
 export type DshInstallMode = 'incremental' | 'update' | 'reinstall-all' | 'reinstall-failed';
 
+/** 插件卡片本地元信息（WI-002）：只存 AgentHub 本地缓存，不入 ~/.dsh、不入同步镜像。 */
+export interface DshPluginMetaItem {
+  tags: string[];
+  note: string;
+}
+
 export interface DshPluginInstallEntry {
   key: string;                 // bundle:<pkg> | dep:<pkg> | row:<id> | orphan:<pkg>
   profileName: string;
@@ -221,6 +228,9 @@ export interface DshPluginInstallEntry {
   installed: boolean;          // node_modules 是否存在
   installedVersion?: string;
   requiredVersion?: string;    // lock 解析版本（无 lock 时用精确 spec）
+  description?: string;        // 从 node_modules/<pkg>/package.json 回填（WI-002）
+  tags: string[];              // 用户自定义 tag（本地缓存，WI-002）
+  note: string;                // 用户自定义备注（本地缓存，WI-002）
   status: DshPluginInstallStatus;
   installError?: string;       // 失败原因 + 堆栈（截断）
   portability: 'portable' | 'unportable';

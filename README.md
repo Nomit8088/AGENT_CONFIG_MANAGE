@@ -173,7 +173,7 @@ AgentHub 严格遵循 **macOS Vibrancy (毛玻璃极简)** 工业设计规范：
 
 #### macOS 未签名产物的 Gatekeeper 绕过
 
-本项目 macOS 产物当前**未做 Apple 签名与公证**（见 `PLAN_WI011_MULTI_PLATFORM.md` C2），首次打开会被 Gatekeeper 拦截。任选其一放行：
+本项目 macOS 产物当前**未做 Apple 签名与公证**，首次打开会被 Gatekeeper 拦截。任选其一放行：
 
 - **命令行一次性放行**（推荐）：
   ```bash

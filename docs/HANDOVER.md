@@ -439,7 +439,7 @@ npm run tauri build
 
 ## 8B. DSH 插件面板 V2 — 安装状态对账与安装器
 
-将「插件面板」从只读配置声明升级为「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账视图，补齐安装器能力（详见 `PLAN_DSH_PLUGIN_PANEL_V2.md`）：
+将「插件面板」从只读配置声明升级为「配置 ↔ 本机磁盘 ↔ 安装结果」三方对账视图，补齐安装器能力：
 
 | 能力 | 实现 |
 |---|---|
@@ -615,6 +615,41 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ---
 
+## 8H. 插件卡片元信息：tag / 备注 / 描述（WI-002）
+
+在 DSH 插件卡片上补齐「描述 / 标签 / 备注」三块信息，其中描述为派生展示、标签与备注为用户自定义并随 DSH 插件同步远程同步。
+
+### 能力与关键决策
+- **描述自动回填**：`reconcile_dsh_install`（Rust）/ `reconcileDshInstall`（Node）与 `scan_dsh_plugins` / `scanDshPlugins` 在扫描/对账时读取 `node_modules/<pkg>/package.json` 的 `description` 回填；缺失或未安装（`installed=false`）时兜底为空，UI 不显示该行。
+- **tag**：每条插件卡片可增删改多个 tag（上限 10 个、每个 ≤32 字符，去重、超长截断）；卡片上的 tag 为可点击 chip，点击即筛选；顶部另有「标签筛选条」（聚合计数、多选）；搜索框同时匹配 `description` / `tags` / `note`。
+- **备注**：每条插件卡片一条备注（≤500 字符），卡片内独立一行展示（图标 + `line-clamp` + 悬浮全文）。
+- **持久化与同步**：tag/note 存同步镜像 per-profile 文件 `dsh/profiles/<name>/agenthub-meta.json`，随 DSH 插件同步 push（`git add -A -- dsh`）/ pull（`git pull --ff-only`）一起远程同步；**不写 `~/.dsh` 的 `package.json` / `cordis.patch.yml`**，DSH 事实源不受影响；`description` 派生自 package.json、不落盘。该文件位于同步 git 树内，不再进共享 `.gitignore`。
+
+### 数据模型（双端 100% 对齐）
+```jsonc
+// %APPDATA%\AgentHub\dsh\profiles\<name>\agenthub-meta.json
+{
+  "<entry.key>": { "tags": ["..."], "note": "..." }
+}
+```
+- `entry.key` 复用稳定键：`bundle:<pkg>` / `dep:<pkg>` / `row:<id>` / `orphan:<pkg>`，保证重扫后 meta 不丢。
+- `DshPluginInstallEntry` 增加 `description?: string`、`tags: string[]`、`note: string`（卡片使用此类型）；`DshPluginEntry` 增加 `description?: string`（scan 也回填，供列表展示）。
+- Rust `DshPluginMetaItem { tags, note }` + `DshPluginInstallEntry` / `DshPluginEntry` 字段与 TS 一致（`#[serde(rename, default, skip_serializing_if...)]`）。
+
+### API 命令表（Tauri Command ↔ Web 路由双端对齐）
+| Tauri Command | Web 路由 | 说明 |
+|---|---|---|
+| `set_dsh_plugin_meta` | `POST /api/dsh/plugins/meta` | 保存某条目 tags/note（入参 `profile` + `key` + `tags` + `note`，写同步镜像 per-profile 文件） |
+
+- `description` 无需单独 set：reconcile 时后端回填；meta 直接 merge 进 reconcile 结果，UI 无需单独 get。
+
+### UI 与 i18n
+- `DshPluginRow.vue`：列表与卡片形态均展示 description / 可点击 tag / 备注行；新增「标签/备注」编辑弹窗（`Teleport` 到 body，避免卡片 grid 截断）；tag 点击 emit `filter-tag`。
+- `DshPluginList.vue`：顶部「标签筛选条」（聚合计数、多选切换），搜索覆盖 `description` / `tags` / `note`。
+- 文案走 `t()` + `src/locales/zh.ts` / `en.ts` 的 `plugins.*` 与 `toast.*` 命名空间。
+
+---
+
 ## 9. 后续演进建议与待办清单 (TODO)
 
 - [x] **应用本体在线更新**：支持 GitHub Releases 检查更新、下载（实时进度）与一键安装新版本（Session 48 落地；采用 GitHub Releases API + 安装包直装，无需 Tauri Updater 签名链路）。
@@ -636,6 +671,8 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
 
 ### 变更记录 (Changelog)
 
+- **2026-08-25 (Session — WI-002)**:
+  - **插件卡片 tag / 备注 / 描述**：新增 §8H 模块；`reconcile`/`scan` 回填 `node_modules/<pkg>/package.json` 的 `description`；卡片支持自定义 tag（≤10 个、每个 ≤32 字符）与备注（≤500 字符），tag 可点击筛选 + 顶部标签筛选条 + 搜索覆盖 description/tags/note；tag/note 存同步镜像 per-profile 文件 `dsh/profiles/<name>/agenthub-meta.json` 并随插件同步远程同步（不写 `~/.dsh` 事实源）；Rust `set_dsh_plugin_meta` 命令 + Node `POST /api/dsh/plugins/meta` 路由 + 前端 `DshPluginRow.vue`/`DshPluginList.vue` + zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-25 (Session — WI-008)**:
   - **同步中心增强（定时同步 + 同步历史）**：新增 §8G 模块；`sync_schedule` 配置（interval 定时静默快进拉取，禁止 auto-push）+ `sync_history.json` 历史（最新在前，保留 100 条，可查看/清空）；Rust `sync_scheduler.rs` 后台线程 + Node `setInterval` 双端调度、`sync_guard.rs` / `syncFlight.ts` 单飞守卫、`sync_history.rs` / `syncHistory.ts` 历史读写；Rust 4 命令 + Node 4 路由 + 前端 `SyncView.vue` 定时配置区/历史区 + zh/en i18n 双端对齐，版本保持 v1.0.6。
 - **2026-08-25 (Session — WI-001)**:
@@ -832,7 +869,7 @@ Tauri 桌面端新增系统托盘与后台常驻能力：关闭主窗口不再�
     - 验收：`npx tsc --noEmit` 零错误、`npm run build` 零错误零警告、`cargo check`（`src-tauri`）零错误零警告。
 
 - **2026-08-20 (Session 21)**:
-  - **DSH 插件面板 V2：安装状态对账与安装器（PLAN_DSH_PLUGIN_PANEL_V2 落地）**:
+  - **DSH 插件面板 V2：安装状态对账与安装器**:
     - 新增 `DshPluginInstallEntry` / `DshInstallFailure` / `DshInstallReport` / `DshInstallMode` / `DshPluginInstallStatus` 数据模型（TS + Rust `models.rs` 双端对齐）。
     - P1 全量状态对账：`reconcile_dsh_install`（Rust）/ `reconcileDshInstall`（Node）按「配置声明 ∪ 本机已装」生成 `ok / pending / orphan / version-mismatch / failed` 状态；内置 bundle 整体豁免；版本对比仅限语义化 spec 且只扫 `pnpm-lock.yaml` 的 `packages:` 段；孤儿只扫顶层 node_modules 并排除 `.bin` / `.pnpm` / 隐藏目录。
     - P2 分模式安装：`install_dsh_plugins_v2`（Rust）/ `installDshPluginsV2`（Node）支持 `incremental / update / reinstall-all / reinstall-failed`，异步执行 pnpm（Rust `spawn_blocking`；Node 异步 `spawn`，600s 超时）。

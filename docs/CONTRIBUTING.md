@@ -121,7 +121,7 @@ git push -u origin feat/your-feature-name
 - [ ] **CI 流水线全绿**：GitHub Actions 的 `Frontend Typecheck & Build` 必须全部通过；
 - [ ] **无控制台报错**：运行 `npm run dev` 打开浏览器开发者工具，无运行时 JavaScript/TypeScript 报错；
 - [ ] **Dual-Mode 双端对齐**：若涉及底层文件系统（NTFS Junction/Hardlink）或数据存储改动，**必须确保 Rust 端 (`src-tauri/src/`) 与 Node Web 端 (`src/server/localApi.ts`) 双向实现逻辑 100% 对齐**；
-- [ ] **Single Source of Truth 同步**：如新增了 Agent 适配或修改了 JSON Schema，必须同步更新 [HANDOVER.md](HANDOVER.md) 与 [README.md](README.md)。
+- [ ] **Single Source of Truth 同步**：如新增了 Agent 适配或修改了 JSON Schema，必须同步更新 [HANDOVER.md](HANDOVER.md) 与 [README.md](../README.md)。
 
 ---
 

@@ -672,7 +672,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
         });
 
     // Windows/Linux：左键单击唤回主窗口（右键仍弹出菜单）。
-    // macOS 保持平台默认行为：左键弹出菜单，不做左键唤回（PROMPT_WI001_TRAY.md §3.1.5）。
+    // macOS 保持平台默认行为：左键弹出菜单，不做左键唤回。
     #[cfg(not(target_os = "macos"))]
     {
         builder = builder
@@ -768,6 +768,7 @@ pub fn run() {
             dsh_plugins::install_dsh_plugins_v2,
             dsh_plugins::install_dsh_plugins_streamed,
             dsh_plugins::clear_dsh_install_state,
+            dsh_plugins::set_dsh_plugin_meta,
             dsh_plugins::check_dsh_plugin_update,
             dsh_plugins::update_dsh_plugin,
             dsh_plugins::create_dsh_config_snapshot,

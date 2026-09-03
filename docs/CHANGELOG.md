@@ -18,6 +18,11 @@ All notable changes to AgentHub are documented in this file.
 - 双端 API 对齐：Rust 新增 `get_sync_schedule` / `set_sync_schedule` / `get_sync_history` / `clear_sync_history` 命令，Node 同步新增 `GET/POST /api/sync/schedule` 与 `GET/DELETE /api/sync/history` 路由。
 - 同步历史覆盖 pull / push / apply / align / reset 动作，trigger 区分 manual / startup / scheduled；`sync_history.json` 加入共享仓库 `.gitignore`（双端统一补齐 `dsh_version_history.json` / `logs/` 等条目）。
 - 前端同步中心新增「定时同步配置区 + 同步历史区」（`SyncView.vue`），遵循 DESIGN_GUIDELINES（1px 细边框、`dark:` 前缀、分段滑块开关），全部文案走 `t()` + zh/en。
+- 插件卡片 tag / 备注 / 描述（WI-002）：reconcile / scan 时自动回填 `node_modules/<pkg>/package.json` 的 `description`（缺失/未安装不显示）；卡片支持用户自定义 tag（最多 10 个、每个 ≤32 字符）与备注（≤500 字符），增删改即时持久化。
+- tag / 备注存同步镜像 per-profile 文件 `dsh/profiles/<name>/agenthub-meta.json`，随 DSH 插件同步 push/pull 一起远程同步；不写 `~/.dsh` 的 `package.json` / `cordis.patch.yml`，DSH 事实源不受影响。
+- 卡片 tag 为可点击 chip（点击即筛选），顶部新增「标签筛选条」（聚合计数、多选切换），搜索框同时匹配 `description` / `tags` / `note`；备注在卡片内独立一行展示（图标 + line-clamp + 悬浮全文）。
+- 双端 API 对齐：Rust 新增 `set_dsh_plugin_meta` 命令，Node 新增 `POST /api/dsh/plugins/meta` 路由；`DshPluginEntry` / `DshPluginInstallEntry` 双端扩展 `description` / `tags` / `note` 字段。
+- 前端 `DshPluginRow.vue` 卡片与列表均展示 description / 可点击 tag / 备注行，新增「标签/备注」编辑弹窗（`Teleport` 到 body，避免卡片 grid 截断），文案走 `t()` + zh/en。
 
 ## [1.0.6] - 2026-08-24
 

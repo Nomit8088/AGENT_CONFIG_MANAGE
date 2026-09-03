@@ -151,6 +151,15 @@ function readInstalledVersion(profileDir: string, pkgName: string): string | und
   return undefined;
 }
 
+/** 从 node_modules/<pkg>/package.json 读取 description（WI-002 回填，缺失/未安装时 undefined）。 */
+function readInstalledDescription(profileDir: string, pkgName: string): string | undefined {
+  const parts = pkgName.split('/');
+  const pkgDir = path.join(profileDir, 'node_modules', ...parts);
+  const pkg = readPkgFromDir(pkgDir);
+  if (pkg && typeof pkg.description === 'string') return pkg.description;
+  return undefined;
+}
+
 // ==================== 安装状态持久化 ====================
 
 interface DshInstallStateItem {
@@ -180,6 +189,65 @@ function readInstallState(): DshInstallState {
 function writeInstallState(state: DshInstallState): void {
   fs.mkdirSync(appDataDir(), { recursive: true });
   fs.writeFileSync(installStateFile(), JSON.stringify(state, null, 2) + '\n', 'utf-8');
+}
+
+// ==================== 插件卡片元信息持久化 (WI-002) ====================
+// tag / note 存同步镜像的 per-profile 文件（dsh/profiles/<name>/agenthub-meta.json），
+// 随 DSH 插件同步 push/pull 一起远程同步；不写 ~/.dsh 的 package.json / cordis.patch.yml，
+// DSH 事实源不受影响。
+
+const MAX_PLUGIN_TAGS = 10;
+const MAX_PLUGIN_TAG_LEN = 32;
+const MAX_PLUGIN_NOTE_LEN = 500;
+
+interface DshPluginMetaItem {
+  tags: string[];
+  note: string;
+}
+
+type DshPluginMeta = Record<string, DshPluginMetaItem>;
+
+function pluginMetaFile(profile: string): string {
+  return path.join(dshMirrorDir(), 'profiles', profile, 'agenthub-meta.json');
+}
+
+function readPluginMeta(profile: string): DshPluginMeta {
+  const f = pluginMetaFile(profile);
+  if (fs.existsSync(f)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf-8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as DshPluginMeta;
+    } catch {}
+  }
+  return {};
+}
+
+function writePluginMeta(profile: string, meta: DshPluginMeta): void {
+  fs.mkdirSync(path.dirname(pluginMetaFile(profile)), { recursive: true });
+  fs.writeFileSync(pluginMetaFile(profile), JSON.stringify(meta, null, 2) + '\n', 'utf-8');
+}
+
+function sanitizeTags(tags: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of tags) {
+    const t = String(raw ?? '').trim().slice(0, MAX_PLUGIN_TAG_LEN);
+    if (!t || out.includes(t)) continue;
+    out.push(t);
+    if (out.length >= MAX_PLUGIN_TAGS) break;
+  }
+  return out;
+}
+
+function sanitizeNote(note: string): string {
+  return String(note ?? '').trim().slice(0, MAX_PLUGIN_NOTE_LEN);
+}
+
+/** 保存某条目 tags/note（幂等覆盖；不写 description，description 由后端 reconcile 回填）。 */
+export function setDshPluginMeta(profile: string, key: string, tags: string[], note: string): void {
+  const profileName = (profile || '').trim() || 'web';
+  const meta = readPluginMeta(profileName);
+  meta[key] = { tags: sanitizeTags(tags), note: sanitizeNote(note) };
+  writePluginMeta(profileName, meta);
 }
 
 export function clearDshInstallState(profile: string, pkg?: string): void {
@@ -404,6 +472,16 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
   const profileState = state[profileName] || {};
   const installedSet = new Set(listInstalledTopLevelPkgs(profileDir));
 
+  // WI-002：元信息（tags/note）从同步镜像 per-profile 文件读取并 merge 进对账结果；description 由 package.json 派生。
+  const profileMeta = readPluginMeta(profileName);
+  const metaFor = (key: string): DshPluginMetaItem => {
+    const m = profileMeta[key];
+    return {
+      tags: Array.isArray(m?.tags) ? m.tags : [],
+      note: typeof m?.note === 'string' ? m.note : '',
+    };
+  };
+
   const entries: DshPluginInstallEntry[] = [];
   const declaredPkgNames = new Set<string>();
 
@@ -412,6 +490,9 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
     const isInbox = kind === 'inbox' || name.startsWith(BUILTIN_BUNDLE_PREFIX);
     const installed = installedSet.has(name);
     const installedVersion = installed ? readInstalledVersion(profileDir, name) : undefined;
+    const description = installed ? readInstalledDescription(profileDir, name) : undefined;
+    const key = isInbox ? `bundle:${name}` : `${kind === 'plain' ? 'dep' : 'bundle'}:${name}`;
+    const { tags, note } = metaFor(key);
 
     let requiredVersion: string | undefined;
     if (isSemverSpec(spec)) {
@@ -424,7 +505,7 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
     // 1) 内置 bundle 直接 ok（Harness 运行时解析，不在 profile node_modules 中）
     if (isInbox) {
       entries.push({
-        key: `bundle:${name}`,
+        key,
         profileName,
         name,
         kind: 'inbox',
@@ -433,6 +514,9 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
         installed: false,
         installedVersion: undefined,
         requiredVersion: undefined,
+        description,
+        tags,
+        note,
         status: 'ok',
         portability: 'portable',
         enabled,
@@ -465,7 +549,7 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
     }
 
     entries.push({
-      key: `${kind === 'plain' ? 'dep' : 'bundle'}:${name}`,
+      key,
       profileName,
       name,
       kind,
@@ -474,6 +558,9 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
       installed,
       installedVersion,
       requiredVersion,
+      description,
+      tags,
+      note,
       status,
       installError,
       portability: isPortableSpec(spec) ? 'portable' : 'unportable',
@@ -503,14 +590,19 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
   let rowIdx = 0;
   for (const row of patchRows) {
     const rowName = row.id || row.name || `row-${rowIdx}`;
+    const rowKey = `row:${rowName}`;
+    const { tags, note } = metaFor(rowKey);
     entries.push({
-      key: `row:${rowName}`,
+      key: rowKey,
       profileName,
       name: rowName,
       kind: 'row',
       spec: undefined,
       declaredInConfig: true,
       installed: false,
+      description: undefined,
+      tags,
+      note,
       status: 'ok',
       portability: 'portable',
       enabled: !row.disabled,
@@ -527,8 +619,11 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
     .sort();
   for (const o of orphans) {
     const installedVersion = readInstalledVersion(profileDir, o);
+    const description = readInstalledDescription(profileDir, o);
+    const orphanKey = `orphan:${o}`;
+    const { tags, note } = metaFor(orphanKey);
     entries.push({
-      key: `orphan:${o}`,
+      key: orphanKey,
       profileName,
       name: o,
       kind: 'plain',
@@ -537,6 +632,9 @@ export function reconcileDshInstall(profile: string): DshPluginInstallEntry[] {
       installed: true,
       installedVersion,
       requiredVersion: undefined,
+      description,
+      tags,
+      note,
       status: 'orphan',
       portability: 'portable',
       enabled: false,
@@ -1207,6 +1305,7 @@ function scanProfile(profilesDir: string, name: string): DshProfileScan {
       kind: isInbox ? 'inbox' : 'bundle',
       spec,
       installedVersion: readInstalledVersion(dir, b),
+      description: readInstalledDescription(dir, b),
       enabled: !patchDisabled,
       portability: isPortableSpec(spec) ? 'portable' : 'unportable',
       disabledBy: patchDisabled ? 'patch' : undefined,
@@ -1223,6 +1322,7 @@ function scanProfile(profilesDir: string, name: string): DshProfileScan {
       kind: 'plain',
       spec,
       installedVersion: readInstalledVersion(dir, dep),
+      description: readInstalledDescription(dir, dep),
       enabled: false, // 已安装但未作为 bundle 激活
       portability: isPortableSpec(spec) ? 'portable' : 'unportable',
       disabledBy: undefined,
